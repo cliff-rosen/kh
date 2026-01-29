@@ -413,16 +413,26 @@ async def _process_tools(
                 if cancellation_token.is_cancelled:
                     raise asyncio.CancelledError(f"Tool {tool_name} cancelled before execution")
 
-                # Run tool executor - may return a generator for streaming tools
-                tool_result = await asyncio.to_thread(
-                    tool_config.executor,
-                    tool_input,
-                    db,
-                    user_id,
-                    context
-                )
+                # Check if executor is async (coroutine function)
+                if asyncio.iscoroutinefunction(tool_config.executor):
+                    # Async executor - await it directly
+                    tool_result = await tool_config.executor(
+                        tool_input,
+                        db,
+                        user_id,
+                        context
+                    )
+                else:
+                    # Sync executor - run in thread pool
+                    tool_result = await asyncio.to_thread(
+                        tool_config.executor,
+                        tool_input,
+                        db,
+                        user_id,
+                        context
+                    )
 
-                # Check if result is a generator (streaming tool)
+                # Check if result is a generator (streaming tool - sync only)
                 if hasattr(tool_result, '__next__'):
                     # It's a generator - collect progress and result
                     def run_generator(gen):

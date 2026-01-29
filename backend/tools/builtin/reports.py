@@ -3,95 +3,66 @@ Report Tools
 
 Tools for exploring reports, articles, and notes within research streams.
 These tools are available on the reports page and article modal views.
+
+All tools are async and use the ReportService for database access.
 """
 
 import logging
 from typing import Any, Dict, List, Union
 
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tools.registry import ToolConfig, ToolResult, register_tool
-from models import Report, Article, ReportArticleAssociation, User
 
 logger = logging.getLogger(__name__)
 
 
-def execute_list_stream_reports(
+# =============================================================================
+# Tool Executors (Async)
+# =============================================================================
+
+async def execute_list_stream_reports(
     params: Dict[str, Any],
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
-    """
-    List all reports for the current research stream.
-    """
-    import asyncio
-    from sqlalchemy import select, func as sql_func
-    from database import AsyncSessionLocal
+    """List all reports for the current research stream."""
+    from services.report_service import ReportService
 
     stream_id = context.get("stream_id") or params.get("stream_id")
 
     if not stream_id:
         return "Error: No stream context available. This tool requires being on a report page."
 
-    async def _list_reports():
-        async with AsyncSessionLocal() as async_db:
-            # Get reports for the stream
-            stmt = select(Report).where(
-                Report.research_stream_id == stream_id
-            ).order_by(Report.report_date.desc())
-            result = await async_db.execute(stmt)
-            reports = result.scalars().all()
-
-            if not reports:
-                return None, "No reports found for this research stream."
-
-            # Get article counts for each report
-            report_ids = [r.report_id for r in reports]
-            count_stmt = select(
-                ReportArticleAssociation.report_id,
-                sql_func.count(ReportArticleAssociation.article_id).label('count')
-            ).where(
-                ReportArticleAssociation.report_id.in_(report_ids)
-            ).group_by(ReportArticleAssociation.report_id)
-            count_result = await async_db.execute(count_stmt)
-            counts = {row.report_id: row.count for row in count_result}
-
-            return reports, counts
-
     try:
-        result = asyncio.run(_list_reports())
-        if result[0] is None:
-            return result[1]  # Error message
+        service = ReportService(db)
+        reports = await service.get_reports_for_stream(stream_id, user_id)
 
-        reports, counts = result
+        if not reports:
+            return "No reports found for this research stream."
 
         # Format results for LLM
         text_lines = [f"Found {len(reports)} reports for this research stream:\n"]
-
         reports_data = []
-        for i, report in enumerate(reports, 1):
-            article_count = counts.get(report.report_id, 0)
 
+        for i, report in enumerate(reports, 1):
             # Get key highlights preview
             highlights_preview = ""
             if report.key_highlights:
                 highlights_preview = report.key_highlights[:200] + "..." if len(report.key_highlights) > 200 else report.key_highlights
 
             text_lines.append(f"""
-            {i}. Report ID: {report.report_id}
-            Name: {report.report_name}
-            Date: {report.report_date.strftime('%Y-%m-%d') if report.report_date else 'Unknown'}
-            Articles: {article_count}
-            Highlights: {highlights_preview or 'None'}
-            """)
+{i}. Report ID: {report.report_id}
+   Name: {report.report_name}
+   Date: {report.report_date.strftime('%Y-%m-%d') if report.report_date else 'Unknown'}
+   Highlights: {highlights_preview or 'None'}
+""")
 
             reports_data.append({
                 "report_id": report.report_id,
                 "report_name": report.report_name,
                 "report_date": report.report_date.isoformat() if report.report_date else None,
-                "article_count": article_count,
                 "has_highlights": bool(report.key_highlights),
                 "has_thematic_analysis": bool(report.thematic_analysis)
             })
@@ -112,46 +83,29 @@ def execute_list_stream_reports(
         return f"Error listing reports: {str(e)}"
 
 
-def execute_get_report_summary(
+async def execute_get_report_summary(
     params: Dict[str, Any],
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
-    """
-    Get the summary, highlights, and thematic analysis for a specific report.
-    """
-    import asyncio
-    from sqlalchemy import select, func as sql_func
-    from database import AsyncSessionLocal
+    """Get the summary, highlights, and thematic analysis for a specific report."""
+    from services.report_service import ReportService
 
     report_id = params.get("report_id") or context.get("report_id")
 
     if not report_id:
         return "Error: No report_id provided or available in context."
 
-    async def _get_report():
-        async with AsyncSessionLocal() as async_db:
-            stmt = select(Report).where(Report.report_id == report_id)
-            result = await async_db.execute(stmt)
-            report = result.scalars().first()
-
-            if not report:
-                return None, 0
-
-            count_stmt = select(sql_func.count(ReportArticleAssociation.article_id)).where(
-                ReportArticleAssociation.report_id == report_id
-            )
-            count_result = await async_db.execute(count_stmt)
-            article_count = count_result.scalar() or 0
-
-            return report, article_count
-
     try:
-        report, article_count = asyncio.run(_get_report())
+        service = ReportService(db)
+        result = await service.get_report_with_articles(user_id, report_id)
 
-        if not report:
+        if not result:
             return f"No report found with ID: {report_id}"
+
+        report = result.report
+        article_count = result.article_count
 
         # Extract enrichments if available
         enrichments = report.enrichments or {}
@@ -159,21 +113,21 @@ def execute_get_report_summary(
         category_summaries = enrichments.get("category_summaries", [])
 
         text_result = f"""
-        === Report Summary ===
-        Report: {report.report_name}
-        Report ID: {report.report_id}
-        Date: {report.report_date.strftime('%Y-%m-%d') if report.report_date else 'Unknown'}
-        Total Articles: {article_count}
+=== Report Summary ===
+Report: {report.report_name}
+Report ID: {report.report_id}
+Date: {report.report_date.strftime('%Y-%m-%d') if report.report_date else 'Unknown'}
+Total Articles: {article_count}
 
-        === Key Highlights ===
-        {report.key_highlights or 'No key highlights available.'}
+=== Key Highlights ===
+{report.key_highlights or 'No key highlights available.'}
 
-        === Thematic Analysis ===
-        {report.thematic_analysis or 'No thematic analysis available.'}
+=== Thematic Analysis ===
+{report.thematic_analysis or 'No thematic analysis available.'}
 
-        === Executive Summary ===
-        {executive_summary or 'No executive summary available.'}
-        """
+=== Executive Summary ===
+{executive_summary or 'No executive summary available.'}
+"""
 
         if category_summaries:
             text_result += "\n=== Category Summaries ===\n"
@@ -203,9 +157,9 @@ def execute_get_report_summary(
         return f"Error getting report summary: {str(e)}"
 
 
-def execute_get_report_articles(
+async def execute_get_report_articles(
     params: Dict[str, Any],
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
@@ -215,8 +169,6 @@ def execute_get_report_articles(
     - condensed: Basic info (PMID, title, date, journal, categories)
     - expanded: Full info including abstract
     """
-    import asyncio
-    from database import AsyncSessionLocal
     from services.report_service import ReportService
 
     report_id = params.get("report_id") or context.get("report_id")
@@ -228,13 +180,9 @@ def execute_get_report_articles(
     if not report_id:
         return "Error: No report_id provided or available in context."
 
-    async def _get_articles():
-        async with AsyncSessionLocal() as async_db:
-            service = ReportService(async_db)
-            return await service.get_report_with_articles(user_id, report_id)
-
     try:
-        result = asyncio.run(_get_articles())
+        service = ReportService(db)
+        result = await service.get_report_with_articles(user_id, report_id)
 
         if not result:
             return f"No report found with ID {report_id} or access denied."
@@ -314,19 +262,16 @@ def execute_get_report_articles(
         return f"Error getting report articles: {str(e)}"
 
 
-def execute_search_articles_in_reports(
+async def execute_search_articles_in_reports(
     params: Dict[str, Any],
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
-    """
-    Search for articles across all reports in the current stream.
-    Searches in title, abstract, and journal.
-    """
-    import asyncio
-    from sqlalchemy import select, func as sql_func
-    from database import AsyncSessionLocal
+    """Search for articles across all reports in the current stream."""
+    from sqlalchemy import select, or_
+    from sqlalchemy.sql import func as sql_func
+    from models import Report, Article, ReportArticleAssociation
 
     query = params.get("query", "").strip()
     stream_id = context.get("stream_id") or params.get("stream_id")
@@ -338,47 +283,42 @@ def execute_search_articles_in_reports(
     if not stream_id:
         return "Error: No stream context available."
 
-    async def _search():
-        async with AsyncSessionLocal() as async_db:
-            # Get all reports for this stream
-            report_stmt = select(Report.report_id).where(
-                Report.research_stream_id == stream_id
-            )
-            report_result = await async_db.execute(report_stmt)
-            report_ids = [r[0] for r in report_result.all()]
-
-            if not report_ids:
-                return None, "No reports found for this stream."
-
-            # Search articles in these reports
-            search_term = f"%{query}%"
-            search_stmt = select(
-                Article, ReportArticleAssociation, Report
-            ).join(
-                ReportArticleAssociation,
-                Article.article_id == ReportArticleAssociation.article_id
-            ).join(
-                Report,
-                ReportArticleAssociation.report_id == Report.report_id
-            ).where(
-                ReportArticleAssociation.report_id.in_(report_ids),
-                or_(
-                    Article.title.ilike(search_term),
-                    Article.abstract.ilike(search_term),
-                    Article.journal.ilike(search_term),
-                    Article.authors.ilike(search_term)
-                )
-            ).order_by(
-                sql_func.coalesce(ReportArticleAssociation.relevance_score, -1).desc()
-            ).limit(max_results)
-
-            search_result = await async_db.execute(search_stmt)
-            return search_result.all(), None
-
     try:
-        results, error = asyncio.run(_search())
-        if error:
-            return error
+        # Get all reports for this stream
+        report_stmt = select(Report.report_id).where(
+            Report.research_stream_id == stream_id,
+            Report.user_id == user_id
+        )
+        report_result = await db.execute(report_stmt)
+        report_ids = [r[0] for r in report_result.all()]
+
+        if not report_ids:
+            return "No reports found for this stream."
+
+        # Search articles in these reports
+        search_term = f"%{query}%"
+        search_stmt = select(
+            Article, ReportArticleAssociation, Report
+        ).join(
+            ReportArticleAssociation,
+            Article.article_id == ReportArticleAssociation.article_id
+        ).join(
+            Report,
+            ReportArticleAssociation.report_id == Report.report_id
+        ).where(
+            ReportArticleAssociation.report_id.in_(report_ids),
+            or_(
+                Article.title.ilike(search_term),
+                Article.abstract.ilike(search_term),
+                Article.journal.ilike(search_term),
+                Article.authors.ilike(search_term)
+            )
+        ).order_by(
+            sql_func.coalesce(ReportArticleAssociation.relevance_score, -1).desc()
+        ).limit(max_results)
+
+        search_result = await db.execute(search_stmt)
+        results = search_result.all()
 
         if not results:
             return f"No articles found matching '{query}' in this stream's reports."
@@ -390,7 +330,6 @@ def execute_search_articles_in_reports(
             # Create snippet from abstract
             abstract_snippet = ""
             if article.abstract:
-                # Find query in abstract for context
                 lower_abstract = article.abstract.lower()
                 lower_query = query.lower()
                 pos = lower_abstract.find(lower_query)
@@ -402,13 +341,13 @@ def execute_search_articles_in_reports(
                     abstract_snippet = article.abstract[:150] + "..."
 
             text_lines.append(f"""
-            {i}. "{article.title}"
-            PMID: {article.pmid}
-            Journal: {article.journal} ({article.year or 'Unknown'})
-            Report: {report.report_name} ({report.report_date.strftime('%Y-%m-%d') if report.report_date else 'Unknown'})
-            Relevance Score: {assoc.relevance_score or 'N/A'}
-            Context: {abstract_snippet}
-            """)
+{i}. "{article.title}"
+   PMID: {article.pmid}
+   Journal: {article.journal} ({article.year or 'Unknown'})
+   Report: {report.report_name} ({report.report_date.strftime('%Y-%m-%d') if report.report_date else 'Unknown'})
+   Relevance Score: {assoc.relevance_score or 'N/A'}
+   Context: {abstract_snippet}
+""")
 
             articles_data.append({
                 "article_id": article.article_id,
@@ -437,18 +376,17 @@ def execute_search_articles_in_reports(
         return f"Error searching articles: {str(e)}"
 
 
-def execute_get_article_details(
+async def execute_get_article_details(
     params: Dict[str, Any],
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
-    """
-    Get full details of a specific article including notes and relevance info.
-    """
-    import asyncio
-    from sqlalchemy import select
-    from database import AsyncSessionLocal
+    """Get full details of a specific article including notes and relevance info."""
+    from services.article_service import ArticleService
+    from services.report_article_association_service import ReportArticleAssociationService
+    from services.notes_service import NotesService
+    from services.user_service import UserService
 
     article_id = params.get("article_id")
     pmid = params.get("pmid")
@@ -457,74 +395,56 @@ def execute_get_article_details(
     if not article_id and not pmid:
         return "Error: Either article_id or pmid must be provided."
 
-    async def _get_details():
-        async with AsyncSessionLocal() as async_db:
-            # Build query
-            if article_id:
-                stmt = select(Article).where(Article.article_id == article_id)
-            else:
-                stmt = select(Article).where(Article.pmid == pmid)
-
-            result = await async_db.execute(stmt)
-            article = result.scalars().first()
-
-            if not article:
-                return None, None, []
-
-            # Get association info if report context available
-            assoc = None
-            notes = []
-            if report_id:
-                assoc_stmt = select(ReportArticleAssociation).where(
-                    and_(
-                        ReportArticleAssociation.report_id == report_id,
-                        ReportArticleAssociation.article_id == article.article_id
-                    )
-                )
-                assoc_result = await async_db.execute(assoc_stmt)
-                assoc = assoc_result.scalars().first()
-
-                # Get notes - use sync service in thread
-                if assoc:
-                    user_stmt = select(User).where(User.user_id == user_id)
-                    user_result = await async_db.execute(user_stmt)
-                    user = user_result.scalars().first()
-                    if user:
-                        # NotesService needs sync session, skip for now
-                        # TODO: Convert NotesService to async
-                        pass
-
-            return article, assoc, notes
-
     try:
-        article, assoc, notes = asyncio.run(_get_details())
+        article_service = ArticleService(db)
+
+        # Get article
+        if article_id:
+            article = await article_service.get_by_id(article_id)
+        else:
+            article = await article_service.get_by_pmid(pmid)
 
         if not article:
             return f"No article found with {'ID ' + str(article_id) if article_id else 'PMID ' + str(pmid)}"
 
-        text_result = f"""
-        === Article Details ===
-        Title: {article.title}
-        PMID: {article.pmid}
-        DOI: {article.doi or 'N/A'}
-        Authors: {article.authors}
-        Journal: {article.journal}
-        Year: {article.year}
-        Volume: {article.volume}, Issue: {article.issue}, Pages: {article.pages}
+        # Get association info if report context available
+        assoc = None
+        notes = []
+        if report_id:
+            assoc_service = ReportArticleAssociationService(db)
+            assoc = await assoc_service.find(report_id, article.article_id)
 
-        === Abstract ===
-        {article.abstract or 'No abstract available.'}
-        """
+            # Get notes
+            if assoc:
+                user_service = UserService(db)
+                user = await user_service.get_user(user_id)
+                if user:
+                    notes_service = NotesService(db)
+                    notes = await notes_service.get_notes(report_id, article.article_id, user)
+
+        text_result = f"""
+=== Article Details ===
+Title: {article.title}
+PMID: {article.pmid}
+DOI: {article.doi or 'N/A'}
+Authors: {article.authors}
+Journal: {article.journal}
+Year: {article.year}
+Volume: {article.volume}, Issue: {article.issue}, Pages: {article.pages}
+
+=== Abstract ===
+{article.abstract or 'No abstract available.'}
+"""
 
         if assoc:
             text_result += f"""
-            === Report Context ===
-            Relevance Score: {assoc.relevance_score or 'N/A'}
-            Relevance Rationale: {assoc.relevance_rationale or 'N/A'}
-            Ranking: {assoc.ranking or 'N/A'}
-            User Starred: {'Yes' if assoc.is_starred else 'No'}
-            User Read: {'Yes' if assoc.is_read else 'No'}
-            """
+=== Report Context ===
+Relevance Score: {assoc.relevance_score or 'N/A'}
+Relevance Rationale: {assoc.relevance_rationale or 'N/A'}
+Ranking: {assoc.ranking or 'N/A'}
+User Starred: {'Yes' if assoc.is_starred else 'No'}
+User Read: {'Yes' if assoc.is_read else 'No'}
+"""
 
             if assoc.ai_enrichments:
                 enrichments = assoc.ai_enrichments
@@ -563,19 +483,15 @@ def execute_get_article_details(
         return f"Error getting article details: {str(e)}"
 
 
-def execute_get_notes_for_article(
+async def execute_get_notes_for_article(
     params: Dict[str, Any],
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
-    """
-    Get all notes for a specific article in a report.
-    """
-    import asyncio
-    from sqlalchemy import select
-    from database import AsyncSessionLocal
-    from services.notes_service import NotesService as AsyncNotesService
+    """Get all notes for a specific article in a report."""
+    from services.notes_service import NotesService
+    from services.user_service import UserService
 
     article_id = params.get("article_id")
     report_id = params.get("report_id") or context.get("report_id")
@@ -586,22 +502,14 @@ def execute_get_notes_for_article(
     if not report_id:
         return "Error: report_id is required (either as parameter or from context)."
 
-    async def _get_notes():
-        async with AsyncSessionLocal() as async_db:
-            user_stmt = select(User).where(User.user_id == user_id)
-            user_result = await async_db.execute(user_stmt)
-            user = user_result.scalars().first()
-            if not user:
-                return None, "Error: User not found."
-
-            notes_service = AsyncNotesService(async_db)
-            notes = await notes_service.get_notes(report_id, article_id, user)
-            return notes, None
-
     try:
-        notes, error = asyncio.run(_get_notes())
-        if error:
-            return error
+        user_service = UserService(db)
+        user = await user_service.get_user(user_id)
+        if not user:
+            return "Error: User not found."
+
+        notes_service = NotesService(db)
+        notes = await notes_service.get_notes(report_id, article_id, user)
 
         if not notes:
             return f"No notes found for article {article_id} in report {report_id}."
@@ -616,11 +524,11 @@ def execute_get_notes_for_article(
             created_at = note.get("created_at", "")
 
             text_lines.append(f"""
-            {i}. [{visibility.upper()}] By: {author}
-            Created: {created_at}
-            ---
-            {content}
-            """)
+{i}. [{visibility.upper()}] By: {author}
+   Created: {created_at}
+   ---
+   {content}
+""")
 
             notes_data.append({
                 "id": note.get("id"),
@@ -647,18 +555,16 @@ def execute_get_notes_for_article(
         return f"Error getting notes: {str(e)}"
 
 
-def execute_compare_reports(
+async def execute_compare_reports(
     params: Dict[str, Any],
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
-    """
-    Compare two reports to identify new articles, removed articles, and changes.
-    """
-    import asyncio
+    """Compare two reports to identify new articles, removed articles, and changes."""
     from sqlalchemy import select
-    from database import AsyncSessionLocal
+    from services.report_service import ReportService
+    from models import Article, ReportArticleAssociation
 
     report_id_1 = params.get("report_id_1")
     report_id_2 = params.get("report_id_2")
@@ -666,85 +572,58 @@ def execute_compare_reports(
     if not report_id_1 or not report_id_2:
         return "Error: Both report_id_1 and report_id_2 are required."
 
-    async def _compare():
-        async with AsyncSessionLocal() as async_db:
-            # Get both reports
-            stmt1 = select(Report).where(Report.report_id == report_id_1)
-            result1 = await async_db.execute(stmt1)
-            report1 = result1.scalars().first()
-
-            stmt2 = select(Report).where(Report.report_id == report_id_2)
-            result2 = await async_db.execute(stmt2)
-            report2 = result2.scalars().first()
-
-            if not report1:
-                return None, None, None, None, None, f"Report {report_id_1} not found."
-            if not report2:
-                return None, None, None, None, None, f"Report {report_id_2} not found."
-
-            # Get articles in each report
-            art_stmt1 = select(ReportArticleAssociation.article_id).where(
-                ReportArticleAssociation.report_id == report_id_1
-            )
-            art_result1 = await async_db.execute(art_stmt1)
-            articles_1 = set(r[0] for r in art_result1.all())
-
-            art_stmt2 = select(ReportArticleAssociation.article_id).where(
-                ReportArticleAssociation.report_id == report_id_2
-            )
-            art_result2 = await async_db.execute(art_stmt2)
-            articles_2 = set(r[0] for r in art_result2.all())
-
-            # Calculate differences
-            only_in_1 = articles_1 - articles_2
-            only_in_2 = articles_2 - articles_1
-
-            # Get details for unique articles
-            new_articles = []
-            removed_articles = []
-            if only_in_2:
-                new_stmt = select(Article).where(Article.article_id.in_(only_in_2)).limit(10)
-                new_result = await async_db.execute(new_stmt)
-                new_articles = new_result.scalars().all()
-
-            if only_in_1:
-                rem_stmt = select(Article).where(Article.article_id.in_(only_in_1)).limit(10)
-                rem_result = await async_db.execute(rem_stmt)
-                removed_articles = rem_result.scalars().all()
-
-            return report1, report2, articles_1, articles_2, (new_articles, removed_articles), None
-
     try:
-        report1, report2, articles_1, articles_2, article_details, error = asyncio.run(_compare())
-        if error:
-            return error
+        service = ReportService(db)
 
+        # Get both reports
+        result1 = await service.get_report_with_articles(user_id, report_id_1)
+        result2 = await service.get_report_with_articles(user_id, report_id_2)
+
+        if not result1:
+            return f"Report {report_id_1} not found."
+        if not result2:
+            return f"Report {report_id_2} not found."
+
+        report1 = result1.report
+        report2 = result2.report
+
+        # Get article IDs in each report
+        articles_1 = {a.article.article_id for a in result1.articles} if result1.articles else set()
+        articles_2 = {a.article.article_id for a in result2.articles} if result2.articles else set()
+
+        # Calculate differences
         only_in_1 = articles_1 - articles_2
         only_in_2 = articles_2 - articles_1
         in_both = articles_1 & articles_2
-        new_articles, removed_articles = article_details
 
         text_result = f"""
-        === Report Comparison ===
+=== Report Comparison ===
 
-        Report 1: {report1.report_name} ({report1.report_date.strftime('%Y-%m-%d') if report1.report_date else 'Unknown'})
-        Total articles: {len(articles_1)}
+Report 1: {report1.report_name} ({report1.report_date.strftime('%Y-%m-%d') if report1.report_date else 'Unknown'})
+Total articles: {len(articles_1)}
 
-        Report 2: {report2.report_name} ({report2.report_date.strftime('%Y-%m-%d') if report2.report_date else 'Unknown'})
-        Total articles: {len(articles_2)}
+Report 2: {report2.report_name} ({report2.report_date.strftime('%Y-%m-%d') if report2.report_date else 'Unknown'})
+Total articles: {len(articles_2)}
 
-        === Differences ===
-        Articles only in Report 1: {len(only_in_1)}
-        Articles only in Report 2: {len(only_in_2)}
-        Articles in both reports: {len(in_both)}
-        """
+=== Differences ===
+Articles only in Report 1: {len(only_in_1)}
+Articles only in Report 2: {len(only_in_2)}
+Articles in both reports: {len(in_both)}
+"""
 
-        if new_articles:
+        # Get details for unique articles
+        if only_in_2:
+            new_stmt = select(Article).where(Article.article_id.in_(only_in_2)).limit(10)
+            new_result = await db.execute(new_stmt)
+            new_articles = new_result.scalars().all()
             text_result += f"\n=== New in Report 2 (showing up to 10) ===\n"
             for art in new_articles:
                 text_result += f"- {art.title} (PMID: {art.pmid})\n"
 
-        if removed_articles:
+        if only_in_1:
+            rem_stmt = select(Article).where(Article.article_id.in_(only_in_1)).limit(10)
+            rem_result = await db.execute(rem_stmt)
+            removed_articles = rem_result.scalars().all()
             text_result += f"\n=== Not in Report 2 (showing up to 10) ===\n"
             for art in removed_articles:
                 text_result += f"- {art.title} (PMID: {art.pmid})\n"
@@ -777,44 +656,38 @@ def execute_compare_reports(
         return f"Error comparing reports: {str(e)}"
 
 
-def execute_get_starred_articles(
+async def execute_get_starred_articles(
     params: Dict[str, Any],
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
-    """
-    Get all starred articles across reports in the current stream.
-    """
-    import asyncio
+    """Get all starred articles across reports in the current stream."""
     from sqlalchemy import select
-    from database import AsyncSessionLocal
+    from models import Report, Article, ReportArticleAssociation
 
     stream_id = context.get("stream_id") or params.get("stream_id")
 
     if not stream_id:
         return "Error: No stream context available."
 
-    async def _get_starred():
-        async with AsyncSessionLocal() as async_db:
-            stmt = select(
-                Article, ReportArticleAssociation, Report
-            ).join(
-                ReportArticleAssociation,
-                Article.article_id == ReportArticleAssociation.article_id
-            ).join(
-                Report,
-                ReportArticleAssociation.report_id == Report.report_id
-            ).where(
-                Report.research_stream_id == stream_id,
-                ReportArticleAssociation.is_starred == True
-            ).order_by(Report.report_date.desc())
-
-            result = await async_db.execute(stmt)
-            return result.all()
-
     try:
-        results = asyncio.run(_get_starred())
+        stmt = select(
+            Article, ReportArticleAssociation, Report
+        ).join(
+            ReportArticleAssociation,
+            Article.article_id == ReportArticleAssociation.article_id
+        ).join(
+            Report,
+            ReportArticleAssociation.report_id == Report.report_id
+        ).where(
+            Report.research_stream_id == stream_id,
+            Report.user_id == user_id,
+            ReportArticleAssociation.is_starred == True
+        ).order_by(Report.report_date.desc())
+
+        result = await db.execute(stmt)
+        results = result.all()
 
         if not results:
             return "No starred articles found in this stream's reports."
@@ -824,12 +697,12 @@ def execute_get_starred_articles(
 
         for i, (article, assoc, report) in enumerate(results, 1):
             text_lines.append(f"""
-            {i}. "{article.title}"
-            PMID: {article.pmid}
-            Journal: {article.journal} ({article.year or 'Unknown'})
-            Report: {report.report_name}
-            Relevance Score: {assoc.relevance_score or 'N/A'}
-            """)
+{i}. "{article.title}"
+   PMID: {article.pmid}
+   Journal: {article.journal} ({article.year or 'Unknown'})
+   Report: {report.report_name}
+   Relevance Score: {assoc.relevance_score or 'N/A'}
+""")
 
             articles_data.append({
                 "article_id": article.article_id,

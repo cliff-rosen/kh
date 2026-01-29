@@ -16,8 +16,8 @@ Payload types are defined in schemas/payloads.py - tools reference them by name.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Generator, List, Optional, Union
-from sqlalchemy.orm import Session
+from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, Generator, List, Optional, Union
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @dataclass
@@ -36,16 +36,39 @@ class ToolResult:
     payload: Optional[Dict[str, Any]] = None  # Structured data for frontend (type, data)
 
 
+# Type for sync tool executor
+SyncToolExecutor = Callable[
+    [Dict[str, Any], AsyncSession, int, Dict[str, Any]],
+    Union[str, ToolResult, Generator[ToolProgress, None, ToolResult]]
+]
+
+# Type for async tool executor
+AsyncToolExecutor = Callable[
+    [Dict[str, Any], AsyncSession, int, Dict[str, Any]],
+    Awaitable[Union[str, ToolResult]]
+]
+
+# Type for async streaming tool executor
+AsyncStreamingToolExecutor = Callable[
+    [Dict[str, Any], AsyncSession, int, Dict[str, Any]],
+    AsyncGenerator[ToolProgress, None]
+]
+
+
 @dataclass
 class ToolConfig:
-    """Configuration for a tool the agent can use."""
+    """Configuration for a tool the agent can use.
+
+    Tools can be sync or async:
+    - Sync: def executor(params, db, user_id, context) -> str | ToolResult
+    - Async: async def executor(params, db, user_id, context) -> str | ToolResult
+
+    The agent loop automatically detects async executors and awaits them.
+    """
     name: str                           # Tool name (e.g., "search_pubmed")
     description: str                    # Description for LLM
     input_schema: Dict[str, Any]        # JSON schema for parameters
-    executor: Callable[
-        [Dict[str, Any], Session, int, Dict[str, Any]],
-        Union[str, ToolResult, Generator[ToolProgress, None, ToolResult]]
-    ]  # (params, db, user_id, context) -> str | ToolResult | Generator[ToolProgress, None, ToolResult]
+    executor: Union[SyncToolExecutor, AsyncToolExecutor, AsyncStreamingToolExecutor]
     streaming: bool = False             # If True, executor yields ToolProgress before returning ToolResult
     category: str = "general"           # Tool category for organization
     payload_type: Optional[str] = None  # Payload type from schemas/payloads.py (e.g., "pubmed_search_results")
