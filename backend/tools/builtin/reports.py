@@ -39,7 +39,7 @@ async def execute_list_stream_reports(
     try:
         # Get User object (service methods require User, not user_id)
         user_service = UserService(db)
-        user = await user_service.get_user(user_id)
+        user = await user_service.get_user_by_id(user_id)
         if not user:
             return "Error: User not found."
 
@@ -430,7 +430,7 @@ async def execute_get_article_details(
             # Get notes
             if assoc:
                 user_service = UserService(db)
-                user = await user_service.get_user(user_id)
+                user = await user_service.get_user_by_id(user_id)
                 if user:
                     notes_service = NotesService(db)
                     notes = await notes_service.get_notes(report_id, article.article_id, user)
@@ -517,7 +517,7 @@ async def execute_get_notes_for_article(
 
     try:
         user_service = UserService(db)
-        user = await user_service.get_user(user_id)
+        user = await user_service.get_user_by_id(user_id)
         if not user:
             return "Error: User not found."
 
