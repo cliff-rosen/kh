@@ -36,6 +36,7 @@ import {
     SlugInfo,
     TestStanceAnalysisPromptResponse,
 } from '../../lib/api/promptTestingApi';
+import { RegenerateSummariesLLMConfig } from '../../lib/api/curationApi';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { reportApi } from '../../lib/api/reportApi';
 import { llmApi } from '../../lib/api/llmApi';
@@ -100,7 +101,9 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
 
     // Apply to Report modal state
     const [showApplyToReportModal, setShowApplyToReportModal] = useState(false);
-    const [selectedReportIdForApply, setSelectedReportIdForApply] = useState<number | null>(null);
+    const [applyModalReportId, setApplyModalReportId] = useState<number | null>(null);
+    const [applyModalPrompt, setApplyModalPrompt] = useState<PromptTemplate | null>(null);
+    const [applyModalLLMConfig, setApplyModalLLMConfig] = useState<RegenerateSummariesLLMConfig | undefined>(undefined);
 
     // Load data on mount
     useEffect(() => {
@@ -324,6 +327,37 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
 
     const isViewingLatest = historyIndex === history.length - 1;
 
+    // Apply the current prompt to regenerate stance analysis in a report
+    const handleApplyToReport = (entry: HistoryEntry) => {
+        if (entry.dataSource.type !== 'report') return;
+
+        // Capture the LLM config
+        const llmConfig: RegenerateSummariesLLMConfig | undefined = useStreamModel && stream?.llm_config?.stance_analysis
+            ? {
+                model_id: stream.llm_config.stance_analysis.model_id,
+                temperature: stream.llm_config.stance_analysis.temperature,
+                max_tokens: stream.llm_config.stance_analysis.max_tokens,
+                reasoning_effort: stream.llm_config.stance_analysis.reasoning_effort,
+            }
+            : !useStreamModel
+            ? {
+                model_id: customModelConfig.model_id,
+                temperature: customModelConfig.temperature,
+                max_tokens: customModelConfig.max_tokens,
+                reasoning_effort: customModelConfig.reasoning_effort,
+            }
+            : undefined;
+
+        // Capture the tested prompt from the history entry
+        setApplyModalReportId(entry.dataSource.reportId);
+        setApplyModalPrompt({
+            system_prompt: entry.prompts.system_prompt,
+            user_prompt_template: entry.prompts.user_prompt_template,
+        });
+        setApplyModalLLMConfig(llmConfig);
+        setShowApplyToReportModal(true);
+    };
+
     const restorePromptsFromHistory = (entry: HistoryEntry) => {
         setPrompt({ ...entry.prompts });
         setHasChanges(true);
@@ -496,16 +530,12 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                                     <div className="text-sm text-gray-600 dark:text-gray-400">
                                         <p className="font-medium">Apply to Report</p>
                                         <p className="text-xs mt-0.5">
-                                            Regenerate stance analysis for all articles in Report #{entry.dataSource.type === 'report' ? entry.dataSource.reportId : ''} using this prompt
+                                            Regenerate stance analysis for all articles in Report #{entry.dataSource.reportId} using this prompt
                                         </p>
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            const reportId = entry.dataSource.type === 'report' ? entry.dataSource.reportId : 0;
-                                            setSelectedReportIdForApply(reportId);
-                                            setShowApplyToReportModal(true);
-                                        }}
+                                        onClick={() => handleApplyToReport(entry)}
                                         className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 flex items-center gap-2"
                                     >
                                         <SparklesIcon className="h-4 w-4" />
@@ -1065,29 +1095,14 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
             )}
 
             {/* Apply to Report Modal */}
-            {selectedReportIdForApply && prompt && (
+            {applyModalReportId !== null && applyModalPrompt && (
                 <ApplyToReportModal
                     isOpen={showApplyToReportModal}
                     onClose={() => setShowApplyToReportModal(false)}
-                    reportId={selectedReportIdForApply}
+                    reportId={applyModalReportId}
                     promptType="stance_analysis"
-                    prompt={prompt}
-                    llmConfig={useStreamModel && stream?.llm_config?.stance_analysis
-                        ? {
-                            model_id: stream.llm_config.stance_analysis.model_id,
-                            temperature: stream.llm_config.stance_analysis.temperature,
-                            max_tokens: stream.llm_config.stance_analysis.max_tokens,
-                            reasoning_effort: stream.llm_config.stance_analysis.reasoning_effort,
-                        }
-                        : !useStreamModel
-                        ? {
-                            model_id: customModelConfig.model_id,
-                            temperature: customModelConfig.temperature,
-                            max_tokens: customModelConfig.max_tokens,
-                            reasoning_effort: customModelConfig.reasoning_effort,
-                        }
-                        : undefined
-                    }
+                    prompt={applyModalPrompt}
+                    llmConfig={applyModalLLMConfig}
                 />
             )}
         </>
