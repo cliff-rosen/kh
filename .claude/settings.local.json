@@ -35,7 +35,8 @@
       "WebFetch(domain:platform.openai.com)",
       "WebFetch(domain:www.nlm.nih.gov)",
       "WebFetch(domain:pubmed.ncbi.nlm.nih.gov)",
-      "WebFetch(domain:nsaunders.wordpress.com)"
+      "WebFetch(domain:nsaunders.wordpress.com)",
+      "WebFetch(domain:www.linkedin.com)"
     ],
     "deny": [],
     "ask": [],
