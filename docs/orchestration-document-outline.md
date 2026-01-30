@@ -74,11 +74,23 @@ These aren't user errors - they're natural assumptions that don't match how the 
 - Flexible, handles novel situations
 - Used where the right approach depends on what you find along the way
 
+### The recursive structure: you don't have to choose
+
+The real insight is that these modes combine - and can nest to arbitrary depth.
+
+**Deterministic workflows with agentic steps:**
+A claims processing system might have a fixed outer workflow: receive claim, validate format, assess coverage, calculate payout, generate decision letter. This sequence is locked for compliance. But "assess coverage" might be genuinely complex - requiring research, judgment about ambiguous situations, synthesis of multiple policy provisions. That step invokes an agent. The outer workflow knows *what* it needs; it delegates *how* to an LLM that can adapt.
+
+**Agentic systems with deterministic tools:**
+A customer service agent handles open-ended requests - it can't predict what users will ask. But when the agent determines the user needs a policy summary, it doesn't improvise one. It calls a "generate policy summary" tool that runs a proven, optimized pipeline internally. The agent makes strategic decisions; reliable workflows handle production of specific artifacts.
+
+**The design implication:** Choose the top level based on the domain. Regulated processes want deterministic tops for auditability. Customer-facing interfaces need agentic tops for flexibility. Then layer appropriately underneath.
+
 **The key insight:** Every LLM call exists in a "sandwich" of encoded intelligence:
 - **Downstream** (in the tools it can call) - algorithms and domain logic the LLM pulls when needed
 - **Upstream** (in the orchestration that invoked it) - workflow design, timing, and curated context pushed to the LLM
 
-Production systems layer these deliberately. The orchestration architecture *is* the encoded intelligence.
+The orchestration architecture *is* the encoded intelligence.
 
 ### Principles that separate effective orchestration from ad-hoc prompting:
 
