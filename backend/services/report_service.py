@@ -412,6 +412,56 @@ class EmailResult:
     images: Optional[Dict[str, bytes]] = None  # CID -> image bytes for embedded images
 
 
+@dataclass
+class CurrentStanceAnalysisItem:
+    """Current stance analysis info for display."""
+    article_id: int
+    association_id: int
+    title: str
+    pmid: Optional[str]
+    journal: Optional[str]
+    year: Optional[int]
+    current_stance: Optional[Dict[str, Any]]
+
+
+@dataclass
+class CurrentStanceAnalysisResult:
+    """Result of fetching current stance analysis."""
+    report_id: int
+    report_name: str
+    total_articles: int
+    articles: List[CurrentStanceAnalysisItem]
+
+
+@dataclass
+class StanceAnalysisPreviewItem:
+    """Preview of a single article's stance analysis."""
+    article_id: int
+    association_id: int
+    title: str
+    pmid: Optional[str]
+    current_stance: Optional[Dict[str, Any]]
+    new_stance: Optional[Dict[str, Any]]
+    error: Optional[str] = None
+
+
+@dataclass
+class StanceAnalysisPreviewResult:
+    """Result of previewing stance analysis regeneration."""
+    report_id: int
+    total_articles: int
+    previews: List[StanceAnalysisPreviewItem]
+
+
+@dataclass
+class BatchStanceUpdateResult:
+    """Result of batch updating stance analysis."""
+    report_id: int
+    updated_count: int
+    message: str
+    statistics: Dict[str, int]
+
+
 class ReportService:
     """
     Service for all Report and ReportArticleAssociation operations.
@@ -2839,6 +2889,277 @@ class ReportService:
             "updated_count": updated_count,
             "message": f"Updated {updated_count} category summaries"
         }
+
+    # ==================== Stance Analysis Preview/Save ====================
+
+    async def get_current_stance_analysis(
+        self,
+        report_id: int,
+        user_id: int,
+    ) -> CurrentStanceAnalysisResult:
+        """
+        Get current stance analysis for all articles in a report.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification)
+
+        Returns:
+            CurrentStanceAnalysisResult with all articles and their current stance analysis
+        """
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
+
+        # Get visible associations with articles
+        associations = await self.association_service.get_visible_for_report(report_id)
+
+        articles = []
+        for assoc in associations:
+            if assoc.article:
+                # Extract stance analysis from ai_enrichments
+                ai_enrichments = assoc.ai_enrichments or {}
+                current_stance = ai_enrichments.get('stance_analysis')
+
+                articles.append(CurrentStanceAnalysisItem(
+                    article_id=assoc.article_id,
+                    association_id=assoc.article_id,  # Composite PK, use article_id as identifier
+                    title=assoc.article.title or "Untitled",
+                    pmid=assoc.article.pmid,
+                    journal=assoc.article.journal,
+                    year=assoc.article.year,
+                    current_stance=current_stance,
+                ))
+
+        return CurrentStanceAnalysisResult(
+            report_id=report_id,
+            report_name=report.report_name or f"Report {report_id}",
+            total_articles=len(articles),
+            articles=articles,
+        )
+
+    async def preview_stance_analysis(
+        self,
+        report_id: int,
+        user_id: int,
+        system_prompt: str,
+        user_prompt_template: str,
+        llm_config: Optional[Dict[str, Any]] = None,
+    ) -> StanceAnalysisPreviewResult:
+        """
+        Preview stance analysis regeneration without saving.
+
+        Generates new stance analysis using the provided prompt and returns both
+        current and new analysis for comparison.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification)
+            system_prompt: The system prompt to use
+            user_prompt_template: The user prompt template to use
+            llm_config: Optional LLM configuration
+
+        Returns:
+            StanceAnalysisPreviewResult with previews for each article
+        """
+        from services.article_analysis_service import analyze_article_stance
+        from schemas.llm import ModelConfig as LLMModelConfig
+        import asyncio
+
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
+
+        # Check approval status
+        if report.approval_status == ApprovalStatus.APPROVED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot modify approved reports"
+            )
+
+        # Get visible associations with articles
+        associations = await self.association_service.get_visible_for_report(report_id)
+
+        if not associations:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No articles in report"
+            )
+
+        # Filter to articles with abstracts
+        articles_with_abstracts = [a for a in associations if a.article and a.article.abstract]
+
+        if not articles_with_abstracts:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No articles with abstracts to analyze"
+            )
+
+        # Build model config
+        model_config = None
+        if llm_config and llm_config.get("model_id"):
+            model_config = LLMModelConfig(
+                model_id=llm_config.get("model_id"),
+                temperature=llm_config.get("temperature"),
+                max_tokens=llm_config.get("max_tokens"),
+                reasoning_effort=llm_config.get("reasoning_effort"),
+            )
+        elif stream and stream.llm_config:
+            stage_config = stream.llm_config.get("stance_analysis")
+            if stage_config and (stage_config.get("model_id") or stage_config.get("model")):
+                model_config = LLMModelConfig(
+                    model_id=stage_config.get("model_id") or stage_config.get("model"),
+                    temperature=stage_config.get("temperature"),
+                    max_tokens=stage_config.get("max_tokens"),
+                    reasoning_effort=stage_config.get("reasoning_effort"),
+                )
+
+        # Build custom prompt dict
+        stance_analysis_prompt = {
+            "system_prompt": system_prompt,
+            "user_prompt_template": user_prompt_template,
+        }
+
+        # Generate stance analysis for all articles in parallel
+        async def analyze_single_article(assoc):
+            try:
+                result = await analyze_article_stance(
+                    article_title=assoc.article.title or "",
+                    article_abstract=assoc.article.abstract,
+                    article_authors=assoc.article.authors,
+                    article_journal=assoc.article.journal,
+                    article_year=assoc.article.year,
+                    stream_name=stream.name if stream else "Unknown",
+                    stream_purpose=stream.description if stream else None,
+                    stance_analysis_prompt=stance_analysis_prompt,
+                    model_config=model_config,
+                    article_summary=assoc.ai_summary,
+                )
+                return (assoc, result, None)
+            except Exception as e:
+                logger.error(f"Stance analysis failed for article {assoc.article_id}: {e}")
+                return (assoc, None, str(e))
+
+        # Run all analyses in parallel with concurrency limit
+        semaphore = asyncio.Semaphore(5)  # Limit concurrent requests
+
+        async def analyze_with_semaphore(assoc):
+            async with semaphore:
+                return await analyze_single_article(assoc)
+
+        tasks = [analyze_with_semaphore(assoc) for assoc in articles_with_abstracts]
+        results = await asyncio.gather(*tasks)
+
+        # Build preview list
+        previews = []
+        for assoc, result, error in results:
+            # Get current stance from ai_enrichments
+            ai_enrichments = assoc.ai_enrichments or {}
+            current_stance = ai_enrichments.get('stance_analysis')
+
+            previews.append(StanceAnalysisPreviewItem(
+                article_id=assoc.article_id,
+                association_id=assoc.article_id,
+                title=assoc.article.title or "Untitled",
+                pmid=assoc.article.pmid,
+                current_stance=current_stance,
+                new_stance=result if result else None,
+                error=error,
+            ))
+
+        return StanceAnalysisPreviewResult(
+            report_id=report_id,
+            total_articles=len(previews),
+            previews=previews,
+        )
+
+    async def batch_update_stance_analysis(
+        self,
+        report_id: int,
+        user_id: int,
+        updates: List[Dict[str, Any]],
+    ) -> BatchStanceUpdateResult:
+        """
+        Batch update stance analysis.
+
+        Updates only the specified articles with new stance analysis.
+        Records a CurationEvent for audit trail.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification and audit)
+            updates: List of dicts with 'article_id' and 'stance_analysis'
+
+        Returns:
+            BatchStanceUpdateResult with count of updated articles
+        """
+        from models import CurationEvent
+        from sqlalchemy.orm.attributes import flag_modified
+
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
+
+        # Check approval status
+        if report.approval_status == ApprovalStatus.APPROVED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot modify approved reports"
+            )
+
+        if not updates:
+            return BatchStanceUpdateResult(
+                report_id=report_id,
+                updated_count=0,
+                message="No updates provided",
+                statistics={"provided": 0, "updated": 0, "not_found": 0}
+            )
+
+        updated_count = 0
+        not_found_count = 0
+
+        for update in updates:
+            article_id = update.get("article_id")
+            new_stance = update.get("stance_analysis")
+
+            if article_id is None:
+                continue
+
+            # Get the association
+            assoc = await self.association_service.find(report_id, article_id)
+            if assoc:
+                # Update ai_enrichments with new stance analysis
+                ai_enrichments = assoc.ai_enrichments or {}
+                ai_enrichments['stance_analysis'] = new_stance
+                assoc.ai_enrichments = ai_enrichments
+                flag_modified(assoc, "ai_enrichments")
+                updated_count += 1
+            else:
+                not_found_count += 1
+
+        # Record CurationEvent
+        event = CurationEvent(
+            report_id=report_id,
+            event_type='batch_update_stance_analysis',
+            field_name='stance_analysis',
+            old_value=f"{len(updates)} analyses selected",
+            new_value=f"Updated {updated_count} stance analyses",
+            notes="Applied custom prompt from Layer 4 testing (selective)",
+            curator_id=user_id,
+        )
+        self.db.add(event)
+
+        # Update curation tracking
+        report.has_curation_edits = True
+        report.last_curated_by = user_id
+        report.last_curated_at = datetime.utcnow()
+
+        await self.db.commit()
+
+        return BatchStanceUpdateResult(
+            report_id=report_id,
+            updated_count=updated_count,
+            message=f"Updated {updated_count} of {len(updates)} stance analyses",
+            statistics={
+                "provided": len(updates),
+                "updated": updated_count,
+                "not_found": not_found_count,
+            }
+        )
 
 
 # =============================================================================

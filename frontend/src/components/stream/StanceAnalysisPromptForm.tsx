@@ -28,6 +28,7 @@ import {
     ExclamationTriangleIcon,
     TrashIcon,
     DocumentMagnifyingGlassIcon,
+    SparklesIcon,
 } from '@heroicons/react/24/outline';
 import {
     promptTestingApi,
@@ -43,6 +44,7 @@ import { StanceAnalysisResult } from '../../types/document_analysis';
 import { copyToClipboard } from '../../lib/utils/clipboard';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
 import StanceAnalysisDisplay from '../ui/StanceAnalysisDisplay';
+import ApplyToReportModal from './ApplyToReportModal';
 
 interface StanceAnalysisPromptFormProps {
     streamId: number;
@@ -95,6 +97,10 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
     const [showRenderedPrompts, setShowRenderedPrompts] = useState(false);
     const [isMaximized, setIsMaximized] = useState(false);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+    // Apply to Report modal state
+    const [showApplyToReportModal, setShowApplyToReportModal] = useState(false);
+    const [selectedReportIdForApply, setSelectedReportIdForApply] = useState<number | null>(null);
 
     // Load data on mount
     useEffect(() => {
@@ -523,6 +529,39 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                         >
                             Discard Changes
                         </button>
+                    )}
+                    {/* Apply to Report - Report selector and button */}
+                    {reports.length > 0 && (
+                        <div className="flex items-center gap-2 border-r border-gray-300 dark:border-gray-600 pr-3 mr-1">
+                            <select
+                                value={selectedReportIdForApply || ''}
+                                onChange={(e) => setSelectedReportIdForApply(Number(e.target.value) || null)}
+                                className="px-2 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
+                            >
+                                <option value="">Select report...</option>
+                                {reports.map(report => (
+                                    <option key={report.report_id} value={report.report_id}>
+                                        {report.report_name}
+                                    </option>
+                                ))}
+                            </select>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (selectedReportIdForApply) {
+                                        setShowApplyToReportModal(true);
+                                    } else {
+                                        showErrorToast(new Error('Please select a report'), 'Please select a report first');
+                                    }
+                                }}
+                                disabled={!selectedReportIdForApply || !prompt}
+                                className="px-3 py-1.5 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors flex items-center gap-1"
+                                title="Apply stance analysis to all articles in the selected report"
+                            >
+                                <SparklesIcon className="h-4 w-4" />
+                                Apply to Report
+                            </button>
+                        </div>
                     )}
                     <button
                         type="button"
@@ -1030,6 +1069,33 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Apply to Report Modal */}
+            {selectedReportIdForApply && prompt && (
+                <ApplyToReportModal
+                    isOpen={showApplyToReportModal}
+                    onClose={() => setShowApplyToReportModal(false)}
+                    reportId={selectedReportIdForApply}
+                    promptType="stance_analysis"
+                    prompt={prompt}
+                    llmConfig={useStreamModel && stream?.llm_config?.stance_analysis
+                        ? {
+                            model_id: stream.llm_config.stance_analysis.model_id,
+                            temperature: stream.llm_config.stance_analysis.temperature,
+                            max_tokens: stream.llm_config.stance_analysis.max_tokens,
+                            reasoning_effort: stream.llm_config.stance_analysis.reasoning_effort,
+                        }
+                        : !useStreamModel
+                        ? {
+                            model_id: customModelConfig.model_id,
+                            temperature: customModelConfig.temperature,
+                            max_tokens: customModelConfig.max_tokens,
+                            reasoning_effort: customModelConfig.reasoning_effort,
+                        }
+                        : undefined
+                    }
+                />
             )}
         </>
     );

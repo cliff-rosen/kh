@@ -1,17 +1,18 @@
 /**
- * Apply to Report Modal - Review current summaries and apply new ones
+ * Apply to Report Modal - Review current content and apply new AI-generated content
  *
- * Handles all three prompt types:
+ * Handles all four prompt types:
  * - article_summary: Multiple articles, select which to apply
  * - category_summary: Multiple categories, select which to apply
  * - executive_summary: Single summary, apply or cancel
+ * - stance_analysis: Multiple articles, select which stance analyses to apply
  *
  * Flow:
- * 1. Loading - Fetches current summaries
- * 2. Review - Shows current summaries in clean card format
- * 3. Generating - User clicks generate, AI creates new summaries
+ * 1. Loading - Fetches current content
+ * 2. Review - Shows current content in clean card format
+ * 3. Generating - User clicks generate, AI creates new content
  * 4. Compare - Side-by-side comparison, user selects which to apply
- * 5. Saving - Applies selected summaries to the report
+ * 5. Saving - Applies selected content to the report
  * 6. Success - Shows completion message
  */
 
@@ -24,7 +25,8 @@ import {
     SparklesIcon,
     CheckCircleIcon,
     MinusCircleIcon,
-    DocumentTextIcon
+    DocumentTextIcon,
+    DocumentMagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import {
     getCurrentArticleSummaries,
@@ -36,16 +38,23 @@ import {
     saveExecutiveSummary,
     previewCategorySummaries,
     saveCategorySummaries,
+    getCurrentStanceAnalysis,
+    previewStanceAnalysis,
+    batchUpdateStanceAnalysis,
     CurrentArticleSummaryItem,
     CurrentCategorySummaryItem,
     ArticleSummaryPreviewItem,
     CategorySummaryPreviewItem,
+    CurrentStanceAnalysisItem,
+    StanceAnalysisPreviewItem,
     RegenerateSummariesLLMConfig
 } from '../../lib/api/curationApi';
 import { PromptTemplate } from '../../types/research-stream';
 import { showErrorToast } from '../../lib/errorToast';
+import StanceAnalysisDisplay from '../ui/StanceAnalysisDisplay';
+import { StanceAnalysisResult } from '../../types/document_analysis';
 
-type PromptType = 'article_summary' | 'category_summary' | 'executive_summary';
+type PromptType = 'article_summary' | 'category_summary' | 'executive_summary' | 'stance_analysis';
 
 interface ApplyToReportModalProps {
     isOpen: boolean;
@@ -92,6 +101,11 @@ export default function ApplyToReportModal({
     const [currentExecutiveSummary, setCurrentExecutiveSummary] = useState<string | null>(null);
     const [executivePreview, setExecutivePreview] = useState<ExecutivePreview | null>(null);
 
+    // Stance analysis state
+    const [currentStances, setCurrentStances] = useState<CurrentStanceAnalysisItem[]>([]);
+    const [stancePreviews, setStancePreviews] = useState<StanceAnalysisPreviewItem[]>([]);
+    const [selectedStanceIds, setSelectedStanceIds] = useState<Set<number>>(new Set());
+
     // Reset state when modal opens
     useEffect(() => {
         if (isOpen) {
@@ -107,6 +121,9 @@ export default function ApplyToReportModal({
             setSelectedCategoryIds(new Set());
             setCurrentExecutiveSummary(null);
             setExecutivePreview(null);
+            setCurrentStances([]);
+            setStancePreviews([]);
+            setSelectedStanceIds(new Set());
 
             // Fetch current data based on prompt type
             if (promptType === 'article_summary') {
@@ -115,6 +132,8 @@ export default function ApplyToReportModal({
                 fetchCurrentCategorySummaries();
             } else if (promptType === 'executive_summary') {
                 fetchCurrentExecutiveSummary();
+            } else if (promptType === 'stance_analysis') {
+                fetchCurrentStanceAnalysis();
             }
         }
     }, [isOpen, reportId, promptType]);
@@ -158,6 +177,19 @@ export default function ApplyToReportModal({
         }
     };
 
+    const fetchCurrentStanceAnalysis = async () => {
+        try {
+            const response = await getCurrentStanceAnalysis(reportId);
+            setReportName(response.report_name);
+            setCurrentStances(response.articles);
+            setStage('review');
+        } catch (err: any) {
+            console.error('Error fetching current stance analysis:', err);
+            setError(err.message || 'Failed to load current stance analysis');
+            setStage('review');
+        }
+    };
+
     const handleGeneratePreview = async () => {
         setStage('generating');
         setError(null);
@@ -196,6 +228,17 @@ export default function ApplyToReportModal({
                     new: response.new_summary,
                     error: response.error,
                 });
+                setStage('compare');
+
+            } else if (promptType === 'stance_analysis') {
+                const response = await previewStanceAnalysis(reportId, requestBody);
+                setStancePreviews(response.previews);
+                const allSuccessful = new Set(
+                    response.previews
+                        .filter(p => p.new_stance && !p.error)
+                        .map(p => p.article_id)
+                );
+                setSelectedStanceIds(allSuccessful);
                 setStage('compare');
             }
         } catch (err: any) {
@@ -253,12 +296,29 @@ export default function ApplyToReportModal({
 
                 await saveExecutiveSummary(reportId, { summary: executivePreview.new });
                 setUpdateCount(1);
+
+            } else if (promptType === 'stance_analysis') {
+                if (selectedStanceIds.size === 0) {
+                    showErrorToast(new Error('No articles selected'), 'Please select at least one article');
+                    setStage('compare');
+                    return;
+                }
+
+                const updates = stancePreviews
+                    .filter(p => selectedStanceIds.has(p.article_id) && p.new_stance)
+                    .map(p => ({
+                        article_id: p.article_id,
+                        stance_analysis: p.new_stance!
+                    }));
+
+                const result = await batchUpdateStanceAnalysis(reportId, { updates });
+                setUpdateCount(result.updated_count);
             }
 
             setStage('success');
         } catch (err: any) {
-            console.error('Error applying summaries:', err);
-            setError(err.message || 'Failed to apply summaries');
+            console.error('Error applying changes:', err);
+            setError(err.message || 'Failed to apply changes');
             setStage('compare');
         }
     };
@@ -313,6 +373,31 @@ export default function ApplyToReportModal({
         setSelectedCategoryIds(new Set());
     };
 
+    const handleToggleStanceSelection = (articleId: number) => {
+        setSelectedStanceIds(prev => {
+            const next = new Set(prev);
+            if (next.has(articleId)) {
+                next.delete(articleId);
+            } else {
+                next.add(articleId);
+            }
+            return next;
+        });
+    };
+
+    const handleSelectAllStances = () => {
+        const allSuccessful = new Set(
+            stancePreviews
+                .filter(p => p.new_stance && !p.error)
+                .map(p => p.article_id)
+        );
+        setSelectedStanceIds(allSuccessful);
+    };
+
+    const handleSelectNoneStances = () => {
+        setSelectedStanceIds(new Set());
+    };
+
     if (!isOpen) return null;
 
     const getTitle = () => {
@@ -320,6 +405,7 @@ export default function ApplyToReportModal({
             case 'article_summary': return 'Apply Article Summaries';
             case 'category_summary': return 'Apply Category Summaries';
             case 'executive_summary': return 'Apply Executive Summary';
+            case 'stance_analysis': return 'Apply Stance Analysis';
         }
     };
 
@@ -328,6 +414,7 @@ export default function ApplyToReportModal({
             case 'article_summary': return 'article';
             case 'category_summary': return 'category';
             case 'executive_summary': return 'executive';
+            case 'stance_analysis': return 'stance analysis';
         }
     };
 
@@ -336,6 +423,9 @@ export default function ApplyToReportModal({
     const articleErrorCount = articlePreviews.filter(p => p.error).length;
     const categorySuccessCount = categoryPreviews.filter(p => p.new_summary && !p.error).length;
     const categoryErrorCount = categoryPreviews.filter(p => p.error).length;
+    const stancesWithAnalysis = currentStances.filter(s => s.current_stance).length;
+    const stanceSuccessCount = stancePreviews.filter(p => p.new_stance && !p.error).length;
+    const stanceErrorCount = stancePreviews.filter(p => p.error).length;
 
     return (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
@@ -590,6 +680,88 @@ export default function ApplyToReportModal({
                         </div>
                     )}
 
+                    {/* Review Stage - Stance Analysis */}
+                    {stage === 'review' && promptType === 'stance_analysis' && (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center gap-4">
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                                        <span className="font-medium text-gray-900 dark:text-white">{currentStances.length}</span> articles
+                                    </span>
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                                        <DocumentMagnifyingGlassIcon className="h-4 w-4 inline mr-1" />
+                                        {stancesWithAnalysis} with stance analysis
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={handleGeneratePreview}
+                                    disabled={currentStances.length === 0}
+                                    className="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                                >
+                                    <SparklesIcon className="h-5 w-5" />
+                                    Generate Stance Analysis
+                                </button>
+                            </div>
+
+                            {error && (
+                                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
+                                    {error}
+                                </div>
+                            )}
+
+                            {currentStances.length === 0 && !error && (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                    No articles found in this report.
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
+                                {currentStances.map((article) => (
+                                    <div
+                                        key={article.article_id}
+                                        className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+                                    >
+                                        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-gray-900 dark:text-white">
+                                                        {article.title}
+                                                    </p>
+                                                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                        {article.pmid && <span>PMID: {article.pmid}</span>}
+                                                        {article.journal && <span>{article.journal}</span>}
+                                                        {article.year && <span>{article.year}</span>}
+                                                    </div>
+                                                </div>
+                                                {article.current_stance ? (
+                                                    <span className="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded flex-shrink-0">
+                                                        {(article.current_stance as unknown as StanceAnalysisResult)?.stance || 'Has Analysis'}
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded flex-shrink-0">
+                                                        No Analysis
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="p-4">
+                                            {article.current_stance ? (
+                                                <StanceAnalysisDisplay
+                                                    result={article.current_stance as unknown as StanceAnalysisResult}
+                                                    compact={true}
+                                                />
+                                            ) : (
+                                                <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+                                                    No stance analysis available.
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Generating Stage */}
                     {stage === 'generating' && (
                         <div className="max-w-xl mx-auto text-center py-12">
@@ -601,6 +773,7 @@ export default function ApplyToReportModal({
                                 {promptType === 'article_summary' && `Processing ${currentArticles.length} articles.`}
                                 {promptType === 'category_summary' && `Processing ${currentCategories.length} categories.`}
                                 {promptType === 'executive_summary' && 'Processing executive summary.'}
+                                {promptType === 'stance_analysis' && `Analyzing ${currentStances.length} articles.`}
                                 {' '}This may take a moment.
                             </p>
                         </div>
@@ -868,6 +1041,126 @@ export default function ApplyToReportModal({
                         </div>
                     )}
 
+                    {/* Compare Stage - Stance Analysis */}
+                    {stage === 'compare' && promptType === 'stance_analysis' && (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center gap-4">
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                                        <span className="font-medium text-gray-900 dark:text-white">{stancePreviews.length}</span> articles
+                                    </span>
+                                    <span className="text-sm text-green-600 dark:text-green-400">
+                                        <CheckCircleIcon className="h-4 w-4 inline mr-1" />
+                                        {stanceSuccessCount} analyzed
+                                    </span>
+                                    {stanceErrorCount > 0 && (
+                                        <span className="text-sm text-red-600 dark:text-red-400">
+                                            <ExclamationTriangleIcon className="h-4 w-4 inline mr-1" />
+                                            {stanceErrorCount} errors
+                                        </span>
+                                    )}
+                                    <span className="text-sm text-indigo-600 dark:text-indigo-400">
+                                        <CheckIcon className="h-4 w-4 inline mr-1" />
+                                        {selectedStanceIds.size} selected
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={handleSelectAllStances} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                        Select All
+                                    </button>
+                                    <span className="text-gray-300 dark:text-gray-600">|</span>
+                                    <button onClick={handleSelectNoneStances} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                        Select None
+                                    </button>
+                                </div>
+                            </div>
+
+                            {error && (
+                                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
+                                    {error}
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                {stancePreviews.map((preview) => (
+                                    <div
+                                        key={preview.article_id}
+                                        className={`border rounded-lg overflow-hidden ${
+                                            selectedStanceIds.has(preview.article_id)
+                                                ? 'border-indigo-500 dark:border-indigo-400'
+                                                : 'border-gray-200 dark:border-gray-700'
+                                        }`}
+                                    >
+                                        <div
+                                            className={`px-4 py-3 flex items-center gap-3 cursor-pointer ${
+                                                selectedStanceIds.has(preview.article_id)
+                                                    ? 'bg-indigo-50 dark:bg-indigo-900/20'
+                                                    : 'bg-gray-50 dark:bg-gray-800'
+                                            }`}
+                                            onClick={() => preview.new_stance && !preview.error && handleToggleStanceSelection(preview.article_id)}
+                                        >
+                                            <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${
+                                                preview.error
+                                                    ? 'bg-red-100 dark:bg-red-900/30'
+                                                    : !preview.new_stance
+                                                        ? 'bg-gray-100 dark:bg-gray-700'
+                                                        : selectedStanceIds.has(preview.article_id)
+                                                            ? 'bg-indigo-600'
+                                                            : 'border-2 border-gray-300 dark:border-gray-600'
+                                            }`}>
+                                                {preview.error ? (
+                                                    <ExclamationTriangleIcon className="h-3 w-3 text-red-600 dark:text-red-400" />
+                                                ) : !preview.new_stance ? (
+                                                    <MinusCircleIcon className="h-3 w-3 text-gray-400" />
+                                                ) : selectedStanceIds.has(preview.article_id) ? (
+                                                    <CheckIcon className="h-3 w-3 text-white" />
+                                                ) : null}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-gray-900 dark:text-white truncate">{preview.title}</p>
+                                                {preview.pmid && <p className="text-xs text-gray-500 dark:text-gray-400">PMID: {preview.pmid}</p>}
+                                            </div>
+                                            {preview.error ? (
+                                                <span className="px-2 py-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">Error</span>
+                                            ) : !preview.new_stance ? (
+                                                <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">No Result</span>
+                                            ) : (
+                                                <span className="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded">
+                                                    {(preview.new_stance as unknown as StanceAnalysisResult)?.stance || 'New'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {preview.error && (
+                                            <div className="px-4 py-2 bg-red-50 dark:bg-red-900/10 text-sm text-red-700 dark:text-red-300">{preview.error}</div>
+                                        )}
+                                        {!preview.error && preview.new_stance && (
+                                            <div className="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-700">
+                                                <div className="p-4">
+                                                    <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Current</h5>
+                                                    {preview.current_stance ? (
+                                                        <StanceAnalysisDisplay
+                                                            result={preview.current_stance as unknown as StanceAnalysisResult}
+                                                            compact={true}
+                                                        />
+                                                    ) : (
+                                                        <span className="text-sm italic text-gray-400">No current analysis</span>
+                                                    )}
+                                                </div>
+                                                <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/10">
+                                                    <h5 className="text-xs font-medium text-indigo-600 dark:text-indigo-400 uppercase tracking-wide mb-2">New</h5>
+                                                    <StanceAnalysisDisplay
+                                                        result={preview.new_stance as unknown as StanceAnalysisResult}
+                                                        compact={true}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Saving Stage */}
                     {stage === 'saving' && (
                         <div className="max-w-xl mx-auto text-center py-12">
@@ -879,6 +1172,7 @@ export default function ApplyToReportModal({
                                 {promptType === 'article_summary' && `Saving ${selectedArticleIds.size} article summaries.`}
                                 {promptType === 'category_summary' && `Saving ${selectedCategoryIds.size} category summaries.`}
                                 {promptType === 'executive_summary' && 'Saving executive summary.'}
+                                {promptType === 'stance_analysis' && `Saving ${selectedStanceIds.size} stance analyses.`}
                             </p>
                         </div>
                     )}
@@ -893,6 +1187,8 @@ export default function ApplyToReportModal({
                             <p className="text-gray-600 dark:text-gray-400 mb-2">
                                 {promptType === 'executive_summary' ? (
                                     'Successfully updated the executive summary.'
+                                ) : promptType === 'stance_analysis' ? (
+                                    <>Successfully updated <span className="font-semibold text-green-600 dark:text-green-400">{updateCount}</span> stance {updateCount === 1 ? 'analysis' : 'analyses'}.</>
                                 ) : (
                                     <>Successfully updated <span className="font-semibold text-green-600 dark:text-green-400">{updateCount}</span> {getItemLabel()} {updateCount === 1 ? 'summary' : 'summaries'}.</>
                                 )}
@@ -934,6 +1230,17 @@ export default function ApplyToReportModal({
                         </button>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                             Click "Generate New Summary" to create an AI summary using your custom prompt
+                        </p>
+                    </div>
+                )}
+
+                {stage === 'review' && promptType === 'stance_analysis' && currentStances.length > 0 && (
+                    <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+                        <button onClick={onClose} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                            Cancel
+                        </button>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Click "Generate Stance Analysis" to analyze articles using your custom prompt
                         </p>
                     </div>
                 )}
@@ -982,6 +1289,22 @@ export default function ApplyToReportModal({
                         >
                             <CheckIcon className="h-5 w-5" />
                             Apply New Summary
+                        </button>
+                    </div>
+                )}
+
+                {stage === 'compare' && promptType === 'stance_analysis' && (
+                    <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+                        <button onClick={onClose} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleApplySelected}
+                            disabled={selectedStanceIds.size === 0}
+                            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                        >
+                            <CheckIcon className="h-5 w-5" />
+                            Apply {selectedStanceIds.size} Selected
                         </button>
                     </div>
                 )}

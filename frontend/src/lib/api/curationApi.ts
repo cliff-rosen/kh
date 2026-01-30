@@ -744,3 +744,109 @@ export async function saveCategorySummaries(
     );
     return response.data;
 }
+
+// ==================== Stance Analysis Preview & Batch Update ====================
+
+export interface CurrentStanceAnalysisItem {
+    article_id: number;
+    association_id: number;
+    title: string;
+    pmid: string | null;
+    journal: string | null;
+    year: number | null;
+    current_stance: Record<string, unknown> | null;
+}
+
+export interface CurrentStanceAnalysisResponse {
+    report_id: number;
+    report_name: string;
+    total_articles: number;
+    articles: CurrentStanceAnalysisItem[];
+}
+
+export interface StanceAnalysisPreviewItem {
+    article_id: number;
+    association_id: number;
+    title: string;
+    pmid: string | null;
+    current_stance: Record<string, unknown> | null;
+    new_stance: Record<string, unknown> | null;
+    error: string | null;
+}
+
+export interface PreviewStanceAnalysisResponse {
+    report_id: number;
+    total_articles: number;
+    previews: StanceAnalysisPreviewItem[];
+}
+
+export interface BatchUpdateStanceItem {
+    article_id: number;
+    stance_analysis: Record<string, unknown>;
+}
+
+export interface BatchUpdateStanceRequest {
+    updates: BatchUpdateStanceItem[];
+}
+
+export interface BatchUpdateStanceResponse {
+    report_id: number;
+    updated_count: number;
+    message: string;
+    statistics: {
+        provided: number;
+        updated: number;
+        not_found: number;
+    };
+}
+
+/**
+ * Get current stance analysis for all articles in a report.
+ * Fetches current stance analysis for display before regeneration.
+ *
+ * @param reportId - The report to fetch stance analysis for
+ */
+export async function getCurrentStanceAnalysis(
+    reportId: number
+): Promise<CurrentStanceAnalysisResponse> {
+    const response = await api.get<CurrentStanceAnalysisResponse>(
+        `${BASE_PATH}/${reportId}/stance-analysis/current`
+    );
+    return response.data;
+}
+
+/**
+ * Preview stance analysis regeneration without saving.
+ * Generates new stance analysis and returns both current and new for comparison.
+ *
+ * @param reportId - The report to preview stance analysis for
+ * @param request - The prompt and optional LLM config
+ */
+export async function previewStanceAnalysis(
+    reportId: number,
+    request: PreviewArticleSummariesRequest
+): Promise<PreviewStanceAnalysisResponse> {
+    const response = await api.post<PreviewStanceAnalysisResponse>(
+        `${BASE_PATH}/${reportId}/stance-analysis/preview`,
+        request
+    );
+    return response.data;
+}
+
+/**
+ * Batch update selected stance analyses.
+ * Only updates the articles specified in the request.
+ *
+ * @param reportId - The report to update
+ * @param request - List of article_id and stance_analysis pairs to update
+ */
+export async function batchUpdateStanceAnalysis(
+    reportId: number,
+    request: BatchUpdateStanceRequest
+): Promise<BatchUpdateStanceResponse> {
+    const response = await api.post<BatchUpdateStanceResponse>(
+        `${BASE_PATH}/${reportId}/stance-analysis/batch-update`,
+        request
+    );
+    return response.data;
+}
