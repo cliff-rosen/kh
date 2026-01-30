@@ -488,6 +488,31 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                                 </p>
                             </div>
                         )}
+
+                        {/* Apply to Report - only show if test was successful and from a report */}
+                        {testResult?.llm_response && !testResult?.error && entry.dataSource.type === 'report' && (
+                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                                        <p className="font-medium">Apply to Report</p>
+                                        <p className="text-xs mt-0.5">
+                                            Regenerate stance analysis for all articles in Report #{entry.dataSource.reportId} using this prompt
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedReportIdForApply(entry.dataSource.reportId);
+                                            setShowApplyToReportModal(true);
+                                        }}
+                                        className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 flex items-center gap-2"
+                                    >
+                                        <SparklesIcon className="h-4 w-4" />
+                                        Apply to Report
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -529,39 +554,6 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                         >
                             Discard Changes
                         </button>
-                    )}
-                    {/* Apply to Report - Report selector and button */}
-                    {reports.length > 0 && (
-                        <div className="flex items-center gap-2 border-r border-gray-300 dark:border-gray-600 pr-3 mr-1">
-                            <select
-                                value={selectedReportIdForApply || ''}
-                                onChange={(e) => setSelectedReportIdForApply(Number(e.target.value) || null)}
-                                className="px-2 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
-                            >
-                                <option value="">Select report...</option>
-                                {reports.map(report => (
-                                    <option key={report.report_id} value={report.report_id}>
-                                        {report.report_name}
-                                    </option>
-                                ))}
-                            </select>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (selectedReportIdForApply) {
-                                        setShowApplyToReportModal(true);
-                                    } else {
-                                        showErrorToast(new Error('Please select a report'), 'Please select a report first');
-                                    }
-                                }}
-                                disabled={!selectedReportIdForApply || !prompt}
-                                className="px-3 py-1.5 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors flex items-center gap-1"
-                                title="Apply stance analysis to all articles in the selected report"
-                            >
-                                <SparklesIcon className="h-4 w-4" />
-                                Apply to Report
-                            </button>
-                        </div>
                     )}
                     <button
                         type="button"
