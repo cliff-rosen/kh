@@ -496,13 +496,14 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                                     <div className="text-sm text-gray-600 dark:text-gray-400">
                                         <p className="font-medium">Apply to Report</p>
                                         <p className="text-xs mt-0.5">
-                                            Regenerate stance analysis for all articles in Report #{entry.dataSource.reportId} using this prompt
+                                            Regenerate stance analysis for all articles in Report #{entry.dataSource.type === 'report' ? entry.dataSource.reportId : ''} using this prompt
                                         </p>
                                     </div>
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            setSelectedReportIdForApply(entry.dataSource.reportId);
+                                            const reportId = entry.dataSource.type === 'report' ? entry.dataSource.reportId : 0;
+                                            setSelectedReportIdForApply(reportId);
                                             setShowApplyToReportModal(true);
                                         }}
                                         className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 flex items-center gap-2"
