@@ -84,7 +84,7 @@ The real power comes from combining these intelligently.
 
 The design of the system—what calls what, with what context, in what sequence—is where the real intelligence lives. Two things matter:
 
-**Layer appropriately.** Agentic decision-making has power—reach and flexibility that rigid workflows can't match. But many systems fail because they don't realize: sometimes you need a deterministic layer above the agentic layer.
+**Layer appropriately.** Agentic decision-making has power—reach and flexibility that rigid workflows can't match. But you have to think about where deterministic control belongs: sometimes above the agentic layer, sometimes below it.
 
 - **Deterministic workflows with agentic steps.** A claims processing system has a fixed outer workflow: receive claim, validate format, assess coverage, calculate payout, generate decision letter. This sequence is locked for compliance. But "assess coverage" might require research and judgment about ambiguous situations. That step invokes an agent. The outer workflow knows *what* it needs; it delegates *how* to an LLM that can adapt.
 
