@@ -82,25 +82,17 @@ The real power comes from combining these intelligently.
 
 ### The Architecture Is the Intelligence
 
-The design of the system—what calls what, with what context, in what sequence—is where the real intelligence lives. Two things matter:
+The design of the system—what calls what, with what context, in what sequence—is where the real intelligence lives. Human expertise gets encoded from above and below:
 
-**Layer appropriately.** Agentic decision-making has power—reach and flexibility that rigid workflows can't match. But you have to think about where deterministic control belongs: sometimes above the agentic layer, sometimes below it.
+**From above**—in workflow design. A claims processing system has a fixed outer workflow: receive claim, validate format, assess coverage, calculate payout, generate decision letter. This sequence is locked for compliance. The LLM doesn't decide the process; it operates within a process that embeds expertise. But "assess coverage" might require research and judgment about ambiguous situations—that step invokes an agent. The outer workflow knows *what* it needs; it delegates *how* to an LLM that can adapt.
 
-- **Deterministic workflows with agentic steps.** A claims processing system has a fixed outer workflow: receive claim, validate format, assess coverage, calculate payout, generate decision letter. This sequence is locked for compliance. But "assess coverage" might require research and judgment about ambiguous situations. That step invokes an agent. The outer workflow knows *what* it needs; it delegates *how* to an LLM that can adapt.
+**From below**—in tool abstraction. A customer service agent handles open-ended requests—it can't predict what users will ask. But when the agent determines the user needs a policy summary, it doesn't improvise one. It calls a "generate policy summary" tool that runs a proven pipeline internally. The expertise is in the tool; the LLM just invokes it.
 
-- **Agentic systems with deterministic tools.** A customer service agent handles open-ended requests—it can't predict what users will ask. But when the agent determines the user needs a policy summary, it doesn't improvise one. It calls a "generate policy summary" tool that runs a proven pipeline internally. The agent makes strategic decisions; reliable workflows produce specific artifacts.
+Choose the top level based on the domain. Regulated processes want deterministic tops for auditability. Customer-facing interfaces need agentic tops for flexibility. The LLM executes; the encoded intelligence guides.
 
-Choose the top level based on the domain. Regulated processes want deterministic tops for auditability. Customer-facing interfaces need agentic tops for flexibility.
+### Principles for Getting This Right
 
-**Encode expertise from above and below.** LLMs bring language understanding, synthesis, reasoning within context. Humans bring domain expertise, institutional knowledge, judgment about edge cases. Orchestration is how you combine them:
-
-- **From above**—in workflow design. The sequence of steps, the decision points, what gets checked and when. This is institutional knowledge made executable. The LLM operates within a process that embeds expertise.
-
-- **From below**—in tool abstraction. A well-designed tool doesn't just give the LLM a capability; it encodes "the right way to do this." Instead of letting the model freestyle with primitives like fetch and search, you give it a research tool that handles query formulation, result evaluation, and gap analysis internally. The expertise is in the tool; the LLM just invokes it.
-
-The LLM executes; the encoded intelligence guides.
-
-### Six Principles
+Putting this into practice requires attention to how you decompose work, manage context, and maintain control:
 
 **1. Decompose into explicit steps.** Don't let critical decisions happen in passing. If you're relying on the LLM for critical decisions, give it breathing room—force slow thinking by making the decision a dedicated step with focused context.
 
