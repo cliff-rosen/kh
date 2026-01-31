@@ -2,13 +2,13 @@
 
 ## The Gap Between Potential and Reality
 
-Large language models demonstrate remarkable capabilities—reasoning, synthesis, language understanding that seemed impossible five years ago. They can perform cognitive operations that previously required humans: extracting key points from documents, evaluating whether content meets criteria, drafting communications, synthesizing information from multiple sources.
+Large language models demonstrate remarkable capabilities—reasoning, synthesis, language understanding that seemed impossible five years ago. They can extract key points from documents, evaluate whether content meets criteria, draft communications, synthesize information from multiple sources.
 
 Yet most companies struggle to move from impressive demos to reliable production systems. The outputs are inconsistent. Systems work sometimes but not reliably. Edge cases proliferate. This isn't a matter of waiting for better models. The gap has a specific cause and a specific solution.
 
 ## The Memento Problem
 
-In the film *Memento*, the protagonist suffers from a condition that prevents him from forming new memories. He's intelligent—capable of logical reasoning, solving problems, carrying on sophisticated conversations. But every few minutes, his slate is wiped clean. He has to reconstruct his understanding from notes, photographs, and tattoos he's left for himself. He can be manipulated by people who feed him misleading context, because he has no way to verify it against his own memory.
+In the film *Memento*, the protagonist can't form new memories. He's intelligent—capable of logical reasoning, solving problems, carrying on sophisticated conversations. But every few minutes, his slate is wiped clean. He has to reconstruct his understanding from notes, photographs, and tattoos he's left for himself. He can be manipulated by people who feed him misleading context, because he has no way to verify it against his own memory.
 
 LLMs have the same condition.
 
@@ -28,8 +28,6 @@ LLMs have this problem acutely. When an LLM decides "I have enough information" 
 The model will confidently skip the search it didn't know it needed. It won't flag uncertainty about considerations it never considered. This is where external supervision becomes essential—explicit criteria, checklists, governance that catches when the system has sized things up incorrectly, before the invisible error propagates.
 
 ## The Firehose Problem
-
-There's a second foundational issue, distinct from the Memento problem.
 
 A smart human, given a vague or complex request, pushes back. "What do you mean by 'improve this email'? Improve how—shorter? more professional? clearer structure? What matters most?" They surface the hidden intentions. They decompose the task before attempting it. They clarify scope, priorities, constraints. This is part of what makes them effective.
 
@@ -55,7 +53,7 @@ These aren't user errors. They're natural assumptions that don't match how the t
 
 ## The Solution: Principled Orchestration
 
-Orchestration is coordinating multiple prompts, models, and tools to achieve what single interactions cannot. But not all orchestration is equal. The difference between ad-hoc prompting and principled orchestration is the difference between demos and production systems.
+Orchestration is coordinating multiple prompts, models, and tools to achieve what single interactions cannot. The difference between ad-hoc prompting and principled orchestration is the difference between ignoring the Memento and Firehose problems and systematically designing around them.
 
 ### Two Roles for LLMs
 
