@@ -68,15 +68,17 @@ Three architectural problems. One opportunity. Both require the same thing: not 
 
 ## The Solution: Principled Orchestration
 
-Orchestration is coordinating multiple prompts, models, and tools to achieve what single interactions cannot.
+Orchestration is coordinating multiple prompts, models, and tools to achieve what single interactions cannot. But before diving into specifics, there's a key question that shapes everything: **who's orchestrating?**
 
-But before diving into how orchestration works, there's a distinction that reveals much of the story: LLMs can play two fundamentally different roles in a system, and the three problems we just described hit very differently depending on which role they're in.
+Something has to decide what happens next. What's the next step? Do we have enough information? Should we branch left or right? That decision-making can happen in two ways:
 
-### Two Roles for LLMs
+**The LLM decides.** You give it a goal and tools, and it figures out the path. This is flexible—it handles novel situations, adapts to what it discovers. But it's subject to all three problems we just described. The LLM doesn't know what it doesn't know. It can't ground its plans in reality. It may not allocate enough cognition to the decision about what to do next.
 
-**Worker**—executing discrete cognitive operations within a designed workflow. Summarize this document. Extract the key dates. Classify this claim. The system defines the steps; the LLM executes each one. This is predictable, auditable, and optimizable.
+**An external system decides.** A designed workflow determines the sequence: step one, then step two, then step three. This is predictable and auditable. It encodes human expertise about how this task should be done. But it's rigid—it can't adapt to situations the designer didn't anticipate.
 
-**Planner**—deciding which operations to perform based on goals and available capabilities. The system provides tools; the LLM determines the path. This is flexible and handles novel situations well.
+The LLM can also serve as a **Worker**—executing discrete cognitive operations within whatever orchestration is happening. Summarize this document. Extract the key dates. Classify this claim. The system defines the task; the LLM executes it. This is where LLMs shine: focused, bounded work with clear inputs and outputs.
+
+The real power comes from combining these intelligently.
 
 ### The Architecture Is the Intelligence
 
