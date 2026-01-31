@@ -52,9 +52,19 @@ The most familiar symptom is hallucination itself—the model states facts that 
 
 This is architectural. The model produces what things *sound like*, not what they *are*.
 
+## The Expertise Opportunity
+
+These are limitations. But there's also an opportunity.
+
+LLMs are powerful—in many cases they outperform humans at tasks we thought required deep expertise. But domain experts still have wisdom, intuition, and institutional knowledge that LLMs don't possess. The actuary who knows which edge cases matter. The underwriter who recognizes patterns the training data doesn't capture. The researcher who knows where to look and when to stop looking.
+
+When you build LLM-powered systems, that expertise is at risk. If you let the model freestyle—give it a goal and primitive tools and hope for the best—you lose everything the humans know about how to do this well.
+
+The opportunity is to reach for that expertise and encode it into the system itself.
+
 ## The Path Forward
 
-These aren't user errors. They're architectural realities that require architectural solutions—not just a better prompt, but a designed system that accounts for what LLMs can and cannot do.
+Three architectural problems. One opportunity. Both require the same thing: not just a better prompt, but a designed system that accounts for what LLMs can and cannot do—and encodes what humans know.
 
 ## The Solution: Principled Orchestration
 

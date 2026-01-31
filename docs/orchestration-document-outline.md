@@ -38,11 +38,18 @@
   - Workflow drift—plan exists as narrative, not rigorous format; no actual plan underneath
 - Model produces what things *sound like*, not what they *are*
 
-## V. The Path Forward
-- These are architectural realities requiring architectural solutions
-- Not just a better prompt, but a designed system
+## V. The Expertise Opportunity
+- LLMs are powerful—in many cases outperform humans
+- But domain experts still have wisdom, intuition, institutional knowledge in specific areas
+- Risk: that expertise gets lost when you let the model freestyle
+- Opportunity: reach for that expertise and encode it into the system
 
-## VI. The Solution: Principled Orchestration
+## VI. The Path Forward
+- Three architectural problems, one opportunity
+- Require architectural solutions—not just a better prompt, but a designed system
+- Orchestration addresses both
+
+## VII. The Solution: Principled Orchestration
 - Definition: coordinating multiple prompts, models, and tools
 
 ### Two Roles for LLMs
@@ -72,12 +79,12 @@
 5. Encode expertise in tool abstraction
 6. Quality gates at critical junctions
 
-## VII. Example: Research Done Right
+## VIII. Example: Research Done Right
 - Simple RAG: hope-based context curation
 - Orchestrated: Clarify → Plan → Iterative retrieval loop → Synthesize
 - Encoding how an expert researcher works
 
-## VIII. What Changes
+## IX. What Changes
 - Reliability, debuggability, auditability
 - Latent capability already in model—orchestration extracts it
 - **Closing:** The model isn't the bottleneck—the usage pattern is
