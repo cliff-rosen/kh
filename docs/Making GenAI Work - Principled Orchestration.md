@@ -70,11 +70,11 @@ Three architectural problems. One opportunity. Both require the same thing: not 
 
 Orchestration is coordinating multiple prompts, models, and tools to achieve what single interactions cannot. But before diving into specifics, there's a key question that shapes everything: **who's orchestrating?**
 
-Something has to decide what happens next. What's the next step? Do we have enough information? Should we branch left or right? That decision-making can happen in two ways:
+Something has to decide what happens next. Do we have enough information? Did we decompose this problem correctly? Do we have adequate tools for the job? Is the best next step to compile a final answer, or to review what we've gathered against the requirements? That decision-making can happen in two ways:
 
 **The LLM decides.** You give it a goal and tools, and it figures out the path. This is flexible—it handles novel situations, adapts to what it discovers. But it's subject to all three problems we just described. The LLM doesn't know what it doesn't know. It can't ground its plans in reality. It may not allocate enough cognition to the decision about what to do next.
 
-**An external system decides.** A designed workflow determines the sequence: step one, then step two, then step three. This is predictable and auditable. It encodes human expertise about how this task should be done. But it's rigid—it can't adapt to situations the designer didn't anticipate.
+**An external system decides.** A designed workflow determines the sequence: step one, then step two, then step three. This is predictable, auditable, and—crucially—enforceable. The LLM has no ground truth; it can drift from its own plan. An external system actually tracks state and enforces what happens. It encodes human expertise about how this task should be done. But it's rigid—it can't adapt to situations the designer didn't anticipate.
 
 The LLM can also serve as a **Worker**—executing discrete cognitive operations within whatever orchestration is happening. Summarize this document. Extract the key dates. Classify this claim. The system defines the task; the LLM executes it. This is where LLMs shine: focused, bounded work with clear inputs and outputs.
 
@@ -102,7 +102,7 @@ The LLM executes; the encoded intelligence guides.
 
 ### Six Principles
 
-**1. Decompose into explicit steps.** Don't let critical decisions happen in passing. Each important judgment gets dedicated attention with focused context.
+**1. Decompose into explicit steps.** Don't let critical decisions happen in passing. If you're relying on the LLM for critical decisions, give it breathing room—force slow thinking by making the decision a dedicated step with focused context.
 
 **2. Curate sterile context.** Each step gets exactly what it needs—not accumulated conversation history, not everything that might be relevant, but precisely what this operation requires.
 
