@@ -37,9 +37,9 @@ Reasoning models attempt to address this—they generate more "thinking" tokens 
 
 You could try to solve this by tuning the model to always go deep—run everything to ground. But that creates massive inefficiency on trivial tasks, and still doesn't guarantee it goes deep on the *right* things. It's still making judgments about completeness with the same limited self-awareness.
 
-This is why orchestration must be external. You can't rely on the model to self-assess when it needs more processing, because that self-assessment is subject to the same constraints. It's the management problem again: you don't ask the employee "do you think you've thought about this enough?" You structure the work so critical decisions get adequate attention by design—not based on their self-assessment of whether they need it.
+The solution is decomposition. If the model has fixed cognition per token, don't ask it to make critical judgments in passing while generating a larger response. Make those judgments explicit steps. Break complex tasks into bounded operations where the model applies its full cognitive capacity to one thing at a time. A decision that might get a few tokens of implicit processing in a monolithic response gets a dedicated step with focused context.
 
-Orchestration is external cognitive allocation.
+You can't rely on the model to decompose for itself—that decision has the same blind spots. This is the management problem again: you don't ask the employee "do you think this needs to be broken into steps?" You structure the work so critical decisions get dedicated attention by design.
 
 ## What We See Go Wrong
 
