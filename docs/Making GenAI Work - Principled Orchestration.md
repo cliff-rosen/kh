@@ -48,7 +48,7 @@ This matters beyond the obvious "don't trust unverified facts" warning. It means
 - **Branching decisions**: When a workflow needs to branch based on whether a condition is met, the model produces a plausible response, not a verified answer.
 - **Verification**: It can generate text that looks like verification ("I've confirmed that X is correct"), but it's producing what confirmation would sound like.
 
-You see this as workflow drift. The model commits to an approach, then wanders or skips steps. Plans exist only in context; the LLM reorders, forgets, or abandons its own plan across turns. There's no actual tracking underneath—just narrative about what it's doing, which may or may not reflect reality.
+The most familiar symptom is hallucination itself—the model states facts that aren't true, cites sources that don't exist, generates plausible-sounding nonsense. But the grounding problem goes deeper. You also see it as workflow drift: the model commits to an approach, then wanders or skips steps. Plans exist only in context; the LLM reorders, forgets, or abandons its own plan across turns. There's no actual tracking underneath—just narrative about what it's doing, which may or may not reflect reality.
 
 This is architectural. The model produces what things *sound like*, not what they *are*.
 
