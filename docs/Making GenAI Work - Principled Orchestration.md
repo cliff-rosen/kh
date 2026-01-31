@@ -139,6 +139,8 @@ Here's how orchestration handles it:
 - `extract(content, schema)` — pulls structured data
 - `verify(claim, sources)` — checks consistency across sources
 
+Some columns need their own high-level tools. Getting a LinkedIn URL isn't just search-and-fetch—it's a tool that knows how to find the company page, distinguish it from employee profiles, and verify it's the right entity. Compiling a composite rating requires a tool that knows which rating sources exist, how to normalize scores across them, and how to handle missing data. The expertise for each column type is encoded in the tool; the agent just invokes it.
+
 The outer workflow ensures nothing gets skipped—it holds the ground truth about progress. The agentic layer handles the variability of research. The tools encode best practices for extraction and verification.
 
 This is the pattern: deterministic orchestration enforcing the process, agentic flexibility where judgment is needed, reliable tools encoding expertise at the bottom.
