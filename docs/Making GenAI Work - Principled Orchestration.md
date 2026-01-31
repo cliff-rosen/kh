@@ -8,13 +8,15 @@ Yet most companies struggle to move from impressive demos to reliable production
 
 ## The Memento Problem
 
-LLMs are like the protagonist in *Memento*—brilliant within any given moment, but starting from scratch every time with a limited aperture.
+In the film *Memento*, the protagonist suffers from a condition that prevents him from forming new memories. He's intelligent—capable of logical reasoning, solving problems, carrying on sophisticated conversations. But every few minutes, his slate is wiped clean. He has to reconstruct his understanding from notes, photographs, and tattoos he's left for himself. He can be manipulated by people who feed him misleading context, because he has no way to verify it against his own memory.
+
+LLMs have the same condition.
 
 Within a single interaction, they're powerful: logical, capable of sophisticated reasoning, able to synthesize information coherently. But they have no persistent memory across calls. Their context window is finite. They have no access to information unless it's explicitly provided. Every turn begins fresh with only what fits in the window.
 
 This is architectural, not a bug the next release will fix.
 
-This matters for business applications because real work often requires accumulating information over time, maintaining consistency across many interactions, accessing proprietary data the model was never trained on, or reasoning that exceeds what one pass can accomplish. The Memento problem breaks all of these.
+The implication is profound: since you can't fit everything into the context window, you're forced to select a subset. And now you face the real challenge—how do you determine *which* subset? How do you ensure the model has exactly the context it needs for each decision, and not the wrong context, or missing context, or polluted context? Get this wrong and the model reasons brilliantly from flawed premises. The quality of the output is bounded by the quality of the context curation.
 
 ## What We See Go Wrong
 
@@ -48,7 +50,7 @@ The real insight is that these modes combine—and can nest to arbitrary depth.
 
 **Agentic systems with deterministic tools.** A customer service interface handles open-ended requests—it can't predict what users will ask. The entry point is necessarily flexible. But when the agent determines the user needs a policy summary, it doesn't improvise one from scratch. It calls a "generate policy summary" tool that runs a proven, optimized pipeline internally. The agent makes strategic decisions; reliable workflows handle production of specific artifacts.
 
-The design implication: choose the top level based on the domain. Regulated processes often want deterministic tops—predictable, auditable, consistent. Customer-facing interfaces handling diverse requests often need agentic tops—flexible, adaptive. Then layer appropriately underneath.
+The design implication: choose the top level based on the domain. Regulated processes often want deterministic tops—predictable, auditable, consistent. Customer-facing interfaces handling diverse requests often need agentic tops—flexible, adaptive. The architecture becomes a tree where each node chooses its mode based on what that layer requires.
 
 ### The Sandwich Insight
 
@@ -73,9 +75,9 @@ Four principles separate effective orchestration from ad-hoc prompting:
 
 ## Example: From Simple RAG to Orchestrated Research
 
-The difference between naive and principled approaches is visible in how systems handle research questions.
+The context curation challenge shows up clearly in how systems handle research questions.
 
-**Simple RAG** (what most companies build): User question goes in, gets embedded, retrieves the top chunks from a vector store, sends them to an LLM, answer comes out. This has no concept of "completeness"—it retrieves once and hopes it's enough. No conflict detection when sources disagree. No iterative refinement based on what's missing. No way to know if the answer is actually grounded in sufficient evidence.
+**Simple RAG** (what most companies build): User question goes in, gets embedded, retrieves the top chunks from a vector store, sends them to an LLM, answer comes out. The context curation is naive—grab the nearest vectors and hope they're what's needed. No concept of "completeness." No conflict detection when sources disagree. No iterative refinement based on what's missing. No way to know if the answer is actually grounded in sufficient evidence.
 
 **Orchestrated approach:**
 
@@ -90,7 +92,7 @@ The difference between naive and principled approaches is visible in how systems
    - Exit when requirements are met—not after a fixed number of retrievals
 4. **Synthesize**—Generate the answer from accumulated knowledge, with citations to sources
 
-This approach has explicit completeness criteria, iterative gap-filling, conflict awareness, and an audit trail. Every claim traces back to a source. The workflow encodes how an expert researcher actually operates—not how a demo works.
+This approach solves the context curation problem systematically. Each step gets exactly the context it needs. The workflow has explicit completeness criteria, iterative gap-filling, conflict awareness, and an audit trail. Every claim traces back to a source. The design encodes how an expert researcher actually operates—not how a demo works.
 
 ## What This Enables
 
