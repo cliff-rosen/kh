@@ -54,9 +54,7 @@ This is architectural. The model produces what things *sound like*, not what the
 
 ## The Path Forward
 
-These aren't user errors or prompting failures. They're architectural realities. You can't prompt your way around them. Better instructions don't give the model persistent memory, don't make it shift into slow thinking, don't give it a relationship to truth.
-
-You have to design around them.
+These aren't user errors. They're architectural realities that require architectural solutions—not just a better prompt, but a designed system that accounts for what LLMs can and cannot do.
 
 ## The Solution: Principled Orchestration
 
