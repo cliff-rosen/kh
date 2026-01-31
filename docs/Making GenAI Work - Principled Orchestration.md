@@ -60,9 +60,9 @@ These aren't user errors. They're architectural realities that require architect
 
 Orchestration is coordinating multiple prompts, models, and tools to achieve what single interactions cannot.
 
-### Two Roles for LLMs
+But before diving into how orchestration works, there's a distinction that reveals much of the story: LLMs can play two fundamentally different roles in a system, and the three problems we just described hit very differently depending on which role they're in.
 
-In orchestrated systems, LLMs serve two fundamentally different roles:
+### Two Roles for LLMs
 
 **Worker**—executing discrete cognitive operations within a designed workflow. The system defines the steps; the LLM executes each one. This is predictable, auditable, and optimizable.
 
