@@ -2,9 +2,9 @@
 
 ## The Gap Between Potential and Reality
 
-Large language models demonstrate remarkable capabilities—reasoning, synthesis, language understanding that seemed impossible five years ago. They can extract key points from documents, evaluate whether content meets criteria, draft communications, synthesize information from multiple sources.
+Everyone who has worked seriously with LLMs knows the pattern: stunning capability in demos, frustrating inconsistency in production. The model that brilliantly summarized a document yesterday produces something shallow today. The agent that handled ten queries flawlessly falls apart on the eleventh. Edge cases proliferate. Reliability remains elusive.
 
-Yet most companies struggle to move from impressive demos to reliable production systems. The outputs are inconsistent. Systems work sometimes but not reliably. Edge cases proliferate. This isn't a matter of waiting for better models. The gap has a specific cause and a specific solution.
+This isn't a matter of waiting for better models. The gap has a specific cause and a specific solution.
 
 ## The Memento Problem
 
@@ -41,11 +41,11 @@ The firehose isn't a limitation of the model. It's a limitation of the usage pat
 
 ## What We See Go Wrong
 
-The Memento problem and the firehose problem manifest as three predictable failure modes:
+The Memento problem and the firehose problem manifest as predictable failure modes:
 
-**Implicit instruction collapse.** Complex tasks contain dozens of hidden sub-decisions that get collapsed into a single prompt. "Improve this email" actually means: identify what's essential, identify what's redundant, determine the right tone for this context, restructure for clarity, preserve key relationships, and so on. The model makes quick implicit judgments about all of these. Different runs produce different judgments. Outputs are inconsistent, and you can't inspect or correct the hidden decisions because they were never made visible.
+**Implicit instruction collapse** (from the firehose): Hidden sub-decisions get made silently. Different runs produce different judgments. Outputs are inconsistent, and you can't inspect or correct decisions that were never made visible.
 
-**Context curation failure.** Not deliberately constructing the right context for each operation. This is the direct consequence of the Memento problem—you have to choose what goes in, and that choice determines the quality of the output. Most approaches either stuff everything in (hoping more is better) or grab whatever's nearest in vector space (hoping similarity is relevance). Neither is principled curation based on what this specific step actually needs. The model reasons brilliantly from whatever context it's given, even if that context is incomplete, irrelevant, or misleading.
+**Context curation failure** (from Memento): Not deliberately constructing the right context for each operation. This is the direct consequence of the Memento problem—you have to choose what goes in, and that choice determines the quality of the output. Most approaches either stuff everything in (hoping more is better) or grab whatever's nearest in vector space (hoping similarity is relevance). Neither is principled curation based on what this specific step actually needs. The model reasons brilliantly from whatever context it's given, even if that context is incomplete, irrelevant, or misleading.
 
 **Stateless workflow delegation.** Asking a memoryless system to manage stateful processes. Loops, progress tracking, conditional branching, knowing what's been done and what remains—the model can't reliably do these because of the Memento problem. It will skip steps, reorder operations, lose track of where it is. Delegating workflow management to the model is delegating to something architecturally incapable of the task.
 
@@ -73,14 +73,7 @@ The real insight is that these modes combine—and can nest to arbitrary depth.
 
 The design implication: choose the top level based on the domain. Regulated processes often want deterministic tops—predictable, auditable, consistent. Customer-facing interfaces handling diverse requests often need agentic tops—flexible, adaptive. The architecture becomes a tree where each node chooses its mode based on what that layer requires.
 
-### The Sandwich Insight
-
-Every LLM call exists within a "sandwich" of encoded intelligence:
-
-- **Downstream** (in the tools it can call)—algorithms and domain logic the LLM pulls when needed
-- **Upstream** (in the orchestration that invoked it)—workflow design, timing, and curated context pushed to the LLM
-
-The orchestration architecture *is* the encoded intelligence. The design of the system—what calls what, with what context, in what sequence—embeds expertise that the LLM alone doesn't possess.
+This means every LLM call exists within layers of encoded intelligence—downstream in the tools it can call, upstream in the orchestration that invoked it. The orchestration architecture *is* the intelligence. The design of the system—what calls what, with what context, in what sequence—embeds expertise that the LLM alone doesn't possess.
 
 ### Principles That Make It Work
 
@@ -94,13 +87,11 @@ Four principles separate effective orchestration from ad-hoc prompting:
 
 **Externalize state and workflow.** Loops, counters, progress tracking, and conditional logic live outside the LLM. Let the model do what it's good at—reasoning about language and content. Let the orchestration layer handle what it's good at—reliable execution of defined processes.
 
-## Example: From Simple RAG to Orchestrated Research
+## Example: Research Done Right
 
-The context curation challenge shows up clearly in how systems handle research questions.
+Consider how most RAG systems work: question in, embed, retrieve top chunks, pass to LLM, answer out. The context curation is hope-based—grab the nearest vectors and trust they're sufficient. No concept of completeness. No conflict detection. No iteration. No way to know if the answer is grounded in adequate evidence.
 
-**Simple RAG** (what most companies build): User question goes in, gets embedded, retrieves the top chunks from a vector store, sends them to an LLM, answer comes out. The context curation is naive—grab the nearest vectors and hope they're what's needed. No concept of "completeness." No conflict detection when sources disagree. No iterative refinement based on what's missing. No way to know if the answer is actually grounded in sufficient evidence.
-
-**Orchestrated approach:**
+Now consider what a competent human researcher actually does:
 
 1. **Clarify**—Disambiguate the question. What specifically does the user need? This may involve the user.
 2. **Plan**—Generate a checklist: what would a complete, well-supported answer require?
@@ -113,21 +104,13 @@ The context curation challenge shows up clearly in how systems handle research q
    - Exit when requirements are met—not after a fixed number of retrievals
 4. **Synthesize**—Generate the answer from accumulated knowledge, with citations to sources
 
-This approach solves the context curation problem systematically. Each step gets exactly the context it needs. The workflow has explicit completeness criteria, iterative gap-filling, conflict awareness, and an audit trail. Every claim traces back to a source. The design encodes how an expert researcher actually operates—not how a demo works.
+This isn't a better algorithm. It's encoding how an expert actually works—into a system that can execute it reliably, repeatedly, at scale.
 
-## What This Enables
+## What Changes
 
-Principled orchestration produces systems with characteristics that enterprises require:
+The difference isn't subtle. Systems built on principled orchestration work consistently, not occasionally. When something fails, you know which step broke and why—you fix that step, not the whole system. For regulated industries, you can demonstrate that every case went through required evaluation steps, because the path is explicit and logged.
 
-**Reliability.** Systems that work consistently, not occasionally. The same input produces dependably high-quality output.
-
-**Auditability.** Clear logs of what happened at each step. For regulated industries, this isn't optional. You can demonstrate that every case went through required evaluation steps.
-
-**Debuggability.** When something fails, you know which step broke and why. Fix that step; don't restart from scratch.
-
-**Capability extraction.** Structured decomposition unlocks performance that single-turn interactions leave on the table. The latent capability is in the model. Orchestration extracts it.
-
-**Appropriate trust.** Human oversight at the junctions that matter, automation where it's safe. The system makes its reasoning visible rather than operating as a black box.
+Most importantly: the latent capability is already in the model. Orchestration is how you extract it. Structured decomposition unlocks performance that single-turn interactions leave on the table. The model isn't the bottleneck. The usage pattern is.
 
 ---
 
