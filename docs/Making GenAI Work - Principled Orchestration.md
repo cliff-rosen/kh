@@ -16,11 +16,11 @@ Within a single interaction, they're powerful: logical, capable of sophisticated
 
 This is architectural, not a bug the next release will fix.
 
-The implication is profound: since you can't fit everything into the context window, you're forced to select a subset. And now you face the real challenge—how do you determine *which* subset? How do you ensure the model has exactly the context it needs for each decision, and not the wrong context, or missing context, or polluted context? Get this wrong and the model reasons brilliantly from flawed premises.
+The implication is profound: since you can't fit everything into the context window, you're forced to select a subset. And now you face the real challenge—how do you determine *which* subset? How do you ensure the model has exactly the context it needs for each decision, and not the wrong context, or missing context, or polluted context? Get this wrong and all the power of the LLM gets aimed in the wrong direction.
 
-There's a deeper problem: the model doesn't know what it doesn't know. This matters most when LLMs are part of the decision-making process—deciding what to do next, what information to gather, whether enough research has been done. When an LLM decides "I have enough information" or "I don't need to search for X," it makes that judgment with no awareness of what might be missing.
+If the LLM is performing an output task—writing, summarizing, analyzing—you get a bad information asset. The output looks confident but is built on the wrong foundation. This is catchable if you have quality gates.
 
-This is where things go seriously wrong. The model confidently skips the search it didn't know it needed. It won't flag uncertainty about considerations it never considered. The error is invisible—the right step was never executed, so there's nothing to catch. You see the LLM make bad decisions: recommending the wrong approach, missing key considerations, producing outputs that don't account for critical facts. The output looks confident, but it's built on the wrong foundation.
+But it's worse when the LLM is functioning in its planning or reasoning capacity. The model doesn't know what it doesn't know. When it decides "I have enough information" or "I don't need to search for X," it makes that judgment with no awareness of what might be missing. It confidently skips the search it didn't know it needed. Now you've hit a branch in the decision tree and you're going a thousand miles an hour the wrong way. The error is invisible—the right step was never executed, so there's nothing to catch.
 
 ## The Cognitive Allocation Problem
 
