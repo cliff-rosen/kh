@@ -130,16 +130,21 @@ Here's how orchestration handles it:
 
 **Research step (agentic):**
 - For a given company and data point, the agent decides how to find it
-- What queries to run? What sources to trust? Is this result sufficient or do I need corroboration?
+- The key decision: what tools to call and with what parameters
 - Flexible enough to handle variation—some data points are on the company website, some require industry databases, some need news articles
 
-**Tools the agent calls (non-agentic, reliable):**
+**The tools available to the agent:**
+
+*Higher-level tools* encode human expertise for specific tasks:
+- `get_linkedin_url(company)` — knows how to find the company page, distinguish it from employee profiles, verify it's the right entity
+- `compile_composite_rating(company)` — knows which rating sources exist, how to normalize scores, how to handle missing data
+
+These are orchestrated workflows in their own right—the expertise is built in, the agent just invokes them.
+
+*Atomic tools* give the agent flexibility for everything else:
 - `search(query)` — returns candidate sources
 - `fetch(url)` — retrieves content
 - `extract(content, schema)` — pulls structured data
-- `verify(claim, sources)` — checks consistency across sources
-
-Some columns need their own high-level tools. Getting a LinkedIn URL isn't just search-and-fetch—it's a tool that knows how to find the company page, distinguish it from employee profiles, and verify it's the right entity. Compiling a composite rating requires a tool that knows which rating sources exist, how to normalize scores across them, and how to handle missing data. The expertise for each column type is encoded in the tool; the agent just invokes it.
 
 The outer workflow ensures nothing gets skipped—it holds the ground truth about progress. The agentic layer handles the variability of research. The tools encode best practices for extraction and verification.
 
