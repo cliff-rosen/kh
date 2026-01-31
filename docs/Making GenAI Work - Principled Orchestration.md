@@ -78,29 +78,23 @@ But before diving into how orchestration works, there's a distinction that revea
 
 **Planner**—deciding which operations to perform based on goals and available capabilities. The system provides tools; the LLM determines the path. This is flexible and handles novel situations well.
 
-### The Critical Design Insight
+### The Architecture Is the Intelligence
 
-Agentic decision-making has power—reach and flexibility that rigid workflows can't match. But many systems fail because they don't realize: **sometimes you need a deterministic layer above the agentic layer.**
+The design of the system—what calls what, with what context, in what sequence—is where the real intelligence lives. Two things matter:
 
-The real power comes from designing these layers intelligently:
+**Layer appropriately.** Agentic decision-making has power—reach and flexibility that rigid workflows can't match. But many systems fail because they don't realize: sometimes you need a deterministic layer above the agentic layer.
 
-**Deterministic workflows with agentic steps.** A claims processing system might have a fixed outer workflow: receive claim, validate format, assess coverage, calculate payout, generate decision letter. This sequence is locked for compliance. But "assess coverage" might require research, judgment about ambiguous situations, synthesis of multiple documents. That step invokes an agent. The outer workflow knows *what* it needs; it delegates *how* to an LLM that can adapt.
+- **Deterministic workflows with agentic steps.** A claims processing system has a fixed outer workflow: receive claim, validate format, assess coverage, calculate payout, generate decision letter. This sequence is locked for compliance. But "assess coverage" might require research and judgment about ambiguous situations. That step invokes an agent. The outer workflow knows *what* it needs; it delegates *how* to an LLM that can adapt.
 
-**Agentic systems with deterministic tools.** A customer service agent handles open-ended requests—it can't predict what users will ask. But when the agent determines the user needs a policy summary, it doesn't improvise one. It calls a "generate policy summary" tool that runs a proven, optimized pipeline internally. The agent makes strategic decisions; reliable workflows handle production of specific artifacts.
+- **Agentic systems with deterministic tools.** A customer service agent handles open-ended requests—it can't predict what users will ask. But when the agent determines the user needs a policy summary, it doesn't improvise one. It calls a "generate policy summary" tool that runs a proven pipeline internally. The agent makes strategic decisions; reliable workflows produce specific artifacts.
 
-Choose the top level based on the domain. Regulated processes want deterministic tops for auditability. Customer-facing interfaces need agentic tops for flexibility. Then layer appropriately underneath.
+Choose the top level based on the domain. Regulated processes want deterministic tops for auditability. Customer-facing interfaces need agentic tops for flexibility.
 
-### Where Intelligence Lives
+**Encode expertise from above and below.** LLMs bring language understanding, synthesis, reasoning within context. Humans bring domain expertise, institutional knowledge, judgment about edge cases. Orchestration is how you combine them:
 
-This is not just defensive—working around LLM limitations. It's about **where expertise lives in the system**.
+- **From above**—in workflow design. The sequence of steps, the decision points, what gets checked and when. This is institutional knowledge made executable. The LLM operates within a process that embeds expertise.
 
-LLMs bring certain capabilities: language understanding, synthesis, reasoning within context. But humans still have domain expertise, institutional knowledge, judgment about "how we do things here," understanding of edge cases and what actually matters. For the foreseeable future, human judgment in specific domains will exceed what LLMs can provide.
-
-The question is how to combine them. Orchestration is how you encode human intelligence into the system:
-
-**From above**—in workflow design. The sequence of steps, the decision points, what gets checked and when. This is institutional knowledge made executable. The LLM doesn't decide the process; it operates within a process that embeds expertise.
-
-**From below**—in tool abstraction. A well-designed tool doesn't just give the LLM a capability; it encodes "the right way to do this." Instead of letting the model freestyle with primitives like fetch and search, you give it a research tool that internally handles query formulation, result evaluation, and gap analysis. The expertise is in the tool; the LLM just invokes it.
+- **From below**—in tool abstraction. A well-designed tool doesn't just give the LLM a capability; it encodes "the right way to do this." Instead of letting the model freestyle with primitives like fetch and search, you give it a research tool that handles query formulation, result evaluation, and gap analysis internally. The expertise is in the tool; the LLM just invokes it.
 
 The LLM executes; the encoded intelligence guides.
 
