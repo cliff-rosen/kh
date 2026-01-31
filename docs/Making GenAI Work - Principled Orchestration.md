@@ -4,7 +4,7 @@
 
 Everyone who has worked seriously with LLMs knows the pattern: stunning capability in demos, frustrating inconsistency in production. The model that brilliantly summarized a document yesterday produces something shallow today. The agent that handled ten queries flawlessly falls apart on the eleventh. Edge cases proliferate. Reliability remains elusive.
 
-This isn't a matter of waiting for better models. The gap has specific causes and a specific solution.
+This isn't a matter of waiting for better models. The gap traces to specific architectural limitations—and understanding them points to the solution.
 
 ## The Memento Problem
 
@@ -18,9 +18,9 @@ This is architectural, not a bug the next release will fix.
 
 The implication is profound: since you can't fit everything into the context window, you're forced to select a subset. And now you face the real challenge—how do you determine *which* subset? How do you ensure the model has exactly the context it needs for each decision, and not the wrong context, or missing context, or polluted context? Get this wrong and the model reasons brilliantly from flawed premises.
 
-There's a deeper problem: the model doesn't know what it doesn't know. This matters most when LLMs are used as part of the decision-making process—deciding what to do next, what information to gather, whether enough research has been done. When an LLM decides "I have enough information" or "I don't need to search for X," it makes that judgment with no awareness of what might be missing.
+There's a deeper problem: the model doesn't know what it doesn't know. This matters most when LLMs are part of the decision-making process—deciding what to do next, what information to gather, whether enough research has been done. When an LLM decides "I have enough information" or "I don't need to search for X," it makes that judgment with no awareness of what might be missing.
 
-This is where things go seriously wrong. The model will confidently skip the search it didn't know it needed. It won't flag uncertainty about considerations it never considered. The error is invisible—the right step was never executed, so there's nothing to catch at a quality gate. External supervision becomes essential: explicit criteria, checklists, governance that catches when the system has sized things up incorrectly, before the invisible error propagates.
+This is where things go seriously wrong. The model confidently skips the search it didn't know it needed. It won't flag uncertainty about considerations it never considered. The error is invisible—the right step was never executed, so there's nothing to catch. You see the LLM make bad decisions: recommending the wrong approach, missing key considerations, producing outputs that don't account for critical facts. The output looks confident, but it's built on the wrong foundation.
 
 ## The Cognitive Allocation Problem
 
@@ -30,7 +30,11 @@ LLMs don't have this switch. They're always in fast-thinking mode. No matter wha
 
 Reasoning models attempt to address this—they generate more "thinking" tokens before answering, which means more total compute. But there's a deeper problem: the model still has to *decide* whether to reason more. And that decision is made with the same limitations. It doesn't know what it doesn't know. It might confidently assess "this is straightforward" and be wrong.
 
-You can't rely on the model to allocate cognition appropriately—that meta-decision has the same blind spots as everything else. The solution is decomposition imposed from outside: break complex tasks into bounded operations where the model applies its full cognitive capacity to one thing at a time.
+You see this as the "do better" phenomenon: ask an LLM to write something, then simply say "improve that." It produces a better response—often significantly better. This reveals that the first response didn't use all the capability available in the model. Like a human giving a quick answer, the LLM satisfices rather than maximizes. It produces something reasonable, not something optimal.
+
+You also see it in hidden intentions. A request like "make this email more professional and concise" contains implicit sub-decisions: What counts as professional? What information is essential versus removable? What tone is appropriate for this context? The model makes quick judgments about all of these without showing its work. Errors in these implicit steps go undetected—you only see the final output, not the reasoning that produced it.
+
+The result: complex tasks get shallow treatment. The LLM has the capability to do better work, but the conditions don't allow it. Critical sub-decisions happen in passing rather than getting dedicated attention.
 
 ## The Grounding Problem
 
@@ -44,19 +48,15 @@ This matters beyond the obvious "don't trust unverified facts" warning. It means
 - **Branching decisions**: When a workflow needs to branch based on whether a condition is met, the model produces a plausible response, not a verified answer.
 - **Verification**: It can generate text that looks like verification ("I've confirmed that X is correct"), but it's producing what confirmation would sound like.
 
+You see this as workflow drift. The model commits to an approach, then wanders or skips steps. Plans exist only in context; the LLM reorders, forgets, or abandons its own plan across turns. There's no actual tracking underneath—just narrative about what it's doing, which may or may not reflect reality.
+
 This is architectural. The model produces what things *sound like*, not what they *are*.
 
-## What This Looks Like
+## The Path Forward
 
-These three limitations manifest as predictable failures:
+These aren't user errors or prompting failures. They're architectural realities. You can't prompt your way around them. Better instructions don't give the model persistent memory, don't make it shift into slow thinking, don't give it a relationship to truth.
 
-**The LLM makes bad decisions.** It recommends the wrong approach, skips necessary steps, misses key considerations. The output looks confident but is built on the wrong foundation—missing critical information or polluted with irrelevant context. This is the Memento problem: the model doesn't know what it doesn't have.
-
-**Complex tasks get shallow treatment.** Implicit sub-decisions get made silently. Different runs produce different judgments on the same input. Critical choices that should get dedicated attention happen in passing. This is the cognitive allocation problem: the model can't shift into slow thinking when it matters.
-
-**Plans drift.** The model commits to an approach, then wanders or skips steps. It generates narrative about what it's doing, but there's no actual tracking underneath. This is the grounding problem: narrative isn't state.
-
-These aren't user errors. They're natural assumptions that don't match how the technology works.
+You have to design around them.
 
 ## The Solution: Principled Orchestration
 
