@@ -27,23 +27,25 @@ LLMs have this problem acutely. When an LLM decides "I have enough information" 
 
 The model will confidently skip the search it didn't know it needed. It won't flag uncertainty about considerations it never considered. This is where external supervision becomes essential—explicit criteria, checklists, governance that catches when the system has sized things up incorrectly, before the invisible error propagates.
 
-## The Firehose Problem
+## The Cognitive Allocation Problem
 
-A smart human, given a vague or complex request, pushes back. "What do you mean by 'improve this email'? Improve how—shorter? more professional? clearer structure? What matters most?" They surface the hidden intentions. They decompose the task before attempting it. They clarify scope, priorities, constraints. This is part of what makes them effective.
+LLMs have a fixed amount of cognition per token. Each token gets the same computational budget, whether it's a filler word or a critical judgment. The model can't "think harder" on the hard parts. It can't pause, allocate more processing to a complex decision, and then continue. It generates at constant cognitive intensity regardless of what's actually being decided.
 
-LLMs can do this too. They can ask clarifying questions. They can break tasks into steps. They can surface ambiguities and propose ways to resolve them. The capability exists.
+Humans don't work this way. When something is complex, we slow down. We allocate more mental effort. We pause before answering. We break things into parts. We realize "this needs more thought" and give it more thought. We dynamically allocate cognitive resources based on difficulty.
 
-But the typical usage pattern doesn't give them the opportunity. The pattern is: complex prompt in, complete answer out, all in one turn. This is the firehose—forcing everything through a single interaction.
+Reasoning models attempt to address this—they generate more "thinking" tokens before answering, which means more total compute. But there's a deeper problem: the model still has to *decide* whether to reason more. And that decision is made with the same limitations. It doesn't know what it doesn't know. It might confidently assess "this is straightforward" and be wrong. The meta-decision about cognitive allocation has the same blind spots as everything else.
 
-When you do this, the model has no choice but to make all the implicit decisions immediately and silently. It won't stop to ask what you meant. It won't decompose the task into reviewable steps. It won't surface the hidden sub-decisions for your input. It will just produce something—making dozens of quick judgments you never see, can't inspect, and couldn't correct if you wanted to.
+You could try to solve this by tuning the model to always go deep—run everything to ground. But that creates massive inefficiency on trivial tasks, and still doesn't guarantee it goes deep on the *right* things. It's still making judgments about completeness with the same limited self-awareness.
 
-The firehose isn't a limitation of the model. It's a limitation of the usage pattern. And it's why "implicit instruction collapse" happens—not because LLMs can't clarify and decompose, but because the single-turn interaction doesn't let them.
+This is why orchestration must be external. You can't rely on the model to self-assess when it needs more processing, because that self-assessment is subject to the same constraints. It's the management problem again: you don't ask the employee "do you think you've thought about this enough?" You structure the work so critical decisions get adequate attention by design—not based on their self-assessment of whether they need it.
+
+Orchestration is external cognitive allocation.
 
 ## What We See Go Wrong
 
-The Memento problem and the firehose problem manifest as predictable failure modes:
+The Memento problem and the cognitive allocation problem manifest as predictable failure modes:
 
-**Implicit instruction collapse** (from the firehose): Hidden sub-decisions get made silently. Different runs produce different judgments. Outputs are inconsistent, and you can't inspect or correct decisions that were never made visible.
+**Implicit instruction collapse** (from cognitive allocation): Hidden sub-decisions get made silently. Different runs produce different judgments. Outputs are inconsistent, and you can't inspect or correct decisions that were never made visible.
 
 **Context curation failure** (from Memento): Not deliberately constructing the right context for each operation. This is the direct consequence of the Memento problem—you have to choose what goes in, and that choice determines the quality of the output. Most approaches either stuff everything in (hoping more is better) or grab whatever's nearest in vector space (hoping similarity is relevance). Neither is principled curation based on what this specific step actually needs. The model reasons brilliantly from whatever context it's given, even if that context is incomplete, irrelevant, or misleading.
 
@@ -53,7 +55,7 @@ These aren't user errors. They're natural assumptions that don't match how the t
 
 ## The Solution: Principled Orchestration
 
-Orchestration is coordinating multiple prompts, models, and tools to achieve what single interactions cannot. The difference between ad-hoc prompting and principled orchestration is the difference between ignoring the Memento and Firehose problems and systematically designing around them.
+Orchestration is coordinating multiple prompts, models, and tools to achieve what single interactions cannot. The difference between ad-hoc prompting and principled orchestration is the difference between ignoring these constraints and systematically designing around them.
 
 ### Two Roles for LLMs
 
