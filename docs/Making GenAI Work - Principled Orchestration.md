@@ -114,23 +114,34 @@ The LLM executes; the encoded intelligence guides.
 
 **6. Quality gates at critical junctions.** Verify outputs *and* strategic decisions before proceeding. Don't trust the model's self-assessment that it has enough information or made the right choice. Check against explicit criteria.
 
-## Example: Research Done Right
+## Example: Building a Company List
 
-Consider how most RAG systems work: question in, embed, retrieve top chunks, pass to LLM, answer out. The context curation is hope-based—grab the nearest vectors and trust they're sufficient.
+Suppose you need a table of 200 companies meeting certain criteria, with 12 columns—each cell well-developed and verified. In principle, you could do this with just web search and fetch. Give an LLM those tools and a goal, and let it work.
 
-Now consider what a competent human researcher actually does:
+It won't work. Two hundred companies times twelve columns is 2,400 cells. The LLM will drift, skip companies, fill cells inconsistently, lose track of what's done. The problems we described will compound at scale.
 
-1. **Clarify**—Disambiguate the question. What specifically is needed?
-2. **Plan**—Generate a checklist: what would a complete, well-supported answer require?
-3. **Iterative retrieval loop:**
-   - Analyze gaps: what's still missing from the checklist?
-   - Generate targeted queries for specific gaps
-   - Evaluate results: relevant? contradictory? merely confirmatory?
-   - Integrate into a knowledge base with provenance tracking
-   - Exit when requirements are met—not after a fixed number of retrievals
-4. **Synthesize**—Generate the answer from accumulated knowledge, with citations
+Here's how orchestration handles it:
 
-This isn't a better algorithm. It's encoding how an expert researcher actually works—into a system that executes reliably, repeatedly, at scale.
+**Outer workflow (deterministic, enforced):**
+- Maintain the master list of companies and columns
+- Track completion state externally—what's been researched, what's verified, what's missing
+- Iterate systematically: for each company, for each column, invoke the research step
+- Enforce quality gates before marking cells complete
+
+**Research step (agentic):**
+- For a given company and data point, the agent decides how to find it
+- What queries to run? What sources to trust? Is this result sufficient or do I need corroboration?
+- Flexible enough to handle variation—some data points are on the company website, some require industry databases, some need news articles
+
+**Tools the agent calls (non-agentic, reliable):**
+- `search(query)` — returns candidate sources
+- `fetch(url)` — retrieves content
+- `extract(content, schema)` — pulls structured data
+- `verify(claim, sources)` — checks consistency across sources
+
+The outer workflow ensures nothing gets skipped—it holds the ground truth about progress. The agentic layer handles the variability of research. The tools encode best practices for extraction and verification.
+
+This is the pattern: deterministic orchestration enforcing the process, agentic flexibility where judgment is needed, reliable tools encoding expertise at the bottom.
 
 ## What Changes
 
