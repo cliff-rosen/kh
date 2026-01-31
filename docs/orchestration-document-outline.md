@@ -1,4 +1,4 @@
-# Orchestration Document Outline (Revised)
+# Orchestration Document Outline (Current State)
 
 **Audience:** Jeff Heaton (AI researcher, ML practitioner, actuarial background), Tim Rozar (RGA executive, FSA, innovation-focused)
 
@@ -9,149 +9,104 @@
 ---
 
 ## I. The Gap Between Potential and Reality
+- Demos work, production doesn't
+- This traces to specific architectural limitations—understanding them points to the solution
 
-**Opening hook:** Everyone who has worked seriously with LLMs knows the pattern: stunning capability in demos, frustrating inconsistency in production.
+## II. The Memento Problem
+- Movie analogy: brilliant but no persistent memory
+- LLMs: powerful within interaction, but no memory across calls, finite context window
+- **The context curation challenge:** You're forced to select a subset—which subset?
+- **Two failure modes:**
+  - Output task with wrong context → bad information asset (catchable)
+  - Planning/reasoning with wrong context → wrong branch, thousand miles an hour wrong way (invisible)
 
-- The potential is real
-- The struggle is also real
-- This isn't about waiting for better models—the gap has specific causes and a specific solution
+## III. The Cognitive Allocation Problem
+- Humans: fast thinking vs slow thinking, know when to shift gears
+- LLMs: always fast-thinking mode, can't recognize "this needs more thought"
+- Reasoning models don't fully solve it—meta-decision has same blind spots
+- **Symptoms:**
+  - "Do better" phenomenon (satisficing vs maximizing)
+  - Hidden intentions (implicit sub-decisions made without showing work)
+  - Complex tasks get shallow treatment
 
----
-
-## II. Three Architectural Limitations
-
-*Present root causes only—save all solutions for Section IV*
-
-### The Memento Problem
-
-Like the protagonist in the film—brilliant within any moment, but starting fresh each time with limited aperture.
-
-- No persistent memory across calls
-- Finite context window forces context curation
-- The real challenge: determining *which* subset of information to include
-- Deeper problem: doesn't know what it doesn't know
-- Key distinction: atomic errors (bad output, catchable) vs. strategic errors (wrong path taken, invisible)
-
-### The Cognitive Allocation Problem
-
-Fixed cognition per token—can't "think harder" on hard parts.
-
-- Each token gets the same computational budget
-- Can't pause, allocate more processing, then continue
-- Reasoning models attempt this but: the meta-decision about whether to reason more has the same blind spots
-- The model will confidently assess "this is straightforward" and be wrong
-
-### The Grounding Problem
-
-No relationship to truth, only to plausibility.
-
-- Generates statistically likely text, not verified truth
+## IV. The Grounding Problem
+- Hallucination is the familiar symptom, but goes deeper
+- No relationship to truth, only plausibility
 - Can't serve as ground truth for: state tracking, branching decisions, verification
-- Will confidently report progress it hasn't made, confirm conditions it hasn't checked
-- This is architectural—the model produces what things *sound like*, not what they *are*
+- **Symptoms:**
+  - Hallucination
+  - Workflow drift—plan exists as narrative, not rigorous format; no actual plan underneath
+- Model produces what things *sound like*, not what they *are*
 
----
+## V. The Path Forward
+- These are architectural realities requiring architectural solutions
+- Not just a better prompt, but a designed system
 
-## III. What This Looks Like
-
-*Observable symptoms—connect each to root cause*
-
-**Plans drift** (from Grounding): Model commits to an approach, then wanders or skips steps. It generates narrative about what it's doing, not actual tracking of what's done.
-
-**Complex tasks get shallow treatment** (from Cognitive Allocation): Implicit sub-decisions made silently, inconsistently. Different runs produce different judgments on the same input.
-
-**Context goes wrong** (from Memento): Model reasons brilliantly from flawed premises—either missing critical information or polluted with irrelevant context.
-
----
-
-## IV. The Solution: Principled Orchestration
-
-**Definition:** Coordinating multiple prompts, models, and tools to achieve what single interactions cannot.
+## VI. The Solution: Principled Orchestration
+- Definition: coordinating multiple prompts, models, and tools
 
 ### Two Roles for LLMs
-
-**Worker**—executing discrete cognitive operations within a designed workflow
-- System defines the steps; LLM executes each one
-- Predictable, auditable, optimizable
-
-**Planner**—deciding which operations to perform based on goals and available capabilities
-- System provides tools; LLM determines the path
-- Flexible, handles novel situations
+- Setup: "There's a distinction that reveals much of the story..."
+- **Worker**: executing discrete operations within designed workflow
+- **Planner**: deciding which operations based on goals and capabilities
 
 ### The Critical Design Insight
-
-Agentic decision-making has power—reach and flexibility. But many systems fail because they don't realize: **sometimes you need a deterministic layer above the agentic layer.**
-
-The real power comes from designing these layers intelligently:
-- **Deterministic workflows with agentic steps**: Fixed outer process for compliance/auditability, but complex judgment steps invoke agents
-- **Agentic systems with deterministic tools**: Flexible entry point for diverse requests, but specific artifacts produced by proven pipelines
-
-Choose the top level based on the domain. Regulated processes want deterministic tops. Customer-facing interfaces need agentic tops. Then layer appropriately underneath.
+- Agentic has power, but sometimes need deterministic layer above
+- **Deterministic workflows with agentic steps** (claims example)
+- **Agentic systems with deterministic tools** (customer service example)
+- Choose top level based on domain
 
 ### Where Intelligence Lives
-
-This is not just defensive—working around LLM limitations. It's about **where expertise lives in the system**.
-
-LLMs bring: language understanding, synthesis, reasoning within context.
-
-Humans still have: domain expertise, institutional knowledge, judgment about "how we do things here," understanding of edge cases.
-
-**Orchestration is how you encode human intelligence into the system**—from above in workflow design, from below in tool abstraction. The LLM executes; the encoded intelligence guides.
+- Not just defensive—where expertise lives in the system
+- Human judgment in specific domains exceeds LLMs for foreseeable future
+- Orchestration encodes human intelligence:
+  - **From above**: workflow design, institutional knowledge made executable
+  - **From below**: tool abstraction, "the right way to do this"
+- The LLM executes; the encoded intelligence guides
 
 ### Six Principles
+1. Decompose into explicit steps
+2. Curate sterile context
+3. Externalize state and control flow
+4. Bound before delegating
+5. Encode expertise in tool abstraction
+6. Quality gates at critical junctions
 
-1. **Decompose into explicit steps** — Don't let critical decisions happen in passing. Each important judgment gets dedicated attention.
+## VII. Example: Research Done Right
+- Simple RAG: hope-based context curation
+- Orchestrated: Clarify → Plan → Iterative retrieval loop → Synthesize
+- Encoding how an expert researcher works
 
-2. **Curate sterile context** — Each step gets exactly what it needs, not accumulated conversation history.
-
-3. **Externalize state and control flow** — Loops, counters, progress tracking, branching live outside the LLM. Let it do what it's good at.
-
-4. **Bound before delegating** — Agentic freedom exists inside constrained containers. The caller limits scope before handing off.
-
-5. **Encode expertise in tool abstraction** — Don't make the LLM freestyle with primitives. Higher-level tools encode "the right way to do this," reducing the decision surface.
-
-6. **Quality gates at critical junctions** — Verify outputs *and* strategic decisions before proceeding. Check against explicit criteria, not the model's self-assessment.
-
----
-
-## V. Example: Research Done Right
-
-**Simple RAG (what most companies build):**
-- Question → embed → retrieve top chunks → send to LLM → answer
-- Hope-based context curation
-- No concept of completeness, no iteration
-
-**Orchestrated approach:**
-1. **Clarify** — Disambiguate the question
-2. **Plan** — Generate checklist of what complete answer requires
-3. **Iterative retrieval loop:**
-   - Analyze gaps against checklist
-   - Generate targeted queries
-   - Evaluate results: relevant? contradictory?
-   - Integrate with provenance tracking
-   - Exit when requirements met
-4. **Synthesize** — Generate answer with citations
-
-This isn't a better algorithm—it's encoding how an expert researcher actually works.
+## VIII. What Changes
+- Reliability, debuggability, auditability
+- Latent capability already in model—orchestration extracts it
+- **Closing:** The model isn't the bottleneck—the usage pattern is
 
 ---
 
-## VI. What Changes
+## Critique
 
-Connect benefits to the three limitations:
+**What works:**
+- Three problems are distinct and well-developed with symptoms integrated
+- The "from above / from below" framing for encoding intelligence is strong
+- Example is concrete
 
-- **Reliability** (addresses all three) — Systems that work consistently, not occasionally
-- **Auditability** (addresses Grounding) — Clear logs of what happened at each step; explicit rather than generated narrative
-- **Debuggability** (addresses Cognitive Allocation) — When something fails, you know which step broke and why
-- **Capability extraction** (addresses Memento) — Structured decomposition unlocks performance single-turn interactions leave on the table
+**Potential issues:**
 
-**Closing:** The technology is powerful. The orchestration architecture determines whether that power translates to reliable value. The model isn't the bottleneck—the usage pattern is.
+1. **The Path Forward is thin.** It's just two sentences. Does it earn its own section? Could fold into either the preceding section or the solution section.
 
----
+2. **Two Roles → Critical Design Insight transition is abrupt.** We describe Worker and Planner, then immediately jump to "sometimes you need deterministic above agentic." The connection isn't explicit. Why does knowing these two roles lead to the insight about layering?
 
-## Notes
+3. **Where Intelligence Lives feels out of sequence.** We go: Two Roles → Layering Insight → Where Intelligence Lives → Principles. The "where intelligence lives" content is great but it's not clear why it comes after the layering discussion and before principles.
 
-- Keep tight—these readers appreciate density over padding
-- The "where intelligence lives" framing is distinctive and important
-- The tools abstraction point should land—it's non-obvious and valuable
-- Consider brief insurance examples if space permits (claims, underwriting research)
+4. **Six Principles come last but feel disconnected.** We've built up this rich picture of roles, layers, encoding intelligence—then we drop into a numbered list. The principles should feel like they flow from everything we've said, but they just appear.
+
+5. **Do we need both "Critical Design Insight" AND "Where Intelligence Lives"?** They're related—both about how to structure the system. Could they be combined?
+
+6. **The example only illustrates some concepts.** It shows decomposition and iterative refinement, but doesn't really show the Worker/Planner distinction or the "from above/below" encoding.
+
+**Possible restructure:**
+- Merge Path Forward into the Grounding Problem conclusion or Solution intro
+- After Two Roles, explicitly connect to the three problems: "When the LLM is a Worker, the Memento problem matters most. When it's a Planner, the Grounding problem becomes critical."
+- Consider whether Critical Design Insight and Where Intelligence Lives should be combined or reordered
+- Make the principles feel more like conclusions from the preceding discussion
