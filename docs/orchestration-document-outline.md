@@ -10,142 +10,148 @@
 
 ## I. The Gap Between Potential and Reality
 
-**Opening hook:** LLMs demonstrate remarkable capabilities - reasoning, synthesis, language understanding that seemed impossible five years ago. Yet most companies struggle to move from impressive demos to reliable production systems.
+**Opening hook:** Everyone who has worked seriously with LLMs knows the pattern: stunning capability in demos, frustrating inconsistency in production.
 
-- The potential is real: these models can perform cognitive operations that previously required humans
-- The struggle is also real: inconsistent outputs, systems that work sometimes but not reliably
-- This isn't a matter of waiting for better models - the gap has a specific cause and a specific solution
-
----
-
-## II. The Memento Problem
-
-**Core insight:** LLMs are like the protagonist in Memento - brilliant within any given moment, but starting from scratch every time with a limited aperture.
-
-- Powerful at logic, reasoning, synthesis *within* a single interaction
-- But: no persistent memory across calls, limited context window, no access to information unless explicitly provided
-- Every turn begins fresh with only what fits in the window
-- This is architectural, not a bug the next release will fix
-
-**Why this breaks business applications:**
-- Tasks requiring information accumulated over time
-- Tasks requiring consistency across many interactions
-- Tasks requiring proprietary data the model was never trained on
-- Tasks exceeding what one reasoning pass can accomplish
+- The potential is real
+- The struggle is also real
+- This isn't about waiting for better models—the gap has specific causes and a specific solution
 
 ---
 
-## III. What We See Go Wrong
+## II. Three Architectural Limitations
 
-Three patterns that lead to failed AI initiatives:
+*Present root causes only—save all solutions for Section IV*
 
-**1. The "just ask it" trap**
-- Complex tasks sent to an LLM in a single prompt, hoping for the best
-- Works in demos; fails in production when edge cases emerge
-- The model satisfices (gives "good enough") rather than maximizes
+### The Memento Problem
 
-**2. The Dirty Test Tube problem**
-- After several turns, context accumulates tangents, dead ends, failed attempts
-- This conversational debris dilutes the signal for the current task
-- The model performs worse, not better, as the conversation continues
+Like the protagonist in the film—brilliant within any moment, but starting fresh each time with limited aperture.
 
-**3. Workflow Drift**
-- Asking the LLM to manage multi-step processes, track state, or loop until done
-- LLMs skip steps, reorder, forget their own plans across turns
-- They're stateless - the Memento problem strikes again
+- No persistent memory across calls
+- Finite context window forces context curation
+- The real challenge: determining *which* subset of information to include
+- Deeper problem: doesn't know what it doesn't know
+- Key distinction: atomic errors (bad output, catchable) vs. strategic errors (wrong path taken, invisible)
 
-These aren't user errors - they're natural assumptions that don't match how the technology works.
+### The Cognitive Allocation Problem
+
+Fixed cognition per token—can't "think harder" on hard parts.
+
+- Each token gets the same computational budget
+- Can't pause, allocate more processing, then continue
+- Reasoning models attempt this but: the meta-decision about whether to reason more has the same blind spots
+- The model will confidently assess "this is straightforward" and be wrong
+
+### The Grounding Problem
+
+No relationship to truth, only to plausibility.
+
+- Generates statistically likely text, not verified truth
+- Can't serve as ground truth for: state tracking, branching decisions, verification
+- Will confidently report progress it hasn't made, confirm conditions it hasn't checked
+- This is architectural—the model produces what things *sound like*, not what they *are*
+
+---
+
+## III. What This Looks Like
+
+*Observable symptoms—connect each to root cause*
+
+**Plans drift** (from Grounding): Model commits to an approach, then wanders or skips steps. It generates narrative about what it's doing, not actual tracking of what's done.
+
+**Complex tasks get shallow treatment** (from Cognitive Allocation): Implicit sub-decisions made silently, inconsistently. Different runs produce different judgments on the same input.
+
+**Context goes wrong** (from Memento): Model reasons brilliantly from flawed premises—either missing critical information or polluted with irrelevant context.
 
 ---
 
 ## IV. The Solution: Principled Orchestration
 
-**Orchestration** is coordinating multiple prompts, models, and tools to achieve what single interactions cannot.
+**Definition:** Coordinating multiple prompts, models, and tools to achieve what single interactions cannot.
 
-### Two roles for LLMs in orchestrated systems:
+### Two Roles for LLMs
 
-**Worker** - Executing discrete cognitive operations within a designed workflow
+**Worker**—executing discrete cognitive operations within a designed workflow
 - System defines the steps; LLM executes each one
 - Predictable, auditable, optimizable
-- The LLM applies full cognitive focus to a bounded task
 
-**Planner** - Deciding which operations to perform based on goals and available tools
-- System provides capabilities; LLM determines the path
+**Planner**—deciding which operations to perform based on goals and available capabilities
+- System provides tools; LLM determines the path
 - Flexible, handles novel situations
-- Used where the right approach depends on what you find along the way
 
-### The recursive structure: you don't have to choose
+### The Critical Design Insight
 
-The real insight is that these modes combine - and can nest to arbitrary depth.
+Agentic decision-making has power—reach and flexibility. But many systems fail because they don't realize: **sometimes you need a deterministic layer above the agentic layer.**
 
-**Deterministic workflows with agentic steps:**
-A claims processing system might have a fixed outer workflow: receive claim, validate format, assess coverage, calculate payout, generate decision letter. This sequence is locked for compliance. But "assess coverage" might be genuinely complex - requiring research, judgment about ambiguous situations, synthesis of multiple policy provisions. That step invokes an agent. The outer workflow knows *what* it needs; it delegates *how* to an LLM that can adapt.
+The real power comes from designing these layers intelligently:
+- **Deterministic workflows with agentic steps**: Fixed outer process for compliance/auditability, but complex judgment steps invoke agents
+- **Agentic systems with deterministic tools**: Flexible entry point for diverse requests, but specific artifacts produced by proven pipelines
 
-**Agentic systems with deterministic tools:**
-A customer service agent handles open-ended requests - it can't predict what users will ask. But when the agent determines the user needs a policy summary, it doesn't improvise one. It calls a "generate policy summary" tool that runs a proven, optimized pipeline internally. The agent makes strategic decisions; reliable workflows handle production of specific artifacts.
+Choose the top level based on the domain. Regulated processes want deterministic tops. Customer-facing interfaces need agentic tops. Then layer appropriately underneath.
 
-**The design implication:** Choose the top level based on the domain. Regulated processes want deterministic tops for auditability. Customer-facing interfaces need agentic tops for flexibility. Then layer appropriately underneath.
+### Where Intelligence Lives
 
-**The key insight:** Every LLM call exists in a "sandwich" of encoded intelligence:
-- **Downstream** (in the tools it can call) - algorithms and domain logic the LLM pulls when needed
-- **Upstream** (in the orchestration that invoked it) - workflow design, timing, and curated context pushed to the LLM
+This is not just defensive—working around LLM limitations. It's about **where expertise lives in the system**.
 
-The orchestration architecture *is* the encoded intelligence.
+LLMs bring: language understanding, synthesis, reasoning within context.
 
-### Principles that separate effective orchestration from ad-hoc prompting:
+Humans still have: domain expertise, institutional knowledge, judgment about "how we do things here," understanding of edge cases.
 
-- **Make intentions explicit** - "Improve this email" hides dozens of implicit decisions. Decompose into visible, verifiable steps.
-- **Quality gates at critical junctions** - Verify outputs before proceeding. Catch errors before they propagate.
-- **Sterile context per step** - Each step gets exactly what it needs, not accumulated conversation history. Fresh, relevant context beats polluted context.
-- **Externalize state and workflow** - Loops, counters, and progress tracking live outside the LLM. Let it do what it's good at.
+**Orchestration is how you encode human intelligence into the system**—from above in workflow design, from below in tool abstraction. The LLM executes; the encoded intelligence guides.
+
+### Six Principles
+
+1. **Decompose into explicit steps** — Don't let critical decisions happen in passing. Each important judgment gets dedicated attention.
+
+2. **Curate sterile context** — Each step gets exactly what it needs, not accumulated conversation history.
+
+3. **Externalize state and control flow** — Loops, counters, progress tracking, branching live outside the LLM. Let it do what it's good at.
+
+4. **Bound before delegating** — Agentic freedom exists inside constrained containers. The caller limits scope before handing off.
+
+5. **Encode expertise in tool abstraction** — Don't make the LLM freestyle with primitives. Higher-level tools encode "the right way to do this," reducing the decision surface.
+
+6. **Quality gates at critical junctions** — Verify outputs *and* strategic decisions before proceeding. Check against explicit criteria, not the model's self-assessment.
 
 ---
 
-## V. Example: From Simple RAG to Orchestrated Research
-
-*[Demonstrates the difference between naive and principled approaches]*
+## V. Example: Research Done Right
 
 **Simple RAG (what most companies build):**
-1. User question → embed → retrieve top chunks → send to LLM → answer
-2. No concept of "completeness" - retrieves once and hopes it's enough
-3. No conflict detection, no gap filling, no iterative refinement
+- Question → embed → retrieve top chunks → send to LLM → answer
+- Hope-based context curation
+- No concept of completeness, no iteration
 
 **Orchestrated approach:**
-1. **Clarify** - Disambiguate the question (may involve the user)
-2. **Plan** - Generate a checklist of what a complete answer requires
+1. **Clarify** — Disambiguate the question
+2. **Plan** — Generate checklist of what complete answer requires
 3. **Iterative retrieval loop:**
-   - Analyze gaps: what's still missing?
-   - Generate targeted queries for specific gaps
-   - Evaluate results: relevant? contradictory? confirmatory?
-   - Integrate into knowledge base with provenance
-   - Check completeness against checklist
+   - Analyze gaps against checklist
+   - Generate targeted queries
+   - Evaluate results: relevant? contradictory?
+   - Integrate with provenance tracking
    - Exit when requirements met
-4. **Synthesize** - Generate answer with citations from accumulated knowledge
+4. **Synthesize** — Generate answer with citations
 
-**Why this matters:**
-- Explicit completeness criteria - knows when it's done
-- Iterative refinement - fills specific gaps, not random retrieval
-- Conflict awareness - tracks contradictions with sources
-- Audit trail - every claim has provenance
-- The workflow encodes how an expert researcher actually operates
+This isn't a better algorithm—it's encoding how an expert researcher actually works.
 
 ---
 
-## VI. What This Enables
+## VI. What Changes
 
-- **Reliability** - Systems that work consistently, not occasionally
-- **Auditability** - Clear logs of what happened at each step (critical for regulated industries)
-- **Debuggability** - When something fails, you know which step broke and why
-- **Capability extraction** - Structured decomposition unlocks performance that single-turn interactions leave on the table
-- **Appropriate trust** - Human oversight at the junctions that matter, automation where it's safe
+Connect benefits to the three limitations:
+
+- **Reliability** (addresses all three) — Systems that work consistently, not occasionally
+- **Auditability** (addresses Grounding) — Clear logs of what happened at each step; explicit rather than generated narrative
+- **Debuggability** (addresses Cognitive Allocation) — When something fails, you know which step broke and why
+- **Capability extraction** (addresses Memento) — Structured decomposition unlocks performance single-turn interactions leave on the table
+
+**Closing:** The technology is powerful. The orchestration architecture determines whether that power translates to reliable value. The model isn't the bottleneck—the usage pattern is.
 
 ---
 
-## Notes for Draft
+## Notes
 
-- **Tone:** Confident expertise, direct, not sales-y
-- **"What goes wrong" section:** Shows battle-tested experience - we've seen what fails
-- **The "sandwich" insight:** This is a distinctive framing that shows architectural thinking
-- **Example:** Shows we can actually decompose tasks, not just talk about principles
-- **Keep tight:** These readers will appreciate density over padding
-- **Consider:** A brief note about insurance applications (claims review, underwriting research, policy analysis) as natural fits for this approach
+- Keep tight—these readers appreciate density over padding
+- The "where intelligence lives" framing is distinctive and important
+- The tools abstraction point should land—it's non-obvious and valuable
+- Consider brief insurance examples if space permits (claims, underwriting research)

@@ -4,7 +4,7 @@
 
 Everyone who has worked seriously with LLMs knows the pattern: stunning capability in demos, frustrating inconsistency in production. The model that brilliantly summarized a document yesterday produces something shallow today. The agent that handled ten queries flawlessly falls apart on the eleventh. Edge cases proliferate. Reliability remains elusive.
 
-This isn't a matter of waiting for better models. The gap has a specific cause and a specific solution.
+This isn't a matter of waiting for better models. The gap has specific causes and a specific solution.
 
 ## The Memento Problem
 
@@ -16,30 +16,21 @@ Within a single interaction, they're powerful: logical, capable of sophisticated
 
 This is architectural, not a bug the next release will fix.
 
-The implication is profound: since you can't fit everything into the context window, you're forced to select a subset. And now you face the real challenge—how do you determine *which* subset? How do you ensure the model has exactly the context it needs for each decision, and not the wrong context, or missing context, or polluted context? Get this wrong and the model reasons brilliantly from flawed premises. The quality of the output is bounded by the quality of the context curation.
+The implication is profound: since you can't fit everything into the context window, you're forced to select a subset. And now you face the real challenge—how do you determine *which* subset? How do you ensure the model has exactly the context it needs for each decision, and not the wrong context, or missing context, or polluted context? Get this wrong and the model reasons brilliantly from flawed premises.
 
-There's a deeper problem: the model doesn't know what it doesn't know. Anyone who has managed people recognizes this pattern—you see someone about to make a decision and you can tell they've sized things up wrong. They missed something in the analysis phase and don't realize it. They're confident. A good supervisor catches this before the bad decision propagates.
+There's a deeper problem: the model doesn't know what it doesn't know. This matters most when LLMs are used as part of the decision-making process—deciding what to do next, what information to gather, whether enough research has been done. When an LLM decides "I have enough information" or "I don't need to search for X," it makes that judgment with no awareness of what might be missing.
 
-LLMs have this problem acutely. When an LLM decides "I have enough information" or "I don't need to search for X," it makes that judgment with no awareness of what might be missing. And here's the critical distinction:
-
-- An atomic operation with wrong context produces bad output—catchable at quality gates.
-- A strategic decision with wrong context means the wrong path is taken—the error is invisible because the right step was never executed.
-
-The model will confidently skip the search it didn't know it needed. It won't flag uncertainty about considerations it never considered. This is where external supervision becomes essential—explicit criteria, checklists, governance that catches when the system has sized things up incorrectly, before the invisible error propagates.
+This is where things go seriously wrong. The model will confidently skip the search it didn't know it needed. It won't flag uncertainty about considerations it never considered. The error is invisible—the right step was never executed, so there's nothing to catch at a quality gate. External supervision becomes essential: explicit criteria, checklists, governance that catches when the system has sized things up incorrectly, before the invisible error propagates.
 
 ## The Cognitive Allocation Problem
 
-LLMs have a fixed amount of cognition per token. Each token gets the same computational budget, whether it's a filler word or a critical judgment. The model can't "think harder" on the hard parts. It can't pause, allocate more processing to a complex decision, and then continue. It generates at constant cognitive intensity regardless of what's actually being decided.
+Humans have two modes of thinking: fast and slow. Fast thinking handles routine tasks automatically. Slow thinking engages when something is complex—we pause, break things into parts, allocate more mental effort. Crucially, we know when to shift gears.
 
-Humans don't work this way. When something is complex, we slow down. We allocate more mental effort. We pause before answering. We break things into parts. We realize "this needs more thought" and give it more thought. We dynamically allocate cognitive resources based on difficulty.
+LLMs don't have this switch. They're always in fast-thinking mode. No matter what's required in the moment, they generate responses at the same pace, with the same approach. They can't recognize "this needs more thought" and slow down to give it more thought.
 
-Reasoning models attempt to address this—they generate more "thinking" tokens before answering, which means more total compute. But there's a deeper problem: the model still has to *decide* whether to reason more. And that decision is made with the same limitations. It doesn't know what it doesn't know. It might confidently assess "this is straightforward" and be wrong. The meta-decision about cognitive allocation has the same blind spots as everything else.
+Reasoning models attempt to address this—they generate more "thinking" tokens before answering, which means more total compute. But there's a deeper problem: the model still has to *decide* whether to reason more. And that decision is made with the same limitations. It doesn't know what it doesn't know. It might confidently assess "this is straightforward" and be wrong.
 
-You could try to solve this by tuning the model to always go deep—run everything to ground. But that creates massive inefficiency on trivial tasks, and still doesn't guarantee it goes deep on the *right* things. It's still making judgments about completeness with the same limited self-awareness.
-
-The solution is decomposition. If the model has fixed cognition per token, don't ask it to make critical judgments in passing while generating a larger response. Make those judgments explicit steps. Break complex tasks into bounded operations where the model applies its full cognitive capacity to one thing at a time. A decision that might get a few tokens of implicit processing in a monolithic response gets a dedicated step with focused context.
-
-You can't rely on the model to decompose for itself—that decision has the same blind spots. This is the management problem again: you don't ask the employee "do you think this needs to be broken into steps?" You structure the work so critical decisions get dedicated attention by design.
+You can't rely on the model to allocate cognition appropriately—that meta-decision has the same blind spots as everything else. The solution is decomposition imposed from outside: break complex tasks into bounded operations where the model applies its full cognitive capacity to one thing at a time.
 
 ## The Grounding Problem
 
@@ -49,87 +40,94 @@ The model generates statistically likely text given its input. It has no world m
 
 This matters beyond the obvious "don't trust unverified facts" warning. It means the model can't serve as a source of ground truth for anything:
 
-- **State tracking**: It can generate text that looks like it's tracking state ("I've completed steps 1 and 2, now moving to step 3"), but this is generated narrative, not actual state. It has no persistent representation of what's really been done.
+- **State tracking**: It can generate text that looks like it's tracking state ("I've completed steps 1 and 2, now moving to step 3"), but this is generated narrative, not actual state.
+- **Branching decisions**: When a workflow needs to branch based on whether a condition is met, the model produces a plausible response, not a verified answer.
+- **Verification**: It can generate text that looks like verification ("I've confirmed that X is correct"), but it's producing what confirmation would sound like.
 
-- **Branching decisions**: When a workflow needs to branch based on whether a condition is met, the model can produce an answer—but it's generating a plausible response, not checking against ground truth.
+This is architectural. The model produces what things *sound like*, not what they *are*.
 
-- **Verification**: It can generate text that looks like verification ("I've confirmed that X is correct"), but it's not actually confirming anything. It's producing what confirmation would sound like.
+## What This Looks Like
 
-This is why you need external systems for anything requiring ground truth. The model can analyze, synthesize, generate—but when you need definitive answers about state, conditions, or correctness, those must come from systems that actually maintain truth, not systems that generate plausible approximations of it.
+These three limitations manifest as predictable failures:
 
-## What We See Go Wrong
+**Plans drift.** The model commits to an approach, then wanders or skips steps. It generates narrative about what it's doing, but there's no actual tracking underneath. This is the grounding problem in action.
 
-These three limitations manifest as predictable failure modes:
+**Complex tasks get shallow treatment.** Implicit sub-decisions get made silently. Different runs produce different judgments on the same input. Critical choices that should get dedicated attention happen in passing. This is the cognitive allocation problem.
 
-**Implicit instruction collapse** (from cognitive allocation): Hidden sub-decisions get made silently. Different runs produce different judgments. Outputs are inconsistent, and you can't inspect or correct decisions that were never made visible.
+**Context goes wrong.** The model reasons brilliantly from flawed premises—either missing critical information or polluted with irrelevant context. The output looks sophisticated but is built on the wrong foundation. This is the Memento problem.
 
-**Context curation failure** (from Memento): Not deliberately constructing the right context for each operation. You have to choose what goes in, and that choice determines the quality of the output. Most approaches either stuff everything in (hoping more is better) or grab whatever's nearest in vector space (hoping similarity is relevance). Neither is principled curation based on what this specific step actually needs.
-
-**False grounding** (from the grounding problem): The model generates text that looks like state tracking, verification, or definitive judgment—but it's narrative, not truth. It will confidently report progress it hasn't made, confirm conditions it hasn't checked, verify facts it hasn't verified. Delegating anything requiring ground truth to the model is delegating to something that can only approximate it.
-
-These aren't user errors. They're natural assumptions that don't match how the technology actually works.
+These aren't user errors. They're natural assumptions that don't match how the technology works.
 
 ## The Solution: Principled Orchestration
 
-Orchestration is coordinating multiple prompts, models, and tools to achieve what single interactions cannot. The difference between ad-hoc prompting and principled orchestration is the difference between ignoring these constraints and systematically designing around them.
+Orchestration is coordinating multiple prompts, models, and tools to achieve what single interactions cannot.
 
 ### Two Roles for LLMs
 
 In orchestrated systems, LLMs serve two fundamentally different roles:
 
-**Worker**—executing discrete cognitive operations within a designed workflow. The system defines the steps; the LLM executes each one. This is predictable, auditable, and optimizable. The LLM applies full cognitive focus to a bounded task.
+**Worker**—executing discrete cognitive operations within a designed workflow. The system defines the steps; the LLM executes each one. This is predictable, auditable, and optimizable.
 
-**Planner**—deciding which operations to perform based on goals and available capabilities. The system provides tools; the LLM determines the path. This is flexible and handles novel situations well. It's appropriate where the right approach depends on what you discover along the way.
+**Planner**—deciding which operations to perform based on goals and available capabilities. The system provides tools; the LLM determines the path. This is flexible and handles novel situations well.
 
-### The Recursive Structure
+### The Critical Design Insight
 
-The real insight is that these modes combine—and can nest to arbitrary depth.
+Agentic decision-making has power—reach and flexibility that rigid workflows can't match. But many systems fail because they don't realize: **sometimes you need a deterministic layer above the agentic layer.**
 
-**Deterministic workflows with agentic steps.** A claims processing system might have a fixed outer workflow: receive claim, validate format, assess coverage, calculate payout, generate decision letter. This sequence is locked for compliance and auditability. But "assess coverage" might require research, judgment about ambiguous policy provisions, synthesis of multiple documents. That step invokes an agent. The outer workflow knows *what* it needs; it delegates *how* to an LLM that can adapt its approach to each specific claim.
+The real power comes from designing these layers intelligently:
 
-**Agentic systems with deterministic tools.** A customer service interface handles open-ended requests—it can't predict what users will ask. The entry point is necessarily flexible. But when the agent determines the user needs a policy summary, it doesn't improvise one from scratch. It calls a "generate policy summary" tool that runs a proven, optimized pipeline internally. The agent makes strategic decisions; reliable workflows handle production of specific artifacts.
+**Deterministic workflows with agentic steps.** A claims processing system might have a fixed outer workflow: receive claim, validate format, assess coverage, calculate payout, generate decision letter. This sequence is locked for compliance. But "assess coverage" might require research, judgment about ambiguous situations, synthesis of multiple documents. That step invokes an agent. The outer workflow knows *what* it needs; it delegates *how* to an LLM that can adapt.
 
-The design implication: choose the top level based on the domain. Regulated processes often want deterministic tops—predictable, auditable, consistent. Customer-facing interfaces handling diverse requests often need agentic tops—flexible, adaptive. The architecture becomes a tree where each node chooses its mode based on what that layer requires.
+**Agentic systems with deterministic tools.** A customer service agent handles open-ended requests—it can't predict what users will ask. But when the agent determines the user needs a policy summary, it doesn't improvise one. It calls a "generate policy summary" tool that runs a proven, optimized pipeline internally. The agent makes strategic decisions; reliable workflows handle production of specific artifacts.
 
-This means every LLM call exists within layers of encoded intelligence—downstream in the tools it can call, upstream in the orchestration that invoked it. The orchestration architecture *is* the intelligence. The design of the system—what calls what, with what context, in what sequence—embeds expertise that the LLM alone doesn't possess.
+Choose the top level based on the domain. Regulated processes want deterministic tops for auditability. Customer-facing interfaces need agentic tops for flexibility. Then layer appropriately underneath.
 
-### Principles That Make It Work
+### Where Intelligence Lives
 
-Four principles separate effective orchestration from ad-hoc prompting:
+This is not just defensive—working around LLM limitations. It's about **where expertise lives in the system**.
 
-**Make intentions explicit.** "Improve this email" hides dozens of implicit decisions—what counts as improvement, what to preserve, what to cut. Decompose into visible, verifiable steps: extract key points, identify structural issues, propose remedies, apply changes. Each step can be inspected and corrected.
+LLMs bring certain capabilities: language understanding, synthesis, reasoning within context. But humans still have domain expertise, institutional knowledge, judgment about "how we do things here," understanding of edge cases and what actually matters.
 
-**Quality gates at critical junctions.** Verify outputs before proceeding—but also verify strategic decisions. If step two produces flawed output, every subsequent step is compromised. But if step two decides to skip a necessary search, the error is invisible. Gates must catch both: flawed outputs *and* flawed judgments about what's sufficient or unnecessary. Don't trust the model's assessment that it has enough. Check against explicit criteria.
+Orchestration is how you encode human intelligence into the system—from above in workflow design, from below in tool abstraction. The LLM executes; the encoded intelligence guides.
 
-**Sterile context per step.** Each step gets exactly the context it needs—not accumulated conversation history, not everything that might be relevant, but precisely what this operation requires. This directly addresses context curation failure.
+### Six Principles
 
-**Externalize state and workflow.** Loops, counters, progress tracking, and conditional logic live outside the LLM. Let the model do what it's good at—reasoning about language and content. Let the orchestration layer handle what it's good at—reliable execution of defined processes.
+**1. Decompose into explicit steps.** Don't let critical decisions happen in passing. Each important judgment gets dedicated attention with focused context.
+
+**2. Curate sterile context.** Each step gets exactly what it needs—not accumulated conversation history, not everything that might be relevant, but precisely what this operation requires.
+
+**3. Externalize state and control flow.** Loops, counters, progress tracking, and conditional logic live outside the LLM. Let it do what it's good at—reasoning about language and content.
+
+**4. Bound before delegating.** Agentic freedom exists inside constrained containers. The caller limits scope before handing off. Don't give the LLM a task and expect it to freestyle correctly with primitive tools.
+
+**5. Encode expertise in tool abstraction.** Higher-level tools encode "the right way to do this." A research tool that internally handles query formulation, result evaluation, and gap analysis reduces the LLM's decision surface and makes the happy path the default.
+
+**6. Quality gates at critical junctions.** Verify outputs *and* strategic decisions before proceeding. Don't trust the model's self-assessment that it has enough information or made the right choice. Check against explicit criteria.
 
 ## Example: Research Done Right
 
-Consider how most RAG systems work: question in, embed, retrieve top chunks, pass to LLM, answer out. The context curation is hope-based—grab the nearest vectors and trust they're sufficient. No concept of completeness. No conflict detection. No iteration. No way to know if the answer is grounded in adequate evidence.
+Consider how most RAG systems work: question in, embed, retrieve top chunks, pass to LLM, answer out. The context curation is hope-based—grab the nearest vectors and trust they're sufficient.
 
 Now consider what a competent human researcher actually does:
 
-1. **Clarify**—Disambiguate the question. What specifically does the user need? This may involve the user.
+1. **Clarify**—Disambiguate the question. What specifically is needed?
 2. **Plan**—Generate a checklist: what would a complete, well-supported answer require?
 3. **Iterative retrieval loop:**
    - Analyze gaps: what's still missing from the checklist?
    - Generate targeted queries for specific gaps
    - Evaluate results: relevant? contradictory? merely confirmatory?
    - Integrate into a knowledge base with provenance tracking
-   - Check completeness against the checklist
    - Exit when requirements are met—not after a fixed number of retrievals
-4. **Synthesize**—Generate the answer from accumulated knowledge, with citations to sources
+4. **Synthesize**—Generate the answer from accumulated knowledge, with citations
 
-This isn't a better algorithm. It's encoding how an expert actually works—into a system that can execute it reliably, repeatedly, at scale.
+This isn't a better algorithm. It's encoding how an expert researcher actually works—into a system that executes reliably, repeatedly, at scale.
 
 ## What Changes
 
-The difference isn't subtle. Systems built on principled orchestration work consistently, not occasionally. When something fails, you know which step broke and why—you fix that step, not the whole system. For regulated industries, you can demonstrate that every case went through required evaluation steps, because the path is explicit and logged.
+Systems built on principled orchestration work consistently, not occasionally. When something fails, you know which step broke and why—you fix that step, not the whole system. For regulated industries, you can demonstrate that every case went through required evaluation steps, because the path is explicit and logged.
 
-Most importantly: the latent capability is already in the model. Orchestration is how you extract it. Structured decomposition unlocks performance that single-turn interactions leave on the table. The model isn't the bottleneck. The usage pattern is.
+Most importantly: the latent capability is already in the model. Orchestration is how you extract it. Structured decomposition unlocks performance that single-turn interactions leave on the table.
 
 ---
 
-The technology is powerful. The design choices determine whether that power translates to reliable value. Principled orchestration is how you get from impressive demos to systems that actually work.
+The technology is powerful. The orchestration architecture determines whether that power translates to reliable value. The model isn't the bottleneck—the usage pattern is.
