@@ -41,15 +41,31 @@ The solution is decomposition. If the model has fixed cognition per token, don't
 
 You can't rely on the model to decompose for itself—that decision has the same blind spots. This is the management problem again: you don't ask the employee "do you think this needs to be broken into steps?" You structure the work so critical decisions get dedicated attention by design.
 
+## The Grounding Problem
+
+Everyone knows LLMs "hallucinate." But most people think of this as an occasional failure—the model sometimes makes things up. The reality is more fundamental: LLMs have no relationship to truth, only to plausibility.
+
+The model generates statistically likely text given its input. It has no world model, no way to verify claims against reality, no internal representation of what's actually true versus what sounds true. When it produces correct information, it's because correct information was statistically likely given the training data and context—not because it checked.
+
+This matters beyond the obvious "don't trust unverified facts" warning. It means the model can't serve as a source of ground truth for anything:
+
+- **State tracking**: It can generate text that looks like it's tracking state ("I've completed steps 1 and 2, now moving to step 3"), but this is generated narrative, not actual state. It has no persistent representation of what's really been done.
+
+- **Branching decisions**: When a workflow needs to branch based on whether a condition is met, the model can produce an answer—but it's generating a plausible response, not checking against ground truth.
+
+- **Verification**: It can generate text that looks like verification ("I've confirmed that X is correct"), but it's not actually confirming anything. It's producing what confirmation would sound like.
+
+This is why you need external systems for anything requiring ground truth. The model can analyze, synthesize, generate—but when you need definitive answers about state, conditions, or correctness, those must come from systems that actually maintain truth, not systems that generate plausible approximations of it.
+
 ## What We See Go Wrong
 
-The Memento problem and the cognitive allocation problem manifest as predictable failure modes:
+These three limitations manifest as predictable failure modes:
 
 **Implicit instruction collapse** (from cognitive allocation): Hidden sub-decisions get made silently. Different runs produce different judgments. Outputs are inconsistent, and you can't inspect or correct decisions that were never made visible.
 
-**Context curation failure** (from Memento): Not deliberately constructing the right context for each operation. This is the direct consequence of the Memento problem—you have to choose what goes in, and that choice determines the quality of the output. Most approaches either stuff everything in (hoping more is better) or grab whatever's nearest in vector space (hoping similarity is relevance). Neither is principled curation based on what this specific step actually needs. The model reasons brilliantly from whatever context it's given, even if that context is incomplete, irrelevant, or misleading.
+**Context curation failure** (from Memento): Not deliberately constructing the right context for each operation. You have to choose what goes in, and that choice determines the quality of the output. Most approaches either stuff everything in (hoping more is better) or grab whatever's nearest in vector space (hoping similarity is relevance). Neither is principled curation based on what this specific step actually needs.
 
-**Stateless workflow delegation.** Asking the model to manage stateful processes—loops, progress tracking, conditional branching, knowing what's been done and what remains. The issue isn't just that the LLM can't remember across calls (Memento). Even within a call, it doesn't maintain actual state—it generates text that *looks like* state tracking. When you need ground truth—what's done, what remains, whether a condition is actually met—you need systems that maintain truth, not systems that generate plausible-sounding approximations of it. The LLM will skip steps, reorder operations, lose track of where it is, and do so confidently. Delegating workflow management to the model is delegating to something that can only approximate the task.
+**False grounding** (from the grounding problem): The model generates text that looks like state tracking, verification, or definitive judgment—but it's narrative, not truth. It will confidently report progress it hasn't made, confirm conditions it hasn't checked, verify facts it hasn't verified. Delegating anything requiring ground truth to the model is delegating to something that can only approximate it.
 
 These aren't user errors. They're natural assumptions that don't match how the technology actually works.
 
