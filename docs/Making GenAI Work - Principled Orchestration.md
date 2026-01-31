@@ -74,7 +74,7 @@ But before diving into how orchestration works, there's a distinction that revea
 
 ### Two Roles for LLMs
 
-**Worker**—executing discrete cognitive operations within a designed workflow. The system defines the steps; the LLM executes each one. This is predictable, auditable, and optimizable.
+**Worker**—executing discrete cognitive operations within a designed workflow. Summarize this document. Extract the key dates. Classify this claim. The system defines the steps; the LLM executes each one. This is predictable, auditable, and optimizable.
 
 **Planner**—deciding which operations to perform based on goals and available capabilities. The system provides tools; the LLM determines the path. This is flexible and handles novel situations well.
 
