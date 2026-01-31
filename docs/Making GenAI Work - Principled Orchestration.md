@@ -27,9 +27,23 @@ LLMs have this problem acutely. When an LLM decides "I have enough information" 
 
 The model will confidently skip the search it didn't know it needed. It won't flag uncertainty about considerations it never considered. This is where external supervision becomes essential—explicit criteria, checklists, governance that catches when the system has sized things up incorrectly, before the invisible error propagates.
 
+## The Firehose Problem
+
+There's a second foundational issue, distinct from the Memento problem.
+
+A smart human, given a vague or complex request, pushes back. "What do you mean by 'improve this email'? Improve how—shorter? more professional? clearer structure? What matters most?" They surface the hidden intentions. They decompose the task before attempting it. They clarify scope, priorities, constraints. This is part of what makes them effective.
+
+LLMs can do this too. They can ask clarifying questions. They can break tasks into steps. They can surface ambiguities and propose ways to resolve them. The capability exists.
+
+But the typical usage pattern doesn't give them the opportunity. The pattern is: complex prompt in, complete answer out, all in one turn. This is the firehose—forcing everything through a single interaction.
+
+When you do this, the model has no choice but to make all the implicit decisions immediately and silently. It won't stop to ask what you meant. It won't decompose the task into reviewable steps. It won't surface the hidden sub-decisions for your input. It will just produce something—making dozens of quick judgments you never see, can't inspect, and couldn't correct if you wanted to.
+
+The firehose isn't a limitation of the model. It's a limitation of the usage pattern. And it's why "implicit instruction collapse" happens—not because LLMs can't clarify and decompose, but because the single-turn interaction doesn't let them.
+
 ## What We See Go Wrong
 
-Three failure modes consistently undermine enterprise AI initiatives:
+The Memento problem and the firehose problem manifest as three predictable failure modes:
 
 **Implicit instruction collapse.** Complex tasks contain dozens of hidden sub-decisions that get collapsed into a single prompt. "Improve this email" actually means: identify what's essential, identify what's redundant, determine the right tone for this context, restructure for clarity, preserve key relationships, and so on. The model makes quick implicit judgments about all of these. Different runs produce different judgments. Outputs are inconsistent, and you can't inspect or correct the hidden decisions because they were never made visible.
 
