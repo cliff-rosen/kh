@@ -50,11 +50,11 @@ This is architectural. The model produces what things *sound like*, not what the
 
 These three limitations manifest as predictable failures:
 
-**Plans drift.** The model commits to an approach, then wanders or skips steps. It generates narrative about what it's doing, but there's no actual tracking underneath. This is the grounding problem in action.
+**The LLM makes bad decisions.** It recommends the wrong approach, skips necessary steps, misses key considerations. The output looks confident but is built on the wrong foundation—missing critical information or polluted with irrelevant context. This is the Memento problem: the model doesn't know what it doesn't have.
 
-**Complex tasks get shallow treatment.** Implicit sub-decisions get made silently. Different runs produce different judgments on the same input. Critical choices that should get dedicated attention happen in passing. This is the cognitive allocation problem.
+**Complex tasks get shallow treatment.** Implicit sub-decisions get made silently. Different runs produce different judgments on the same input. Critical choices that should get dedicated attention happen in passing. This is the cognitive allocation problem: the model can't shift into slow thinking when it matters.
 
-**Context goes wrong.** The model reasons brilliantly from flawed premises—either missing critical information or polluted with irrelevant context. The output looks sophisticated but is built on the wrong foundation. This is the Memento problem.
+**Plans drift.** The model commits to an approach, then wanders or skips steps. It generates narrative about what it's doing, but there's no actual tracking underneath. This is the grounding problem: narrative isn't state.
 
 These aren't user errors. They're natural assumptions that don't match how the technology works.
 
@@ -86,9 +86,15 @@ Choose the top level based on the domain. Regulated processes want deterministic
 
 This is not just defensive—working around LLM limitations. It's about **where expertise lives in the system**.
 
-LLMs bring certain capabilities: language understanding, synthesis, reasoning within context. But humans still have domain expertise, institutional knowledge, judgment about "how we do things here," understanding of edge cases and what actually matters.
+LLMs bring certain capabilities: language understanding, synthesis, reasoning within context. But humans still have domain expertise, institutional knowledge, judgment about "how we do things here," understanding of edge cases and what actually matters. For the foreseeable future, human judgment in specific domains will exceed what LLMs can provide.
 
-Orchestration is how you encode human intelligence into the system—from above in workflow design, from below in tool abstraction. The LLM executes; the encoded intelligence guides.
+The question is how to combine them. Orchestration is how you encode human intelligence into the system:
+
+**From above**—in workflow design. The sequence of steps, the decision points, what gets checked and when. This is institutional knowledge made executable. The LLM doesn't decide the process; it operates within a process that embeds expertise.
+
+**From below**—in tool abstraction. A well-designed tool doesn't just give the LLM a capability; it encodes "the right way to do this." Instead of letting the model freestyle with primitives like fetch and search, you give it a research tool that internally handles query formulation, result evaluation, and gap analysis. The expertise is in the tool; the LLM just invokes it.
+
+The LLM executes; the encoded intelligence guides.
 
 ### Six Principles
 
