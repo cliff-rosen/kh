@@ -92,19 +92,19 @@ Choose the top level based on the domain. Regulated processes want deterministic
 
 ### Principles for Getting This Right
 
-Putting this into practice requires attention to how you decompose work, manage context, and maintain control:
+Putting this into practice requires attention to how you decompose work, manage context, and maintain control. Each principle addresses one or more of the architectural problems:
 
-**1. Decompose into explicit steps.** Don't let critical decisions happen in passing. If you're relying on the LLM for critical decisions, give it breathing room—force slow thinking by making the decision a dedicated step with focused context.
+**1. Decompose into explicit steps.** Don't let critical decisions happen in passing. Force slow thinking by making each decision a dedicated step with focused context. *(Addresses Cognitive Allocation.)*
 
-**2. Curate sterile context.** Each step gets exactly what it needs—not accumulated conversation history, not everything that might be relevant, but precisely what this operation requires.
+**2. Curate sterile context.** Each step gets exactly what it needs—not accumulated conversation history, not everything that might be relevant, but precisely what this operation requires. *(Addresses Memento.)*
 
-**3. Externalize state and control flow.** Loops, counters, progress tracking, and conditional logic live outside the LLM. Let it do what it's good at—reasoning about language and content.
+**3. Externalize state and control flow.** Loops, counters, progress tracking, and conditional logic live outside the LLM. The system tracks reality; the LLM reasons about language and content. *(Addresses Grounding.)*
 
-**4. Bound before delegating.** Agentic freedom exists inside constrained containers. The caller limits scope before handing off. Don't give the LLM a task and expect it to freestyle correctly with primitive tools.
+**4. Bound before delegating.** Agentic freedom exists inside constrained containers. The caller limits scope before handing off. *(Contains all three problems within manageable boundaries.)*
 
-**5. Encode expertise in tool abstraction.** Higher-level tools encode "the right way to do this." A research tool that internally handles query formulation, result evaluation, and gap analysis reduces the LLM's decision surface and makes the happy path the default.
+**5. Encode expertise in tool abstraction.** Higher-level tools encode "the right way to do this." A research tool that internally handles query formulation, result evaluation, and gap analysis reduces the LLM's decision surface and makes the happy path the default. *(Captures the Expertise Opportunity.)*
 
-**6. Quality gates at critical junctions.** Verify outputs *and* strategic decisions before proceeding. Don't trust the model's self-assessment that it has enough information or made the right choice. Check against explicit criteria.
+**6. Quality gates at critical junctions.** Verify outputs *and* strategic decisions before proceeding. Don't trust the model's self-assessment that it has enough information or made the right choice. *(Catches failures from all three problems before they propagate.)*
 
 ## Example: Research Done Right
 
@@ -161,9 +161,7 @@ The knowledge base is external state addressing the Grounding problem. The expli
 
 ## What Changes
 
-Systems built on principled orchestration work consistently, not occasionally. When something fails, you know which step broke and why—you fix that step, not the whole system. The research workflow didn't produce a good answer? Check whether the gap analysis missed something, or the queries were poorly formed, or the completeness threshold was too low. The failure is localized and debuggable.
-
-For regulated industries, you can demonstrate that every case went through required evaluation steps, because the path is explicit and logged. The knowledge base shows what sources were consulted. The checklist shows what requirements were verified. The audit trail exists because the architecture creates it.
+Systems built on principled orchestration work consistently, not occasionally. When something fails, you know which step broke and why—you fix that step, not the whole system. The failure is localized and debuggable. For regulated industries, the path is explicit and logged; the audit trail exists because the architecture creates it.
 
 Most importantly: the latent capability is already in the model. Orchestration is how you extract it. The same LLM that produces shallow single-turn answers will produce rigorous, well-sourced analysis when the system structure demands it—when each sub-task gets focused attention, when state is tracked externally, when quality gates enforce standards.
 
