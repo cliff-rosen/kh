@@ -20,13 +20,13 @@ The implication is profound: since you can't fit everything into the context win
 
 ## What We See Go Wrong
 
-Three patterns consistently lead to failed AI initiatives:
+Three failure modes consistently undermine enterprise AI initiatives:
 
-**The "just ask it" trap.** Complex tasks get sent to an LLM in a single prompt, hoping for the best. This works in demos; it fails in production when edge cases emerge. The model *satisfices*—gives "good enough" answers rather than optimal ones. Ask it to do better, and you'll often get a better response. The first answer didn't use all available capability.
+**Implicit instruction collapse.** Complex tasks contain dozens of hidden sub-decisions that get collapsed into a single prompt. "Improve this email" actually means: identify what's essential, identify what's redundant, determine the right tone for this context, restructure for clarity, preserve key relationships, and so on. The model makes quick implicit judgments about all of these. Different runs produce different judgments. Outputs are inconsistent, and you can't inspect or correct the hidden decisions because they were never made visible.
 
-**The Dirty Test Tube problem.** After several turns of conversation, the context accumulates tangents, dead ends, and failed attempts. This conversational debris dilutes the signal for the current task. The model performs *worse*, not better, as the conversation continues. Accumulated context becomes polluted context.
+**Context curation failure.** Not deliberately constructing the right context for each operation. This is the direct consequence of the Memento problem—you have to choose what goes in, and that choice determines the quality of the output. Most approaches either stuff everything in (hoping more is better) or grab whatever's nearest in vector space (hoping similarity is relevance). Neither is principled curation based on what this specific step actually needs. The model reasons brilliantly from whatever context it's given, even if that context is incomplete, irrelevant, or misleading.
 
-**Workflow Drift.** Asking the LLM to manage multi-step processes, track state, or loop until conditions are met. LLMs skip steps, reorder operations, forget their own plans across turns. They're stateless—the Memento problem strikes again. Delegating workflow management to the model is delegating to something that can't reliably do it.
+**Stateless workflow delegation.** Asking a memoryless system to manage stateful processes. Loops, progress tracking, conditional branching, knowing what's been done and what remains—the model can't reliably do these because of the Memento problem. It will skip steps, reorder operations, lose track of where it is. Delegating workflow management to the model is delegating to something architecturally incapable of the task.
 
 These aren't user errors. They're natural assumptions that don't match how the technology actually works.
 
@@ -69,7 +69,7 @@ Four principles separate effective orchestration from ad-hoc prompting:
 
 **Quality gates at critical junctions.** Verify outputs before proceeding. If step two produces flawed output, every subsequent step is compromised. Gates catch errors before they propagate. Don't proceed past a checkpoint until conditions are met.
 
-**Sterile context per step.** Each step gets exactly the context it needs—not accumulated conversation history. Fresh, relevant context beats polluted context. This directly addresses the Dirty Test Tube problem.
+**Sterile context per step.** Each step gets exactly the context it needs—not accumulated conversation history, not everything that might be relevant, but precisely what this operation requires. This directly addresses context curation failure.
 
 **Externalize state and workflow.** Loops, counters, progress tracking, and conditional logic live outside the LLM. Let the model do what it's good at—reasoning about language and content. Let the orchestration layer handle what it's good at—reliable execution of defined processes.
 
