@@ -18,6 +18,15 @@ This is architectural, not a bug the next release will fix.
 
 The implication is profound: since you can't fit everything into the context window, you're forced to select a subset. And now you face the real challenge—how do you determine *which* subset? How do you ensure the model has exactly the context it needs for each decision, and not the wrong context, or missing context, or polluted context? Get this wrong and the model reasons brilliantly from flawed premises. The quality of the output is bounded by the quality of the context curation.
 
+There's a deeper problem: the model doesn't know what it doesn't know. Anyone who has managed people recognizes this pattern—you see someone about to make a decision and you can tell they've sized things up wrong. They missed something in the analysis phase and don't realize it. They're confident. A good supervisor catches this before the bad decision propagates.
+
+LLMs have this problem acutely. When an LLM decides "I have enough information" or "I don't need to search for X," it makes that judgment with no awareness of what might be missing. And here's the critical distinction:
+
+- An atomic operation with wrong context produces bad output—catchable at quality gates.
+- A strategic decision with wrong context means the wrong path is taken—the error is invisible because the right step was never executed.
+
+The model will confidently skip the search it didn't know it needed. It won't flag uncertainty about considerations it never considered. This is where external supervision becomes essential—explicit criteria, checklists, governance that catches when the system has sized things up incorrectly, before the invisible error propagates.
+
 ## What We See Go Wrong
 
 Three failure modes consistently undermine enterprise AI initiatives:
@@ -67,7 +76,7 @@ Four principles separate effective orchestration from ad-hoc prompting:
 
 **Make intentions explicit.** "Improve this email" hides dozens of implicit decisions—what counts as improvement, what to preserve, what to cut. Decompose into visible, verifiable steps: extract key points, identify structural issues, propose remedies, apply changes. Each step can be inspected and corrected.
 
-**Quality gates at critical junctions.** Verify outputs before proceeding. If step two produces flawed output, every subsequent step is compromised. Gates catch errors before they propagate. Don't proceed past a checkpoint until conditions are met.
+**Quality gates at critical junctions.** Verify outputs before proceeding—but also verify strategic decisions. If step two produces flawed output, every subsequent step is compromised. But if step two decides to skip a necessary search, the error is invisible. Gates must catch both: flawed outputs *and* flawed judgments about what's sufficient or unnecessary. Don't trust the model's assessment that it has enough. Check against explicit criteria.
 
 **Sterile context per step.** Each step gets exactly the context it needs—not accumulated conversation history, not everything that might be relevant, but precisely what this operation requires. This directly addresses context curation failure.
 
