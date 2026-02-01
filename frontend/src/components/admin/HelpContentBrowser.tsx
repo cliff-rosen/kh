@@ -2,15 +2,16 @@
  * Help Content Browser
  *
  * Platform admin component for browsing and previewing help documentation.
- * Shows all help sections, their role visibility, and allows previewing
- * how the TOC appears to different user roles.
+ * Shows all help sections organized by area, their role visibility, and allows
+ * previewing how the TOC appears to different user roles.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     ArrowPathIcon,
     BookOpenIcon,
     ChevronRightIcon,
+    ChevronDownIcon,
     EyeIcon,
     UserIcon,
     UserGroupIcon,
@@ -28,6 +29,42 @@ import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 
 type ViewMode = 'sections' | 'toc-preview';
 
+interface SectionGroup {
+    area: string;
+    label: string;
+    sections: HelpSectionSummary[];
+}
+
+/** Get the area from a section ID (e.g., "reports/viewing" -> "reports") */
+function getArea(sectionId: string): string {
+    const parts = sectionId.split('/');
+    return parts.length > 1 ? parts[0] : 'general';
+}
+
+/** Get a display label for an area */
+function getAreaLabel(area: string): string {
+    const labels: Record<string, string> = {
+        'general': 'Getting Started',
+        'reports': 'Reports',
+        'streams': 'Streams',
+        'tools': 'Tools',
+        'operations': 'Operations',
+    };
+    return labels[area] || area.charAt(0).toUpperCase() + area.slice(1);
+}
+
+/** Area sort order */
+function getAreaOrder(area: string): number {
+    const order: Record<string, number> = {
+        'general': 0,
+        'reports': 1,
+        'streams': 2,
+        'tools': 3,
+        'operations': 4,
+    };
+    return order[area] ?? 99;
+}
+
 export function HelpContentBrowser() {
     // Data state
     const [sections, setSections] = useState<HelpSectionSummary[]>([]);
@@ -40,6 +77,46 @@ export function HelpContentBrowser() {
     const [isReloading, setIsReloading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<ViewMode>('sections');
+    const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(new Set());
+
+    // Group sections by area
+    const groupedSections = useMemo((): SectionGroup[] => {
+        const groups: Record<string, HelpSectionSummary[]> = {};
+
+        for (const section of sections) {
+            const area = getArea(section.id);
+            if (!groups[area]) {
+                groups[area] = [];
+            }
+            groups[area].push(section);
+        }
+
+        // Sort sections within each group by order
+        for (const area in groups) {
+            groups[area].sort((a, b) => a.order - b.order);
+        }
+
+        // Convert to array and sort by area order
+        return Object.entries(groups)
+            .map(([area, sects]) => ({
+                area,
+                label: getAreaLabel(area),
+                sections: sects,
+            }))
+            .sort((a, b) => getAreaOrder(a.area) - getAreaOrder(b.area));
+    }, [sections]);
+
+    const toggleArea = (area: string) => {
+        setCollapsedAreas(prev => {
+            const next = new Set(prev);
+            if (next.has(area)) {
+                next.delete(area);
+            } else {
+                next.add(area);
+            }
+            return next;
+        });
+    };
 
     // Load data on mount
     useEffect(() => {
@@ -180,74 +257,96 @@ export function HelpContentBrowser() {
                 </nav>
             </div>
 
-            {/* Sections list */}
+            {/* Sections list - grouped by area */}
             {viewMode === 'sections' && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead className="bg-gray-50 dark:bg-gray-900">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Section
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Visible To
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Order
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {sections.map((section) => (
-                                <tr
-                                    key={section.id}
-                                    className="hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                                >
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                                {section.title}
-                                            </span>
-                                            <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-                                                {section.id}
-                                            </span>
-                                            <span className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                {section.summary}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-wrap gap-1">
-                                            {section.roles.map((role) => (
-                                                <span
-                                                    key={role}
-                                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${getRoleBadgeColor(role)}`}
-                                                >
-                                                    {getRoleIcon(role)}
-                                                    {role}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                                        {section.order}
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button
-                                            onClick={() => handleViewSection(section.id)}
-                                            className="inline-flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
-                                        >
-                                            View
-                                            <ChevronRightIcon className="h-4 w-4" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                <div className="space-y-4">
+                    {groupedSections.map((group) => (
+                        <div key={group.area} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                            {/* Area header */}
+                            <button
+                                onClick={() => toggleArea(group.area)}
+                                className="w-full flex items-center justify-between px-6 py-4 bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <BookOpenIcon className="h-5 w-5 text-purple-500" />
+                                    <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                                        {group.label}
+                                    </span>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                        ({group.sections.length} sections)
+                                    </span>
+                                </div>
+                                {collapsedAreas.has(group.area) ? (
+                                    <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                                ) : (
+                                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                                )}
+                            </button>
+
+                            {/* Sections in this area */}
+                            {!collapsedAreas.has(group.area) && (
+                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                    <thead className="bg-gray-50/50 dark:bg-gray-900/50">
+                                        <tr>
+                                            <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Section
+                                            </th>
+                                            <th className="px-6 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Visible To
+                                            </th>
+                                            <th className="px-6 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Actions
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                        {group.sections.map((section) => (
+                                            <tr
+                                                key={section.id}
+                                                className="hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                                            >
+                                                <td className="px-6 py-3">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                                            {section.title}
+                                                        </span>
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                                            {section.id}
+                                                        </span>
+                                                        <span className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                            {section.summary}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-3">
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {section.roles.map((role) => (
+                                                            <span
+                                                                key={role}
+                                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${getRoleBadgeColor(role)}`}
+                                                            >
+                                                                {getRoleIcon(role)}
+                                                                {role}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-3 text-right">
+                                                    <button
+                                                        onClick={() => handleViewSection(section.id)}
+                                                        className="inline-flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
+                                                    >
+                                                        View
+                                                        <ChevronRightIcon className="h-4 w-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    ))}
                 </div>
             )}
 
