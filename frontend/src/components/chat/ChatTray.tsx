@@ -205,7 +205,7 @@ export default function ChatTray({
     // Payload that's available but not yet opened by user
     const [pendingPayload, setPendingPayload] = useState<{ type: string; data: any; messageIndex: number } | null>(null);
     // Payload currently being displayed in the panel (user has clicked to view)
-    const [activePayload, setActivePayload] = useState<{ type: string; data: any } | null>(null);
+    const [activePayload, setActivePayload] = useState<{ type: string; data: any; messageIndex: number } | null>(null);
     // Track which message indices have had their payloads dismissed
     const [dismissedPayloads, setDismissedPayloads] = useState<Set<number>>(new Set());
     const [toolsToShow, setToolsToShow] = useState<ToolHistoryEntry[] | null>(null);
@@ -312,7 +312,8 @@ export default function ChatTray({
                 // Auto-open the payload panel
                 setActivePayload({
                     type: payloadType,
-                    data: latestMessage.custom_payload.data
+                    data: latestMessage.custom_payload.data,
+                    messageIndex
                 });
             }
         }
@@ -323,20 +324,23 @@ export default function ChatTray({
         if (pendingPayload) {
             setActivePayload({
                 type: pendingPayload.type,
-                data: pendingPayload.data
+                data: pendingPayload.data,
+                messageIndex: pendingPayload.messageIndex
             });
         }
     }, [pendingPayload]);
 
     // Handle closing/dismissing the payload panel
     const handleClosePayload = useCallback(() => {
-        if (pendingPayload) {
-            // Mark this payload as dismissed so it won't re-appear
-            setDismissedPayloads(prev => new Set(prev).add(pendingPayload.messageIndex));
+        // Mark this payload as dismissed so it won't re-appear
+        // Use messageIndex from either pendingPayload or activePayload
+        const messageIndex = pendingPayload?.messageIndex ?? activePayload?.messageIndex;
+        if (messageIndex !== undefined) {
+            setDismissedPayloads(prev => new Set(prev).add(messageIndex));
         }
         setActivePayload(null);
         setPendingPayload(null);
-    }, [pendingPayload]);
+    }, [pendingPayload, activePayload]);
 
     // Handle full chat reset - clears messages and all payload state
     const handleReset = useCallback(() => {
@@ -350,10 +354,13 @@ export default function ChatTray({
         setTimeout(() => inputRef.current?.focus(), 0);
     }, [reset]);
 
-    // Auto-focus input when tray opens
+    // Auto-focus input when tray opens, close payload panel when tray closes
     useEffect(() => {
         if (isOpen && inputRef.current) {
             inputRef.current.focus();
+        } else if (!isOpen) {
+            // Close payload panel when tray closes to prevent stale state
+            setActivePayload(null);
         }
     }, [isOpen]);
 
