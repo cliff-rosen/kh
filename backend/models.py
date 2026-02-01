@@ -266,6 +266,7 @@ class PipelineExecution(Base):
     presentation_config = Column(JSON, nullable=True)  # Snapshot: categories for categorization
     enrichment_config = Column(JSON, nullable=True)  # Snapshot: custom prompts for summaries
     llm_config = Column(JSON, nullable=True)  # Snapshot: which LLMs to use per stage
+    article_analysis_config = Column(JSON, nullable=True)  # Snapshot: stance analysis prompt
 
     # === OUTPUT REFERENCE ===
     report_id = Column(Integer, ForeignKey("reports.report_id"), nullable=True)

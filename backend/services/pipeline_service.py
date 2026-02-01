@@ -40,8 +40,8 @@ from models import (
     RunType,
     PipelineExecution,
 )
-from schemas.research_stream import RetrievalConfig, PresentationConfig, BroadQuery, Category, EnrichmentConfig
-from schemas.llm import StageConfig, PipelineLLMConfig, get_stage_config
+from schemas.research_stream import RetrievalConfig, PresentationConfig, BroadQuery, Category, EnrichmentConfig, ArticleAnalysisConfig
+from schemas.llm import StageConfig, PipelineLLMConfig, get_stage_config, ModelConfig
 from services.pubmed_service import PubMedService
 from services.ai_evaluation_service import get_ai_evaluation_service
 from agents.prompts.llm import LLMOptions
@@ -78,6 +78,7 @@ class PipelineContext:
     presentation_config: PresentationConfig
     enrichment_config: Optional[EnrichmentConfig]
     llm_config: Optional[PipelineLLMConfig]
+    article_analysis_config: Optional[ArticleAnalysisConfig]
 
     # === Mutable (accumulated during execution) ===
     total_retrieved: int = 0
@@ -86,6 +87,8 @@ class PipelineContext:
     included_count: int = 0
     categorized_count: int = 0
     categorize_errors: int = 0
+    stance_analyzed_count: int = 0
+    stance_analysis_errors: int = 0
     executive_summary: str = ""
     category_summaries: Dict[str, str] = field(default_factory=dict)
     report: Optional["Report"] = None
@@ -295,6 +298,14 @@ class PipelineService:
             except Exception as e:
                 logger.warning(f"Failed to parse llm_config, using defaults: {e}")
 
+        # Parse article_analysis_config from execution snapshot
+        article_analysis_config = None
+        if execution.article_analysis_config:
+            try:
+                article_analysis_config = ArticleAnalysisConfig.model_validate(execution.article_analysis_config)
+            except Exception as e:
+                logger.warning(f"Failed to parse article_analysis_config, skipping stance analysis: {e}")
+
         return PipelineContext(
             execution_id=execution_id,
             execution=execution,
@@ -309,6 +320,7 @@ class PipelineService:
             presentation_config=presentation_config,
             enrichment_config=enrichment_config,
             llm_config=llm_config,
+            article_analysis_config=article_analysis_config,
         )
 
     async def run_pipeline_direct(
@@ -438,6 +450,8 @@ class PipelineService:
                 yield status  # Creates bare associations
             async for status in self._stage_generate_article_summaries(ctx):
                 yield status  # Writes ai_summary to associations (needed for categorization)
+            async for status in self._stage_stance_analysis(ctx):
+                yield status  # Writes stance analysis to ai_enrichments (uses ai_summary)
             async for status in self._stage_categorize(ctx):
                 yield status  # Writes categories to associations (can use ai_summary)
             async for status in self._stage_generate_category_summaries(ctx):
@@ -759,6 +773,167 @@ class PipelineService:
                 association_updates
             )
         return 0
+
+    async def _stage_stance_analysis(
+        self, ctx: PipelineContext
+    ) -> AsyncGenerator[PipelineStatus, None]:
+        """
+        Stage: Analyze article stance for litigation relevance.
+        Commits: stance_analysis written to ReportArticleAssociation.ai_enrichments.
+
+        Only runs if article_analysis_config is configured with a stance_analysis_prompt.
+        """
+        # Check if stance analysis is configured
+        if not ctx.article_analysis_config or not ctx.article_analysis_config.stance_analysis_prompt:
+            yield PipelineStatus(
+                "stance_analysis",
+                "Stance analysis not configured - skipping",
+                {"skipped": True},
+            )
+            return
+
+        yield PipelineStatus("stance_analysis", "Analyzing article stances...")
+
+        # Get configuration for stance analysis stage
+        stage_config = get_stage_config(ctx.llm_config, "stance_analysis")
+
+        # Convert PromptTemplate to dict for the analysis function
+        stance_prompt_dict = ctx.article_analysis_config.stance_analysis_prompt.model_dump()
+
+        # Stream progress while analyzing
+        result = None
+        async for status, res in self._stream_with_progress(
+            task_coro=lambda on_progress, cfg=stage_config, prompt=stance_prompt_dict: self._analyze_stances(
+                report_id=ctx.report.report_id,
+                stream=ctx.stream,
+                stance_prompt=prompt,
+                stage_config=cfg,
+                on_progress=on_progress,
+            ),
+            stage="stance_analysis",
+            progress_msg_template="Analyzing: {completed}/{total}",
+            heartbeat_msg="Analyzing stances...",
+        ):
+            if res is not None:
+                result = res
+            else:
+                yield status
+
+        analyzed_count, error_count = result
+        ctx.stance_analyzed_count = analyzed_count
+        ctx.stance_analysis_errors = error_count
+
+        if error_count > 0:
+            yield PipelineStatus(
+                "stance_analysis",
+                f"Analyzed {analyzed_count} articles ({error_count} failed)",
+                {"analyzed": analyzed_count, "errors": error_count},
+            )
+        else:
+            yield PipelineStatus(
+                "stance_analysis",
+                f"Analyzed {analyzed_count} articles",
+                {"analyzed": analyzed_count},
+            )
+
+    async def _analyze_stances(
+        self,
+        report_id: int,
+        stream: "ResearchStream",
+        stance_prompt: Dict[str, Any],
+        stage_config: StageConfig,
+        on_progress: Optional[ProgressCallback] = None,
+    ) -> Tuple[int, int]:
+        """
+        Analyze stances for articles in a report.
+
+        Args:
+            report_id: The report ID
+            stream: The research stream (for context)
+            stance_prompt: Prompt dict from PromptTemplate.model_dump() with 'system_prompt' and 'user_prompt_template'
+            stage_config: Stage configuration (model + concurrency settings)
+            on_progress: Optional progress callback
+
+        Returns:
+            Tuple of (analyzed_count, error_count)
+        """
+        from services.article_analysis_service import analyze_article_stance
+
+        # RETRIEVE: Get associations with articles
+        associations = await self.association_service.get_visible_for_report(report_id)
+
+        # Filter to associations with articles that have abstracts
+        articles_to_analyze = [
+            assoc for assoc in associations if assoc.article and assoc.article.abstract
+        ]
+
+        if not articles_to_analyze:
+            return 0, 0
+
+        # Build model config from stage config
+        model_config = ModelConfig(
+            model_id=stage_config.model_id,
+            temperature=stage_config.temperature,
+            reasoning_effort=stage_config.reasoning_effort,
+            max_tokens=stage_config.max_tokens,
+        )
+
+        # Process articles with concurrency control
+        analyzed_count = 0
+        error_count = 0
+        stance_results = []
+
+        # Use semaphore for concurrency control
+        semaphore = asyncio.Semaphore(stage_config.max_concurrent)
+
+        async def analyze_one(assoc):
+            async with semaphore:
+                article = assoc.article
+                result = await analyze_article_stance(
+                    article_title=article.title or "Untitled",
+                    article_abstract=article.abstract,
+                    article_authors=article.authors if article.authors else None,
+                    article_journal=article.journal,
+                    article_year=article.year,
+                    stream_name=stream.stream_name,
+                    stream_purpose=stream.purpose,
+                    stance_analysis_prompt=stance_prompt,
+                    model_config=model_config,
+                    article_summary=assoc.ai_summary,
+                )
+                return assoc, result
+
+        # Create tasks
+        tasks = [analyze_one(assoc) for assoc in articles_to_analyze]
+
+        # Process with progress updates
+        completed = 0
+        total = len(tasks)
+        for coro in asyncio.as_completed(tasks):
+            assoc, result = await coro
+            completed += 1
+
+            if on_progress:
+                await on_progress(completed, total)
+
+            if result.get("stance") != "unclear" or result.get("confidence", 0) > 0:
+                stance_results.append((assoc, result))
+                analyzed_count += 1
+            else:
+                # Check if it was an error
+                if "failed" in result.get("analysis", "").lower():
+                    error_count += 1
+                else:
+                    stance_results.append((assoc, result))
+                    analyzed_count += 1
+
+        # WRITE: Bulk update stance analysis results
+        if stance_results:
+            await self.association_service.bulk_update_stance_analysis_from_pipeline(
+                stance_results
+            )
+
+        return analyzed_count, error_count
 
     async def _stage_generate_category_summaries(
         self, ctx: PipelineContext

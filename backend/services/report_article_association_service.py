@@ -368,6 +368,36 @@ class ReportArticleAssociationService:
         await self.db.commit()
         return summary_count
 
+    async def bulk_update_stance_analysis_from_pipeline(
+        self,
+        stance_results: List[Tuple[ReportArticleAssociation, Dict[str, Any]]]
+    ) -> int:
+        """Bulk update stance analysis results from pipeline and commit.
+
+        Stores stance analysis in ai_enrichments.stance_analysis.
+
+        Args:
+            stance_results: List of (association, stance_data) tuples where stance_data
+                           contains: stance, confidence, analysis, key_factors, relevant_quotes
+
+        Returns:
+            Number of associations with stance analysis set
+        """
+        stance_count = 0
+        for association, stance_data in stance_results:
+            if stance_data:
+                # Initialize ai_enrichments if None
+                if association.ai_enrichments is None:
+                    association.ai_enrichments = {}
+                # Store stance analysis in enrichments
+                association.ai_enrichments = {
+                    **association.ai_enrichments,
+                    "stance_analysis": stance_data
+                }
+                stance_count += 1
+        await self.db.commit()
+        return stance_count
+
 
 # Dependency injection provider for async association service
 async def get_association_service(

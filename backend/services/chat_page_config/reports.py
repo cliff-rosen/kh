@@ -33,12 +33,18 @@ When helping users:
 - Summarize findings concisely but thoroughly
 - Highlight key insights from thematic analysis and category summaries
 - Help users understand trends across reports
-- If an article modal is open, focus on that specific article unless asked otherwise"""
+- If an article modal is open, focus on that specific article unless asked otherwise
+
+Emphasize brevity over completeness. In fact, answer in as few words as possible and let the user decide if they want more details.
+
+VERY IMPORTANT: Do not overaggrandize or overstate utility or findings. The style of the response should be terse and factual with no fluff or exaggeration.
+"""
 
 
 # =============================================================================
 # Context Builder
 # =============================================================================
+
 
 def build_context(context: Dict[str, Any]) -> str:
     """
@@ -67,26 +73,36 @@ def build_context(context: Dict[str, Any]) -> str:
 
     # Report status
     if report_id and report_name:
-        parts.append(f"Report: {report_name} (ID {report_id}, {article_count} articles)")
+        parts.append(
+            f"Report: {report_name} (ID {report_id}, {article_count} articles)"
+        )
     elif report_id:
         parts.append(f"Report: ID {report_id} (selected)")
     else:
-        parts.append("Report: Not selected - user needs to select a report from the stream")
+        parts.append(
+            "Report: Not selected - user needs to select a report from the stream"
+        )
 
     # Article status (modal open)
     if current_article:
         article_title = current_article.get("title", "Unknown")
         article_pmid = current_article.get("pmid", "Unknown")
         parts.append(f"Article Modal: OPEN - Viewing PMID {article_pmid}")
-        parts.append(f"  Title: {article_title[:80]}{'...' if len(article_title) > 80 else ''}")
+        parts.append(
+            f"  Title: {article_title[:80]}{'...' if len(article_title) > 80 else ''}"
+        )
 
         # Include stance analysis if available
         stance = current_article.get("stance_analysis")
         if stance and isinstance(stance, dict):
-            parts.append(f"  Stance: {stance.get('stance', 'Unknown')} (confidence: {stance.get('confidence', 'N/A')})")
+            parts.append(
+                f"  Stance: {stance.get('stance', 'Unknown')} (confidence: {stance.get('confidence', 'N/A')})"
+            )
 
         parts.append("")
-        parts.append("The user is viewing a specific article. Focus on this article unless they ask about others.")
+        parts.append(
+            "The user is viewing a specific article. Focus on this article unless they ask about others."
+        )
     else:
         parts.append("Article Modal: Closed - user is viewing the report overview")
 
@@ -101,17 +117,17 @@ REPORTS_CLIENT_ACTIONS = [
     ClientAction(
         action="navigate_to_article",
         description="Open a specific article in the article viewer modal",
-        parameters=["article_id", "pmid"]
+        parameters=["article_id", "pmid"],
     ),
     ClientAction(
         action="navigate_to_report",
         description="Switch to viewing a different report",
-        parameters=["report_id"]
+        parameters=["report_id"],
     ),
     ClientAction(
         action="compare_reports",
         description="Open the report comparison view",
-        parameters=["report_id_1", "report_id_2"]
+        parameters=["report_id_1", "report_id_2"],
     ),
 ]
 
@@ -136,7 +152,7 @@ register_page(
         "article_notes",
         "report_comparison",
         "starred_articles",
-    ]
+    ],
     # Note: Tools are global (is_global=True) so not listed here
     # Global actions (close_chat) are automatically included
 )

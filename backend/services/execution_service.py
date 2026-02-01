@@ -89,6 +89,7 @@ class ExecutionService:
         presentation_config: Optional[Dict[str, Any]] = None,
         enrichment_config: Optional[Dict[str, Any]] = None,
         llm_config: Optional[Dict[str, Any]] = None,
+        article_analysis_config: Optional[Dict[str, Any]] = None,
         status: ExecutionStatus = ExecutionStatus.PENDING
     ) -> PipelineExecution:
         """
@@ -112,7 +113,8 @@ class ExecutionService:
             retrieval_config=retrieval_config or {},
             presentation_config=presentation_config or {},
             enrichment_config=enrichment_config,
-            llm_config=llm_config
+            llm_config=llm_config,
+            article_analysis_config=article_analysis_config
         )
 
         self.db.add(execution)
@@ -146,6 +148,7 @@ class ExecutionService:
             presentation_config=stream.presentation_config if stream.presentation_config else {},
             enrichment_config=stream.enrichment_config if stream.enrichment_config else None,
             llm_config=stream.llm_config if stream.llm_config else None,
+            article_analysis_config=stream.article_analysis_config if stream.article_analysis_config else None,
             status=status
         )
 
