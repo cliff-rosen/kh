@@ -27,52 +27,58 @@ function FullscreenViewer({ content, onClose }: { content: FullscreenContent; on
         : JSON.stringify(content.blocks, null, 2);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-80 z-[60] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 bg-gray-900 border-b border-gray-700 flex-shrink-0">
-                <h3 className="text-lg font-semibold text-white">{content.title}</h3>
-                <div className="flex items-center gap-4">
-                    {hasRenderedView && (
-                        <div className="flex bg-gray-800 rounded-lg p-1">
-                            <button
-                                onClick={() => setViewMode('rendered')}
-                                className={`px-3 py-1 text-sm rounded ${
-                                    viewMode === 'rendered'
-                                        ? 'bg-gray-600 text-white'
-                                        : 'text-gray-400 hover:text-white'
-                                }`}
-                            >
-                                Rendered
-                            </button>
-                            <button
-                                onClick={() => setViewMode('raw')}
-                                className={`px-3 py-1 text-sm rounded ${
-                                    viewMode === 'raw'
-                                        ? 'bg-gray-600 text-white'
-                                        : 'text-gray-400 hover:text-white'
-                                }`}
-                            >
-                                Raw JSON
-                            </button>
-                        </div>
-                    )}
-                    <button
-                        onClick={onClose}
-                        className="text-gray-400 hover:text-white p-2"
-                    >
-                        <XMarkIcon className="h-6 w-6" />
-                    </button>
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-5xl h-[calc(100vh-4rem)] flex flex-col">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{content.title}</h3>
+                    <div className="flex items-center gap-4">
+                        {hasRenderedView && (
+                            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                                <button
+                                    onClick={() => setViewMode('rendered')}
+                                    className={`px-3 py-1 text-sm rounded ${
+                                        viewMode === 'rendered'
+                                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                                    }`}
+                                >
+                                    Rendered
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('raw')}
+                                    className={`px-3 py-1 text-sm rounded ${
+                                        viewMode === 'raw'
+                                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                                    }`}
+                                >
+                                    Raw JSON
+                                </button>
+                            </div>
+                        )}
+                        <button
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-gray-600 dark:hover:text-white p-2"
+                        >
+                            <XMarkIcon className="h-6 w-6" />
+                        </button>
+                    </div>
                 </div>
-            </div>
-            <div className="flex-1 min-h-0 overflow-auto p-6">
-                {viewMode === 'raw' || !hasRenderedView ? (
-                    <pre className="text-sm font-mono whitespace-pre-wrap text-gray-200">
-                        {rawContent}
-                    </pre>
-                ) : content.type === 'messages' ? (
-                    <FullscreenMessagesList messages={content.messages} />
-                ) : (
-                    <FullscreenBlocksList blocks={content.blocks} />
-                )}
+                {/* Content */}
+                <div className="flex-1 min-h-0 overflow-auto p-6">
+                    {viewMode === 'raw' || !hasRenderedView ? (
+                        <div className="max-w-4xl mx-auto">
+                            <pre className="text-sm font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                                {rawContent}
+                            </pre>
+                        </div>
+                    ) : content.type === 'messages' ? (
+                        <FullscreenMessagesList messages={content.messages} />
+                    ) : (
+                        <FullscreenBlocksList blocks={content.blocks} />
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -92,12 +98,12 @@ function FullscreenMessagesList({ messages }: { messages: Array<Record<string, u
 function FullscreenMessageItem({ index, message }: { index: number; message: Record<string, unknown> }) {
     const role = (message.role as string) || 'unknown';
     const blocks = normalizeContent(message.content);
-    const roleStyle = ROLE_STYLES[role] || { bg: 'bg-gray-700', text: 'text-gray-300' };
+    const roleStyle = ROLE_STYLES[role] || { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-800 dark:text-gray-300' };
 
     return (
-        <div className="bg-gray-800 rounded-lg overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-2 bg-gray-700/50 border-b border-gray-600">
-                <span className="text-xs text-gray-400 w-6">{index}</span>
+        <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
+                <span className="text-xs text-gray-500 dark:text-gray-400 w-6">{index}</span>
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${roleStyle.bg} ${roleStyle.text}`}>
                     {role}
                 </span>
@@ -115,9 +121,9 @@ function FullscreenContentBlock({ block }: { block: ContentBlock }) {
     if (block.type === 'text' && 'text' in block) {
         const textBlock = block as TextBlock;
         return (
-            <div className="bg-gray-900 rounded p-3 border border-gray-700">
-                <div className="text-xs font-medium text-gray-500 mb-2">text</div>
-                <pre className="text-sm font-mono whitespace-pre-wrap text-gray-200">
+            <div className="bg-gray-50 dark:bg-gray-900 rounded p-3 border border-gray-200 dark:border-gray-700">
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">text</div>
+                <pre className="text-sm font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200">
                     {textBlock.text}
                 </pre>
             </div>
@@ -127,13 +133,13 @@ function FullscreenContentBlock({ block }: { block: ContentBlock }) {
     if (block.type === 'tool_use' && 'name' in block) {
         const toolUse = block as ToolUseBlock;
         return (
-            <div className="bg-blue-900/30 rounded p-3 border border-blue-700">
+            <div className="bg-blue-50 dark:bg-blue-900/30 rounded p-3 border border-blue-200 dark:border-blue-700">
                 <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-medium text-blue-400">tool_use</span>
-                    <span className="text-sm font-mono font-semibold text-blue-300">{toolUse.name}</span>
+                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">tool_use</span>
+                    <span className="text-sm font-mono font-semibold text-blue-700 dark:text-blue-300">{toolUse.name}</span>
                     <span className="text-xs text-gray-500 font-mono">{toolUse.id?.slice(0, 12)}...</span>
                 </div>
-                <pre className="text-sm font-mono whitespace-pre-wrap text-gray-200 bg-gray-900 rounded p-2">
+                <pre className="text-sm font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900 rounded p-2 border border-gray-200 dark:border-gray-700">
                     {JSON.stringify(toolUse.input, null, 2)}
                 </pre>
             </div>
@@ -146,16 +152,16 @@ function FullscreenContentBlock({ block }: { block: ContentBlock }) {
         return (
             <div className={`rounded p-3 border ${
                 isError
-                    ? 'bg-red-900/30 border-red-700'
-                    : 'bg-green-900/30 border-green-700'
+                    ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700'
+                    : 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700'
             }`}>
                 <div className="flex items-center gap-2 mb-2">
-                    <span className={`text-xs font-medium ${isError ? 'text-red-400' : 'text-green-400'}`}>
+                    <span className={`text-xs font-medium ${isError ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                         tool_result{isError && ' (error)'}
                     </span>
                     <span className="text-xs text-gray-500 font-mono">for {toolResult.tool_use_id?.slice(0, 12)}...</span>
                 </div>
-                <pre className="text-sm font-mono whitespace-pre-wrap text-gray-200 bg-gray-900 rounded p-2">
+                <pre className="text-sm font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900 rounded p-2 border border-gray-200 dark:border-gray-700">
                     {toolResult.content}
                 </pre>
             </div>
@@ -165,9 +171,9 @@ function FullscreenContentBlock({ block }: { block: ContentBlock }) {
     // Unknown block type
     const unknownBlock = block as UnknownBlock;
     return (
-        <div className="bg-gray-700 rounded p-3 border border-gray-600">
-            <div className="text-xs text-gray-400 mb-2">{unknownBlock.type || 'unknown'}</div>
-            <pre className="text-sm font-mono whitespace-pre-wrap text-gray-200">
+        <div className="bg-gray-100 dark:bg-gray-700 rounded p-3 border border-gray-200 dark:border-gray-600">
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">{unknownBlock.type || 'unknown'}</div>
+            <pre className="text-sm font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200">
                 {JSON.stringify(block, null, 2)}
             </pre>
         </div>
@@ -1043,80 +1049,82 @@ function ToolCallFullscreen({ toolCall, onClose }: { toolCall: ToolCall; onClose
     const visibleTabs = tabs.filter(t => t.show);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-80 z-[60] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 bg-gray-900 border-b border-gray-700 flex-shrink-0">
-                <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-semibold text-white font-mono">{toolCall.tool_name}</h3>
-                    <span className={`px-2 py-0.5 rounded text-xs ${
-                        toolCall.output_type === 'error'
-                            ? 'bg-red-900/50 text-red-300'
-                            : 'bg-gray-700 text-gray-300'
-                    }`}>
-                        {toolCall.output_type}
-                    </span>
-                    <span className="text-xs text-gray-400">{toolCall.execution_ms}ms</span>
-                </div>
-                <button onClick={onClose} className="text-gray-400 hover:text-white p-2">
-                    <XMarkIcon className="h-6 w-6" />
-                </button>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex border-b border-gray-700 bg-gray-800 px-6 flex-shrink-0">
-                {visibleTabs.map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                            activeTab === tab.id
-                                ? 'border-blue-500 text-blue-400'
-                                : 'border-transparent text-gray-400 hover:text-gray-200'
-                        }`}
-                    >
-                        {tab.label}
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-5xl h-[calc(100vh-4rem)] flex flex-col">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white font-mono">{toolCall.tool_name}</h3>
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                            toolCall.output_type === 'error'
+                                ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                        }`}>
+                            {toolCall.output_type}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{toolCall.execution_ms}ms</span>
+                    </div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-white p-2">
+                        <XMarkIcon className="h-6 w-6" />
                     </button>
-                ))}
-            </div>
+                </div>
 
-            {/* Content */}
-            <div className="flex-1 min-h-0 overflow-auto p-6">
-                {activeTab === 'input' && (
-                    <div className="max-w-4xl mx-auto">
-                        <div className="text-xs text-gray-400 mb-2">What the model requested</div>
-                        <pre className="bg-gray-800 rounded-lg p-4 text-sm font-mono text-gray-200 whitespace-pre-wrap">
-                            {JSON.stringify(toolCall.tool_input, null, 2)}
-                        </pre>
-                    </div>
-                )}
+                {/* Tabs */}
+                <div className="flex border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-6 flex-shrink-0">
+                    {visibleTabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                                activeTab === tab.id
+                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                            }`}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
 
-                {activeTab === 'output' && (
-                    <div className="max-w-4xl mx-auto space-y-6">
-                        <div>
-                            <div className="text-xs text-gray-400 mb-2">Raw output from executor</div>
-                            <pre className="bg-gray-800 rounded-lg p-4 text-sm font-mono text-gray-200 whitespace-pre-wrap">
-                                {typeof toolCall.output_from_executor === 'string'
-                                    ? toolCall.output_from_executor
-                                    : JSON.stringify(toolCall.output_from_executor, null, 2)}
+                {/* Content */}
+                <div className="flex-1 min-h-0 overflow-auto p-6">
+                    {activeTab === 'input' && (
+                        <div className="max-w-4xl mx-auto">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">What the model requested</div>
+                            <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-sm font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                                {JSON.stringify(toolCall.tool_input, null, 2)}
                             </pre>
                         </div>
-                        <div>
-                            <div className="text-xs text-gray-400 mb-2">Formatted output sent to model</div>
-                            <pre className="bg-gray-800 rounded-lg p-4 text-sm font-mono text-gray-200 whitespace-pre-wrap">
-                                {toolCall.output_to_model}
+                    )}
+
+                    {activeTab === 'output' && (
+                        <div className="max-w-4xl mx-auto space-y-6">
+                            <div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Raw output from executor</div>
+                                <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-sm font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                                    {typeof toolCall.output_from_executor === 'string'
+                                        ? toolCall.output_from_executor
+                                        : JSON.stringify(toolCall.output_from_executor, null, 2)}
+                                </pre>
+                            </div>
+                            <div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Formatted output sent to model</div>
+                                <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-sm font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                                    {toolCall.output_to_model}
+                                </pre>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'payload' && toolCall.payload && (
+                        <div className="max-w-4xl mx-auto">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Data sent to frontend</div>
+                            <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-sm font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                                {JSON.stringify(toolCall.payload, null, 2)}
                             </pre>
                         </div>
-                    </div>
-                )}
-
-                {activeTab === 'payload' && toolCall.payload && (
-                    <div className="max-w-4xl mx-auto">
-                        <div className="text-xs text-gray-400 mb-2">Data sent to frontend</div>
-                        <pre className="bg-gray-800 rounded-lg p-4 text-sm font-mono text-gray-200 whitespace-pre-wrap">
-                            {JSON.stringify(toolCall.payload, null, 2)}
-                        </pre>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
         </div>
     );
