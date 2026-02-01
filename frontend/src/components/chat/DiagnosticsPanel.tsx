@@ -444,7 +444,7 @@ function AgentResponseCard({ response, onFullscreen }: {
                         {/* Message Text */}
                         <div>
                             <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Message</div>
-                            <pre className="bg-white dark:bg-gray-900 rounded p-3 text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto">
+                            <pre className="bg-white dark:bg-gray-900 rounded p-3 text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700">
                                 {response.message}
                             </pre>
                         </div>
@@ -504,7 +504,7 @@ function AgentResponseCard({ response, onFullscreen }: {
                                 <ArrowsPointingOutIcon className="h-4 w-4" />
                             </button>
                         </div>
-                        <pre className="bg-purple-50 dark:bg-purple-900/20 rounded p-3 text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 border border-purple-200 dark:border-purple-800 max-h-64 overflow-y-auto">
+                        <pre className="bg-purple-50 dark:bg-purple-900/20 rounded p-3 text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 border border-purple-200 dark:border-purple-800">
                             {JSON.stringify(response.custom_payload.data, null, 2)}
                         </pre>
                     </div>
