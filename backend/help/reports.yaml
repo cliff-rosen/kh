@@ -108,7 +108,7 @@ sections:
 
   - id: reports/article-viewer
     title: Reading Articles
-    summary: How to open and navigate the article viewer
+    summary: How to open and navigate the article viewer, including stance analysis
     roles: [member, org_admin, platform_admin]
     order: 13
     content: |
@@ -119,8 +119,12 @@ sections:
       - Publication details (journal, date, PMID)
       - Complete abstract
       - AI-generated summary
-      - Notes section (if available)
       - Links to PubMed and DOI
+
+      **Workspace Tabs:**
+      - **Analysis** - Stance analysis results (see below)
+      - **Notes** - Notes attached to the article
+      - **Links** - Full text links and external resources
 
       **Navigation:**
       - Use Previous/Next buttons to move between articles
@@ -130,6 +134,27 @@ sections:
       **External Links:**
       - "View on PubMed" - Opens the full paper on PubMed
       - "DOI" link - Direct link to the publisher's version
+
+      **Stance Analysis:**
+      Stance analysis uses AI to evaluate an article's position on a topic.
+
+      *What it shows:*
+      - **Stance** - The article's position: Pro-Defense, Pro-Plaintiff, Neutral, or Mixed
+      - **Confidence** - How confident the AI is in its assessment (percentage)
+      - **Analysis** - Explanation of why this stance was determined
+      - **Key Factors** - Specific elements that influenced the stance
+      - **Relevant Quotes** - Direct quotes from the article supporting the analysis
+
+      *How it's generated:*
+      - Stance analysis is configured at the stream level by admins
+      - The AI analyzes the article's abstract using customized prompts
+      - Results may be pre-computed or generated on-demand
+      - Click "Run AI Analysis" to generate stance for articles without it
+
+      *Use cases:*
+      - Quickly identify which articles support or challenge a position
+      - Find neutral articles for balanced perspectives
+      - Understand the reasoning behind stance classifications
 
   - id: reports/using-chat
     title: Using Chat with Reports
