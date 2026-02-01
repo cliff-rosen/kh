@@ -643,25 +643,15 @@ function ToolCallCard({ toolCall, isExpanded, onToggle, onFullscreen }: ToolCall
 
             {isExpanded && (
                 <div className="p-3 border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
-                    {/* 4-boundary flow visualization */}
+                    {/* Tool call flow visualization */}
                     <div className="space-y-3">
                         <BoundaryBox
-                            label="Input from Model"
-                            sublabel="What the model requested"
-                            content={toolCall.input_from_model}
+                            label="Tool Input"
+                            sublabel="What model requested and tool received"
+                            content={toolCall.tool_input}
                             onFullscreen={() => onFullscreen({
-                                title: `${toolCall.tool_name} - Input from Model`,
-                                content: JSON.stringify(toolCall.input_from_model, null, 2)
-                            })}
-                        />
-                        <FlowArrow label="transformed" />
-                        <BoundaryBox
-                            label="Input to Executor"
-                            sublabel="What the tool received"
-                            content={toolCall.input_to_executor}
-                            onFullscreen={() => onFullscreen({
-                                title: `${toolCall.tool_name} - Input to Executor`,
-                                content: JSON.stringify(toolCall.input_to_executor, null, 2)
+                                title: `${toolCall.tool_name} - Tool Input`,
+                                content: JSON.stringify(toolCall.tool_input, null, 2)
                             })}
                         />
                         <FlowArrow label="executed" />
@@ -996,6 +986,81 @@ function MetricsTab({ diagnostics, onFullscreen }: {
                     {diagnostics.final_text}
                 </pre>
             </div>
+
+            {/* Final Response (what was sent to frontend) */}
+            {diagnostics.final_response && (
+                <div>
+                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                        Final Response to Frontend
+                    </h4>
+                    <div className="space-y-3">
+                        {/* Suggested Values */}
+                        {diagnostics.final_response.suggested_values && diagnostics.final_response.suggested_values.length > 0 && (
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                                <div className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-2">
+                                    Suggested Values ({diagnostics.final_response.suggested_values.length})
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {diagnostics.final_response.suggested_values.map((sv, i) => (
+                                        <span key={i} className="px-2 py-1 bg-blue-100 dark:bg-blue-800 rounded text-xs text-blue-800 dark:text-blue-200">
+                                            {sv.label}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Suggested Actions */}
+                        {diagnostics.final_response.suggested_actions && diagnostics.final_response.suggested_actions.length > 0 && (
+                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                                <div className="text-xs font-medium text-green-700 dark:text-green-400 mb-2">
+                                    Suggested Actions ({diagnostics.final_response.suggested_actions.length})
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {diagnostics.final_response.suggested_actions.map((sa, i) => (
+                                        <span key={i} className="px-2 py-1 bg-green-100 dark:bg-green-800 rounded text-xs text-green-800 dark:text-green-200">
+                                            {sa.label} → {sa.action}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Custom Payload */}
+                        {diagnostics.final_response.custom_payload && (
+                            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="text-xs font-medium text-purple-700 dark:text-purple-400">
+                                        Custom Payload (type: {diagnostics.final_response.custom_payload.type})
+                                    </div>
+                                    <button
+                                        onClick={() => onFullscreen({
+                                            title: 'Custom Payload',
+                                            content: JSON.stringify(diagnostics.final_response?.custom_payload, null, 2)
+                                        })}
+                                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                        title="View fullscreen"
+                                    >
+                                        <ArrowsPointingOutIcon className="h-3 w-3" />
+                                    </button>
+                                </div>
+                                <pre className="text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900 rounded p-2 max-h-32 overflow-y-auto">
+                                    {JSON.stringify(diagnostics.final_response.custom_payload.data, null, 2)}
+                                </pre>
+                            </div>
+                        )}
+
+                        {/* No extras */}
+                        {!diagnostics.final_response.suggested_values?.length &&
+                         !diagnostics.final_response.suggested_actions?.length &&
+                         !diagnostics.final_response.custom_payload && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 italic">
+                                No suggested values, actions, or custom payload in response
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

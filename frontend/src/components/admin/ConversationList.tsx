@@ -61,11 +61,14 @@ interface AgentTrace {
         tool_calls: Array<{
             tool_use_id: string;
             tool_name: string;
-            input_from_model: Record<string, unknown>;
-            input_to_executor: Record<string, unknown>;
+            // New format uses tool_input, legacy uses input_from_model/input_to_executor
+            tool_input?: Record<string, unknown>;
+            input_from_model?: Record<string, unknown>;
+            input_to_executor?: Record<string, unknown>;
             output_from_executor: unknown;
             output_type: string;
             output_to_model: string;
+            payload?: Record<string, unknown>;
             execution_ms: number;
         }>;
     }>;
@@ -722,7 +725,7 @@ function MessageDetailPanel({ message }: { message: Message }) {
                                                             <div>
                                                                 <div className="text-gray-500 dark:text-gray-400 mb-1">Input</div>
                                                                 <pre className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-900 p-1 rounded overflow-x-auto">
-                                                                    {JSON.stringify(tc.input_from_model, null, 2)}
+                                                                    {JSON.stringify(tc.tool_input || tc.input_from_model, null, 2)}
                                                                 </pre>
                                                             </div>
                                                             <div>

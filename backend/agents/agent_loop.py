@@ -614,7 +614,7 @@ async def _process_tools(
 
         # Prepare trace data
         tool_start_time = time.time()
-        input_to_executor = copy.deepcopy(tool_input_from_model)  # What we pass to executor
+        tool_input = tool_input_from_model  # No transform - same as what model requested
         output_from_executor: Any = None
         output_type = "unknown"
         tool_result_str = ""
@@ -636,7 +636,7 @@ async def _process_tools(
                 if asyncio.iscoroutinefunction(tool_config.executor):
                     # Async executor - await it directly
                     raw_result = await tool_config.executor(
-                        input_to_executor,
+                        tool_input,
                         db,
                         user_id,
                         context
@@ -645,7 +645,7 @@ async def _process_tools(
                     # Sync executor - run in thread pool
                     raw_result = await asyncio.to_thread(
                         tool_config.executor,
-                        input_to_executor,
+                        tool_input,
                         db,
                         user_id,
                         context
@@ -721,8 +721,7 @@ async def _process_tools(
         tool_call = ToolCall(
             tool_use_id=tool_use_id,
             tool_name=tool_name,
-            input_from_model=tool_input_from_model,
-            input_to_executor=input_to_executor,
+            tool_input=tool_input,
             output_from_executor=_safe_serialize(output_from_executor),
             output_type=output_type,
             output_to_model=tool_result_str,

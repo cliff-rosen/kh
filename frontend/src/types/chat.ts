@@ -78,10 +78,8 @@ export interface TokenUsage {
 export interface ToolCall {
     tool_use_id: string;
     tool_name: string;
-    /** What model requested (from tool_use block) */
-    input_from_model: Record<string, unknown>;
-    /** What executor function received */
-    input_to_executor: Record<string, unknown>;
+    /** What model requested and tool received (no transform) */
+    tool_input: Record<string, unknown>;
     /** What executor returned (raw, before formatting) */
     output_from_executor: unknown;
     output_type: string;
@@ -102,6 +100,13 @@ export interface AgentIteration {
     usage: TokenUsage;
     api_call_ms: number;
     tool_calls: ToolCall[];
+}
+
+export interface FinalResponse {
+    message: string;
+    suggested_values?: SuggestedValue[];
+    suggested_actions?: SuggestedAction[];
+    custom_payload?: CustomPayload;
 }
 
 export interface AgentTrace {
@@ -127,6 +132,9 @@ export interface AgentTrace {
     total_iterations: number;
     outcome: 'complete' | 'max_iterations' | 'cancelled' | 'error';
     error_message?: string;
+
+    // Final response (what was sent to frontend)
+    final_response?: FinalResponse;
 
     // Metrics
     total_input_tokens: number;

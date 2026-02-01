@@ -117,11 +117,8 @@ class ToolCall(BaseModel):
     tool_use_id: str
     tool_name: str
 
-    # What model requested (from tool_use block)
-    input_from_model: dict
-
-    # What executor function received
-    input_to_executor: dict
+    # What model requested and tool received (no transform)
+    tool_input: dict
 
     # What executor returned (raw, before formatting)
     output_from_executor: Any
@@ -152,6 +149,14 @@ class AgentIteration(BaseModel):
 
     # Tool calls made this iteration (empty list if none)
     tool_calls: List[ToolCall]
+
+
+class FinalResponse(BaseModel):
+    """What was sent to the frontend in ChatResponsePayload"""
+    message: str
+    suggested_values: Optional[List[SuggestedValue]] = None
+    suggested_actions: Optional[List[SuggestedAction]] = None
+    custom_payload: Optional[CustomPayload] = None
 
 
 class AgentTrace(BaseModel):
@@ -185,6 +190,9 @@ class AgentTrace(BaseModel):
     total_iterations: int
     outcome: Literal["complete", "max_iterations", "cancelled", "error"]
     error_message: Optional[str] = None
+
+    # === FINAL RESPONSE (what went to frontend) ===
+    final_response: Optional[FinalResponse] = None
 
     # === METRICS ===
     total_input_tokens: int

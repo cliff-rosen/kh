@@ -16,6 +16,10 @@ import uuid
 from schemas.chat import (
     ChatResponsePayload,
     AgentTrace,
+    FinalResponse,
+    SuggestedValue,
+    SuggestedAction,
+    CustomPayload,
     TextDeltaEvent,
     StatusEvent,
     ToolStartEvent,
@@ -192,6 +196,26 @@ class ChatStreamService:
             # The "active" payload for UI rendering (last one, if any)
             custom_payload = payloads_with_ids[-1] if payloads_with_ids else None
 
+            # Build suggested values/actions from parsed response
+            suggested_values = None
+            if parsed.get("suggested_values"):
+                suggested_values = [SuggestedValue(**sv) for sv in parsed["suggested_values"]]
+
+            suggested_actions = None
+            if parsed.get("suggested_actions"):
+                suggested_actions = [SuggestedAction(**sa) for sa in parsed["suggested_actions"]]
+
+            custom_payload_obj = CustomPayload(**custom_payload) if custom_payload else None
+
+            # Add final response to trace (what's being sent to frontend)
+            if trace:
+                trace.final_response = FinalResponse(
+                    message=parsed["message"],
+                    suggested_values=suggested_values,
+                    suggested_actions=suggested_actions,
+                    custom_payload=custom_payload_obj,
+                )
+
             # Build extras for persistence
             extras = {
                 "tool_history": tool_call_history if tool_call_history else None,
@@ -215,9 +239,9 @@ class ChatStreamService:
             # Emit complete event
             final_payload = ChatResponsePayload(
                 message=parsed["message"],
-                suggested_values=parsed.get("suggested_values"),
-                suggested_actions=parsed.get("suggested_actions"),
-                custom_payload=custom_payload,
+                suggested_values=suggested_values,
+                suggested_actions=suggested_actions,
+                custom_payload=custom_payload_obj,
                 tool_history=tool_call_history if tool_call_history else None,
                 conversation_id=chat_id,
                 diagnostics=trace  # AgentTrace is aliased as ChatDiagnostics for backwards compat
