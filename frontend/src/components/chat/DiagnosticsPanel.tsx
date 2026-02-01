@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BugAntIcon, ChevronDownIcon, ChevronRightIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, XMarkIcon } from '@heroicons/react/24/solid';
+import { BugAntIcon, ChevronDownIcon, ChevronRightIcon, ArrowsPointingOutIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import { AgentTrace, AgentIteration, ToolCall } from '../../types/chat';
 
 interface DiagnosticsPanelProps {
@@ -303,7 +303,11 @@ function IterationCard({
                             content: JSON.stringify(iteration.response_content, null, 2)
                         })}
                     >
-                        <ExpandableContent content={JSON.stringify(iteration.response_content, null, 2)} />
+                        <div className="space-y-2">
+                            {(iteration.response_content || []).map((block, idx) => (
+                                <ContentBlockRenderer key={idx} block={block as ContentBlock} />
+                            ))}
+                        </div>
                     </CollapsibleSection>
 
                     {/* Tool Calls */}
@@ -331,7 +335,81 @@ function IterationCard({
     );
 }
 
-// Displays messages in a structured list format
+// ============================================================================
+// Message Rendering - Unified approach for all API messages
+// ============================================================================
+//
+// Every message has: { role: string, content: string | ContentBlock[] }
+// ContentBlock types: text, tool_use, tool_result
+//
+// We normalize string content to [{ type: "text", text: content }] for uniform rendering.
+
+interface TextBlock {
+    type: 'text';
+    text: string;
+}
+
+interface ToolUseBlock {
+    type: 'tool_use';
+    id: string;
+    name: string;
+    input: Record<string, unknown>;
+}
+
+interface ToolResultBlock {
+    type: 'tool_result';
+    tool_use_id: string;
+    content: string;
+    is_error?: boolean;
+}
+
+interface UnknownBlock {
+    type: string;
+    [key: string]: unknown;
+}
+
+type ContentBlock = TextBlock | ToolUseBlock | ToolResultBlock | UnknownBlock;
+
+function normalizeContent(content: unknown): ContentBlock[] {
+    if (typeof content === 'string') {
+        return [{ type: 'text', text: content }];
+    }
+    if (Array.isArray(content)) {
+        return content as ContentBlock[];
+    }
+    // Unknown format - wrap as text
+    return [{ type: 'text', text: JSON.stringify(content, null, 2) }];
+}
+
+function getContentSummary(blocks: ContentBlock[]): { text: string; badges: string[] } {
+    const badges: string[] = [];
+    let textPreview = '';
+
+    for (const block of blocks) {
+        if (block.type === 'text' && 'text' in block) {
+            const text = (block as TextBlock).text;
+            if (!textPreview) {
+                textPreview = text.slice(0, 80);
+            }
+        } else if (block.type === 'tool_use' && 'name' in block) {
+            badges.push((block as ToolUseBlock).name);
+        } else if (block.type === 'tool_result') {
+            badges.push('result');
+        }
+    }
+
+    return {
+        text: textPreview + (textPreview.length >= 80 ? '...' : ''),
+        badges
+    };
+}
+
+const ROLE_STYLES: Record<string, { bg: string; text: string }> = {
+    system: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-800 dark:text-purple-400' },
+    user: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-800 dark:text-blue-400' },
+    assistant: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-800 dark:text-green-400' },
+};
+
 function MessagesList({ messages, onFullscreen }: {
     messages: Array<Record<string, unknown>>;
     onFullscreen: (content: { title: string; content: string }) => void;
@@ -350,204 +428,130 @@ function MessageItem({ index, message, onFullscreen }: {
     message: Record<string, unknown>;
     onFullscreen: (content: { title: string; content: string }) => void;
 }) {
-    const role = (message.role as string) || 'unknown';
-    const content = message.content;
     const [isExpanded, setIsExpanded] = useState(false);
 
-    const roleColors: Record<string, string> = {
-        system: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-        user: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-        assistant: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-    };
-
-    // Analyze content type for smart preview
-    const isArrayContent = Array.isArray(content);
-    const contentBlocks = isArrayContent ? (content as Array<Record<string, unknown>>) : null;
-
-    // Generate smart preview based on content type
-    const getPreview = (): { text: string; badges: string[] } => {
-        if (typeof content === 'string') {
-            return {
-                text: content.slice(0, 80) + (content.length > 80 ? '...' : ''),
-                badges: []
-            };
-        }
-
-        if (contentBlocks) {
-            const badges: string[] = [];
-            let textPreview = '';
-
-            for (const block of contentBlocks) {
-                if (block.type === 'text' && typeof block.text === 'string') {
-                    if (!textPreview) textPreview = block.text.slice(0, 60);
-                } else if (block.type === 'tool_use') {
-                    badges.push(`tool_use:${block.name}`);
-                } else if (block.type === 'tool_result') {
-                    badges.push(`tool_result`);
-                }
-            }
-
-            return {
-                text: textPreview ? textPreview + '...' : '',
-                badges
-            };
-        }
-
-        return { text: JSON.stringify(content).slice(0, 60) + '...', badges: [] };
-    };
-
-    const preview = getPreview();
-    const fullContentStr = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+    const role = (message.role as string) || 'unknown';
+    const blocks = normalizeContent(message.content);
+    const summary = getContentSummary(blocks);
+    const roleStyle = ROLE_STYLES[role] || { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-800 dark:text-gray-400' };
 
     return (
         <div className="border border-gray-200 dark:border-gray-600 rounded overflow-hidden">
+            {/* Header - always visible */}
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center gap-3 p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                className="w-full flex items-center gap-2 p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
             >
                 {isExpanded ? (
                     <ChevronDownIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
                 ) : (
                     <ChevronRightIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
                 )}
-                <span className="text-xs text-gray-400 w-6">{index}</span>
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${roleColors[role] || 'bg-gray-100 text-gray-600'}`}>
+                <span className="text-xs text-gray-400 w-5 flex-shrink-0">{index}</span>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${roleStyle.bg} ${roleStyle.text}`}>
                     {role}
                 </span>
-                {preview.badges.map((badge, i) => (
-                    <span key={i} className="px-1.5 py-0.5 rounded text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                {summary.badges.map((badge, i) => (
+                    <span key={i} className="px-1.5 py-0.5 rounded text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 flex-shrink-0">
                         {badge}
                     </span>
                 ))}
-                <span className="text-xs text-gray-600 dark:text-gray-400 truncate flex-1">
-                    {preview.text}
+                <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                    {summary.text}
                 </span>
             </button>
+
+            {/* Expanded content */}
             {isExpanded && (
-                <div className="p-2 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900">
-                    <div className="flex justify-end mb-1">
+                <div className="border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 p-2">
+                    <div className="flex justify-end mb-2">
                         <button
-                            onClick={() => onFullscreen({ title: `Message ${index} (${role})`, content: fullContentStr })}
+                            onClick={() => onFullscreen({
+                                title: `Message ${index} (${role})`,
+                                content: typeof message.content === 'string'
+                                    ? message.content
+                                    : JSON.stringify(message.content, null, 2)
+                            })}
                             className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                             title="View fullscreen"
                         >
                             <ArrowsPointingOutIcon className="h-4 w-4" />
                         </button>
                     </div>
-                    {/* Render content based on type */}
-                    {typeof content === 'string' ? (
-                        <pre className="text-xs font-mono overflow-x-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200 resize-y overflow-y-auto min-h-[3rem] max-h-64">
-                            {content}
-                        </pre>
-                    ) : contentBlocks ? (
-                        <div className="space-y-2">
-                            {contentBlocks.map((block, blockIdx) => (
-                                <ContentBlock key={blockIdx} block={block} />
-                            ))}
-                        </div>
-                    ) : (
-                        <pre className="text-xs font-mono overflow-x-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200 resize-y overflow-y-auto min-h-[3rem] max-h-64">
-                            {fullContentStr}
-                        </pre>
-                    )}
+                    <div className="space-y-2">
+                        {blocks.map((block, blockIdx) => (
+                            <ContentBlockRenderer key={blockIdx} block={block} />
+                        ))}
+                    </div>
                 </div>
             )}
         </div>
     );
 }
 
-// Render a content block (text, tool_use, tool_result)
-function ContentBlock({ block }: { block: Record<string, unknown> }) {
-    const blockType = block.type as string;
-
-    if (blockType === 'text') {
+function ContentBlockRenderer({ block }: { block: ContentBlock }) {
+    if (block.type === 'text' && 'text' in block) {
+        const textBlock = block as TextBlock;
         return (
             <div className="bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-700">
-                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">text</div>
-                <pre className="text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200">
-                    {block.text as string}
+                <pre className="text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 max-h-64 overflow-y-auto">
+                    {textBlock.text}
                 </pre>
             </div>
         );
     }
 
-    if (blockType === 'tool_use') {
+    if (block.type === 'tool_use' && 'name' in block) {
+        const toolUse = block as ToolUseBlock;
         return (
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded p-2 border border-blue-200 dark:border-blue-800">
-                <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">tool_use</span>
-                    <span className="text-xs font-mono text-blue-700 dark:text-blue-300">{block.name as string}</span>
-                    <span className="text-xs text-gray-400">id: {(block.id as string)?.slice(0, 8)}...</span>
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">tool_use</span>
+                    <span className="text-xs font-mono font-semibold text-blue-700 dark:text-blue-300">{toolUse.name}</span>
+                    <span className="text-xs text-gray-400 font-mono">{toolUse.id?.slice(0, 12)}...</span>
                 </div>
-                <pre className="text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900 rounded p-1 max-h-32 overflow-y-auto">
-                    {JSON.stringify(block.input, null, 2)}
+                <pre className="text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900 rounded p-2 max-h-48 overflow-y-auto">
+                    {JSON.stringify(toolUse.input, null, 2)}
                 </pre>
             </div>
         );
     }
 
-    if (blockType === 'tool_result') {
-        const isError = block.is_error === true;
+    if (block.type === 'tool_result' && 'tool_use_id' in block) {
+        const toolResult = block as ToolResultBlock;
+        const isError = toolResult.is_error === true;
         return (
             <div className={`rounded p-2 border ${
                 isError
                     ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
                     : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
             }`}>
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-2">
                     <span className={`text-xs font-medium ${
                         isError ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
                     }`}>
-                        tool_result {isError && '(error)'}
+                        tool_result{isError && ' (error)'}
                     </span>
-                    <span className="text-xs text-gray-400">for: {(block.tool_use_id as string)?.slice(0, 8)}...</span>
+                    <span className="text-xs text-gray-400 font-mono">for {toolResult.tool_use_id?.slice(0, 12)}...</span>
                 </div>
-                <pre className="text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900 rounded p-1 max-h-32 overflow-y-auto resize-y">
-                    {typeof block.content === 'string' ? block.content : JSON.stringify(block.content, null, 2)}
+                <pre className="text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900 rounded p-2 max-h-48 overflow-y-auto">
+                    {toolResult.content}
                 </pre>
             </div>
         );
     }
 
-    // Unknown block type - show as JSON
+    // Unknown block type
+    const unknownBlock = block as UnknownBlock;
     return (
         <div className="bg-gray-100 dark:bg-gray-700 rounded p-2 border border-gray-200 dark:border-gray-600">
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{blockType || 'unknown'}</div>
-            <pre className="text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{unknownBlock.type || 'unknown'}</div>
+            <pre className="text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 max-h-48 overflow-y-auto">
                 {JSON.stringify(block, null, 2)}
             </pre>
         </div>
     );
 }
-
-// Resizable and expandable content area
-function ExpandableContent({ content }: { content: string }) {
-    const [isMaximized, setIsMaximized] = useState(false);
-
-    return (
-        <div className="relative">
-            <div className="absolute top-2 right-2 z-10">
-                <button
-                    onClick={() => setIsMaximized(!isMaximized)}
-                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 bg-white dark:bg-gray-800 rounded"
-                    title={isMaximized ? "Collapse" : "Expand"}
-                >
-                    {isMaximized ? (
-                        <ArrowsPointingInIcon className="h-4 w-4" />
-                    ) : (
-                        <ArrowsPointingOutIcon className="h-4 w-4" />
-                    )}
-                </button>
-            </div>
-            <pre className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200 resize-y overflow-y-auto ${
-                isMaximized ? 'min-h-[20rem]' : 'min-h-[3rem] max-h-64'
-            }`}>
-                {content}
-            </pre>
-        </div>
-    );
-}
-
 interface CollapsibleSectionProps {
     id: string;
     title: string;
