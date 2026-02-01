@@ -663,7 +663,6 @@ function IterationCard({
                                         toolCall={toolCall}
                                         isExpanded={expandedToolCalls.has(toolCall.tool_use_id)}
                                         onToggle={() => onToggleToolCall(toolCall.tool_use_id)}
-                                        onFullscreen={onFullscreen}
                                     />
                                 ))}
                             </div>
@@ -948,163 +947,177 @@ interface ToolCallCardProps {
     toolCall: ToolCall;
     isExpanded: boolean;
     onToggle: () => void;
-    onFullscreen: (content: FullscreenContent) => void;
 }
 
-function ToolCallCard({ toolCall, isExpanded, onToggle, onFullscreen }: ToolCallCardProps) {
+function ToolCallCard({ toolCall, isExpanded, onToggle }: ToolCallCardProps) {
+    const [showFullscreen, setShowFullscreen] = useState(false);
+
     return (
-        <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
-            <button
-                onClick={onToggle}
-                className="w-full flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30"
-            >
+        <>
+            <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+                <div className="flex items-center bg-blue-50 dark:bg-blue-900/20">
+                    <button
+                        onClick={onToggle}
+                        className="flex-1 flex items-center gap-3 p-3 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                    >
+                        {isExpanded ? (
+                            <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                        ) : (
+                            <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+                        )}
+                        <span className="font-mono text-sm text-blue-700 dark:text-blue-300">
+                            {toolCall.tool_name}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                            toolCall.output_type === 'error'
+                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                        }`}>
+                            {toolCall.output_type}
+                        </span>
+                        {toolCall.payload && (
+                            <span className="px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                                payload
+                            </span>
+                        )}
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{toolCall.execution_ms}ms</span>
+                    </button>
+                    <button
+                        onClick={() => setShowFullscreen(true)}
+                        className="p-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                        title="View fullscreen"
+                    >
+                        <ArrowsPointingOutIcon className="h-4 w-4" />
+                    </button>
+                </div>
+
+                {isExpanded && (
+                    <div className="p-3 border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                            Input → Output • Click expand icon for full view
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <div className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">Input</div>
+                                <pre className="bg-gray-50 dark:bg-gray-900 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap max-h-24 overflow-hidden">
+                                    {JSON.stringify(toolCall.tool_input, null, 2).slice(0, 300)}
+                                    {JSON.stringify(toolCall.tool_input, null, 2).length > 300 && '...'}
+                                </pre>
+                            </div>
+                            <div>
+                                <div className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">Output</div>
+                                <pre className="bg-gray-50 dark:bg-gray-900 rounded p-2 text-xs font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap max-h-24 overflow-hidden">
+                                    {toolCall.output_to_model.slice(0, 300)}
+                                    {toolCall.output_to_model.length > 300 && '...'}
+                                </pre>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Fullscreen Tool Call Viewer */}
+            {showFullscreen && (
+                <ToolCallFullscreen
+                    toolCall={toolCall}
+                    onClose={() => setShowFullscreen(false)}
+                />
+            )}
+        </>
+    );
+}
+
+// Fullscreen viewer for a single tool call with tabs
+type ToolCallTab = 'input' | 'output' | 'payload';
+
+function ToolCallFullscreen({ toolCall, onClose }: { toolCall: ToolCall; onClose: () => void }) {
+    const [activeTab, setActiveTab] = useState<ToolCallTab>('input');
+    const hasPayload = !!toolCall.payload;
+
+    const tabs: { id: ToolCallTab; label: string; show: boolean }[] = [
+        { id: 'input', label: 'Input', show: true },
+        { id: 'output', label: 'Output', show: true },
+        { id: 'payload', label: 'Payload', show: hasPayload },
+    ];
+
+    const visibleTabs = tabs.filter(t => t.show);
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-80 z-[60] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-gray-900 border-b border-gray-700 flex-shrink-0">
                 <div className="flex items-center gap-3">
-                    {isExpanded ? (
-                        <ChevronDownIcon className="h-4 w-4 text-gray-400" />
-                    ) : (
-                        <ChevronRightIcon className="h-4 w-4 text-gray-400" />
-                    )}
-                    <span className="font-mono text-sm text-blue-700 dark:text-blue-300">
-                        {toolCall.tool_name}
-                    </span>
+                    <h3 className="text-lg font-semibold text-white font-mono">{toolCall.tool_name}</h3>
                     <span className={`px-2 py-0.5 rounded text-xs ${
                         toolCall.output_type === 'error'
-                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                            : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                            ? 'bg-red-900/50 text-red-300'
+                            : 'bg-gray-700 text-gray-300'
                     }`}>
                         {toolCall.output_type}
                     </span>
-                    {toolCall.payload && (
-                        <span className="px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                            payload
-                        </span>
-                    )}
+                    <span className="text-xs text-gray-400">{toolCall.execution_ms}ms</span>
                 </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{toolCall.execution_ms}ms</span>
-            </button>
+                <button onClick={onClose} className="text-gray-400 hover:text-white p-2">
+                    <XMarkIcon className="h-6 w-6" />
+                </button>
+            </div>
 
-            {isExpanded && (
-                <div className="p-3 border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
-                    {/* Tool call flow visualization */}
-                    <div className="space-y-3">
-                        <BoundaryBox
-                            label="Tool Input"
-                            sublabel="What model requested and tool received"
-                            content={toolCall.tool_input}
-                            onFullscreen={() => onFullscreen({
-                                type: 'raw',
-                                title: `${toolCall.tool_name} - Tool Input`,
-                                content: JSON.stringify(toolCall.tool_input, null, 2)
-                            })}
-                        />
-                        <FlowArrow label="executed" />
-                        <BoundaryBox
-                            label="Output from Executor"
-                            sublabel="Raw tool result"
-                            content={toolCall.output_from_executor}
-                            isOutput
-                            onFullscreen={() => onFullscreen({
-                                type: 'raw',
-                                title: `${toolCall.tool_name} - Output from Executor`,
-                                content: typeof toolCall.output_from_executor === 'string'
-                                    ? toolCall.output_from_executor
-                                    : JSON.stringify(toolCall.output_from_executor, null, 2)
-                            })}
-                        />
-                        <FlowArrow label="formatted" />
-                        <BoundaryBox
-                            label="Output to Model"
-                            sublabel="What went in the message"
-                            content={toolCall.output_to_model}
-                            isOutput
-                            onFullscreen={() => onFullscreen({
-                                type: 'raw',
-                                title: `${toolCall.tool_name} - Output to Model`,
-                                content: toolCall.output_to_model
-                            })}
-                        />
-
-                        {/* Payload (if present) */}
-                        {toolCall.payload && (
-                            <>
-                                <FlowArrow label="payload" />
-                                <div className="border rounded-lg overflow-hidden border-purple-200 dark:border-purple-800">
-                                    <div className="flex items-center justify-between px-3 py-1.5 text-xs font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400">
-                                        <div>
-                                            Payload
-                                            <span className="font-normal ml-2 text-gray-500 dark:text-gray-400">
-                                                Data sent to frontend
-                                            </span>
-                                        </div>
-                                        <button
-                                            onClick={() => onFullscreen({
-                                                type: 'raw',
-                                                title: `${toolCall.tool_name} - Payload`,
-                                                content: JSON.stringify(toolCall.payload, null, 2)
-                                            })}
-                                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                                            title="View fullscreen"
-                                        >
-                                            <ArrowsPointingOutIcon className="h-3 w-3" />
-                                        </button>
-                                    </div>
-                                    <pre className="p-2 text-xs font-mono overflow-x-auto max-h-32 overflow-y-auto resize-y min-h-[2rem] bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200">
-                                        {JSON.stringify(toolCall.payload, null, 2)}
-                                    </pre>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
-
-function BoundaryBox({ label, sublabel, content, isOutput, onFullscreen }: {
-    label: string;
-    sublabel: string;
-    content: unknown;
-    isOutput?: boolean;
-    onFullscreen?: () => void;
-}) {
-    return (
-        <div className={`border rounded-lg overflow-hidden ${
-            isOutput
-                ? 'border-green-200 dark:border-green-800'
-                : 'border-blue-200 dark:border-blue-800'
-        }`}>
-            <div className={`flex items-center justify-between px-3 py-1.5 text-xs font-medium ${
-                isOutput
-                    ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-                    : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
-            }`}>
-                <div>
-                    {label}
-                    <span className="font-normal ml-2 text-gray-500 dark:text-gray-400">{sublabel}</span>
-                </div>
-                {onFullscreen && (
+            {/* Tabs */}
+            <div className="flex border-b border-gray-700 bg-gray-800 px-6 flex-shrink-0">
+                {visibleTabs.map((tab) => (
                     <button
-                        onClick={onFullscreen}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                        title="View fullscreen"
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                            activeTab === tab.id
+                                ? 'border-blue-500 text-blue-400'
+                                : 'border-transparent text-gray-400 hover:text-gray-200'
+                        }`}
                     >
-                        <ArrowsPointingOutIcon className="h-3 w-3" />
+                        {tab.label}
                     </button>
+                ))}
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-h-0 overflow-auto p-6">
+                {activeTab === 'input' && (
+                    <div className="max-w-4xl mx-auto">
+                        <div className="text-xs text-gray-400 mb-2">What the model requested</div>
+                        <pre className="bg-gray-800 rounded-lg p-4 text-sm font-mono text-gray-200 whitespace-pre-wrap">
+                            {JSON.stringify(toolCall.tool_input, null, 2)}
+                        </pre>
+                    </div>
+                )}
+
+                {activeTab === 'output' && (
+                    <div className="max-w-4xl mx-auto space-y-6">
+                        <div>
+                            <div className="text-xs text-gray-400 mb-2">Raw output from executor</div>
+                            <pre className="bg-gray-800 rounded-lg p-4 text-sm font-mono text-gray-200 whitespace-pre-wrap">
+                                {typeof toolCall.output_from_executor === 'string'
+                                    ? toolCall.output_from_executor
+                                    : JSON.stringify(toolCall.output_from_executor, null, 2)}
+                            </pre>
+                        </div>
+                        <div>
+                            <div className="text-xs text-gray-400 mb-2">Formatted output sent to model</div>
+                            <pre className="bg-gray-800 rounded-lg p-4 text-sm font-mono text-gray-200 whitespace-pre-wrap">
+                                {toolCall.output_to_model}
+                            </pre>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'payload' && toolCall.payload && (
+                    <div className="max-w-4xl mx-auto">
+                        <div className="text-xs text-gray-400 mb-2">Data sent to frontend</div>
+                        <pre className="bg-gray-800 rounded-lg p-4 text-sm font-mono text-gray-200 whitespace-pre-wrap">
+                            {JSON.stringify(toolCall.payload, null, 2)}
+                        </pre>
+                    </div>
                 )}
             </div>
-            <pre className="p-2 text-xs font-mono overflow-x-auto max-h-32 overflow-y-auto resize-y min-h-[2rem] bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200">
-                {typeof content === 'string' ? content : JSON.stringify(content, null, 2)}
-            </pre>
-        </div>
-    );
-}
-
-function FlowArrow({ label }: { label: string }) {
-    return (
-        <div className="flex items-center justify-center gap-2 text-gray-400">
-            <div className="h-4 border-l border-dashed border-gray-300 dark:border-gray-600" />
-            <span className="text-xs">↓ {label}</span>
         </div>
     );
 }
