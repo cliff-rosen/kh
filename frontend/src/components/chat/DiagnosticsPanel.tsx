@@ -511,7 +511,7 @@ function AgentResponseCard({ response, onFullscreen }: {
                 )}
 
                 {activeTab === 'tools' && response.tool_history && response.tool_history.length > 0 && (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                         {response.tool_history.map((th, i) => (
                             <div key={i} className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded p-3">
                                 <div className="text-xs font-medium text-orange-800 dark:text-orange-200 font-mono mb-2">
@@ -520,13 +520,13 @@ function AgentResponseCard({ response, onFullscreen }: {
                                 <div className="grid grid-cols-2 gap-3 text-xs">
                                     <div>
                                         <div className="text-gray-500 dark:text-gray-400 mb-1">Input</div>
-                                        <pre className="bg-white dark:bg-gray-900 rounded p-2 font-mono text-gray-800 dark:text-gray-200 max-h-32 overflow-auto">
+                                        <pre className="bg-white dark:bg-gray-900 rounded p-2 font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
                                             {JSON.stringify(th.input, null, 2)}
                                         </pre>
                                     </div>
                                     <div>
                                         <div className="text-gray-500 dark:text-gray-400 mb-1">Output</div>
-                                        <pre className="bg-white dark:bg-gray-900 rounded p-2 font-mono text-gray-800 dark:text-gray-200 max-h-32 overflow-auto">
+                                        <pre className="bg-white dark:bg-gray-900 rounded p-2 font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
                                             {typeof th.output === 'string' ? th.output : JSON.stringify(th.output, null, 2)}
                                         </pre>
                                     </div>
