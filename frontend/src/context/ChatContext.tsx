@@ -222,7 +222,10 @@ export function ChatProvider({ children, app = 'kh' }: ChatProviderProps) {
                     ...(msg.extras?.suggested_actions && { suggested_actions: msg.extras.suggested_actions }),
                     ...(msg.extras?.tool_history && { tool_history: msg.extras.tool_history }),
                     ...(msg.extras?.custom_payload && { custom_payload: msg.extras.custom_payload }),
-                    ...(msg.extras?.diagnostics && { diagnostics: msg.extras.diagnostics }),
+                    // Check both trace (stored name) and diagnostics (legacy/stream name)
+                    ...((msg.extras?.trace || msg.extras?.diagnostics) && {
+                        diagnostics: msg.extras.trace || msg.extras.diagnostics
+                    }),
                 }));
             setMessages(loadedMessages);
             setChatId(id);
