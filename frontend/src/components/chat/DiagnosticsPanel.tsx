@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BugAntIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
+import { BugAntIcon, ChevronDownIcon, ChevronRightIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import { AgentTrace, AgentIteration, ToolCall } from '../../types/chat';
 
 interface DiagnosticsPanelProps {
@@ -9,11 +9,34 @@ interface DiagnosticsPanelProps {
 
 type TabType = 'messages' | 'config' | 'metrics';
 
+// Fullscreen viewer for long content
+function FullscreenViewer({ title, content, onClose }: { title: string; content: string; onClose: () => void }) {
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-80 z-[60] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 bg-gray-900 border-b border-gray-700 flex-shrink-0">
+                <h3 className="text-lg font-semibold text-white">{title}</h3>
+                <button
+                    onClick={onClose}
+                    className="text-gray-400 hover:text-white p-2"
+                >
+                    <XMarkIcon className="h-6 w-6" />
+                </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto p-6">
+                <pre className="text-sm font-mono whitespace-pre-wrap text-gray-200">
+                    {content}
+                </pre>
+            </div>
+        </div>
+    );
+}
+
 export function DiagnosticsPanel({ diagnostics, onClose }: DiagnosticsPanelProps) {
     const [activeTab, setActiveTab] = useState<TabType>('messages');
     const [expandedIterations, setExpandedIterations] = useState<Set<number>>(new Set([1]));
     const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set());
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['messages']));
+    const [fullscreenContent, setFullscreenContent] = useState<{ title: string; content: string } | null>(null);
 
     const toggleIteration = (iter: number) => {
         const next = new Set(expandedIterations);
@@ -99,6 +122,7 @@ export function DiagnosticsPanel({ diagnostics, onClose }: DiagnosticsPanelProps
                             toggleIteration={toggleIteration}
                             toggleToolCall={toggleToolCall}
                             toggleSection={toggleSection}
+                            onFullscreen={setFullscreenContent}
                         />
                     )}
 
@@ -107,14 +131,24 @@ export function DiagnosticsPanel({ diagnostics, onClose }: DiagnosticsPanelProps
                             diagnostics={diagnostics}
                             expandedSections={expandedSections}
                             toggleSection={toggleSection}
+                            onFullscreen={setFullscreenContent}
                         />
                     )}
 
                     {activeTab === 'metrics' && (
-                        <MetricsTab diagnostics={diagnostics} />
+                        <MetricsTab diagnostics={diagnostics} onFullscreen={setFullscreenContent} />
                     )}
                 </div>
             </div>
+
+            {/* Fullscreen content viewer */}
+            {fullscreenContent && (
+                <FullscreenViewer
+                    title={fullscreenContent.title}
+                    content={fullscreenContent.content}
+                    onClose={() => setFullscreenContent(null)}
+                />
+            )}
         </div>
     );
 }
@@ -131,6 +165,7 @@ interface MessagesTabProps {
     toggleIteration: (iter: number) => void;
     toggleToolCall: (id: string) => void;
     toggleSection: (id: string) => void;
+    onFullscreen: (content: { title: string; content: string }) => void;
 }
 
 function MessagesTab({
@@ -141,6 +176,7 @@ function MessagesTab({
     toggleIteration,
     toggleToolCall,
     toggleSection,
+    onFullscreen,
 }: MessagesTabProps) {
     if (!diagnostics.iterations || diagnostics.iterations.length === 0) {
         return <p className="text-gray-500 dark:text-gray-400">No iterations recorded</p>;
@@ -159,6 +195,7 @@ function MessagesTab({
                     onToggle={() => toggleIteration(iteration.iteration)}
                     onToggleToolCall={toggleToolCall}
                     onToggleSection={toggleSection}
+                    onFullscreen={onFullscreen}
                 />
             ))}
         </div>
@@ -174,6 +211,7 @@ interface IterationCardProps {
     onToggle: () => void;
     onToggleToolCall: (id: string) => void;
     onToggleSection: (id: string) => void;
+    onFullscreen: (content: { title: string; content: string }) => void;
 }
 
 function IterationCard({
@@ -185,6 +223,7 @@ function IterationCard({
     onToggle,
     onToggleToolCall,
     onToggleSection,
+    onFullscreen,
 }: IterationCardProps) {
     const currentMsgCount = iteration.messages_to_model?.length || 0;
     const prevMsgCount = prevIteration?.messages_to_model?.length || 0;
@@ -245,8 +284,12 @@ function IterationCard({
                         subtitleColor={newMsgCount > 0 ? 'orange' : undefined}
                         isExpanded={expandedSections.has(inputSectionId)}
                         onToggle={() => onToggleSection(inputSectionId)}
+                        onFullscreen={() => onFullscreen({
+                            title: `Iteration ${iteration.iteration} - Input to Model`,
+                            content: JSON.stringify(iteration.messages_to_model, null, 2)
+                        })}
                     >
-                        <MessagesList messages={iteration.messages_to_model || []} />
+                        <MessagesList messages={iteration.messages_to_model || []} onFullscreen={onFullscreen} />
                     </CollapsibleSection>
 
                     {/* Model Response */}
@@ -255,10 +298,12 @@ function IterationCard({
                         title="Model Response"
                         isExpanded={expandedSections.has(responseSectionId)}
                         onToggle={() => onToggleSection(responseSectionId)}
+                        onFullscreen={() => onFullscreen({
+                            title: `Iteration ${iteration.iteration} - Model Response`,
+                            content: JSON.stringify(iteration.response_content, null, 2)
+                        })}
                     >
-                        <pre className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200 max-h-64 overflow-y-auto">
-                            {JSON.stringify(iteration.response_content, null, 2)}
-                        </pre>
+                        <ExpandableContent content={JSON.stringify(iteration.response_content, null, 2)} />
                     </CollapsibleSection>
 
                     {/* Tool Calls */}
@@ -274,6 +319,7 @@ function IterationCard({
                                         toolCall={toolCall}
                                         isExpanded={expandedToolCalls.has(toolCall.tool_use_id)}
                                         onToggle={() => onToggleToolCall(toolCall.tool_use_id)}
+                                        onFullscreen={onFullscreen}
                                     />
                                 ))}
                             </div>
@@ -286,17 +332,25 @@ function IterationCard({
 }
 
 // Displays messages in a structured list format
-function MessagesList({ messages }: { messages: Array<{ role: string; content: unknown }> }) {
+function MessagesList({ messages, onFullscreen }: {
+    messages: Array<Record<string, unknown>>;
+    onFullscreen: (content: { title: string; content: string }) => void;
+}) {
     return (
         <div className="space-y-2">
             {messages.map((msg, idx) => (
-                <MessageItem key={idx} index={idx} message={msg} />
+                <MessageItem key={idx} index={idx} message={msg} onFullscreen={onFullscreen} />
             ))}
         </div>
     );
 }
 
-function MessageItem({ index, message }: { index: number; message: { role: string; content: unknown } }) {
+function MessageItem({ index, message, onFullscreen }: {
+    index: number;
+    message: Record<string, unknown>;
+    onFullscreen: (content: { title: string; content: string }) => void;
+}) {
+    const role = (message.role as string) || 'unknown';
     const [isExpanded, setIsExpanded] = useState(false);
 
     const roleColors: Record<string, string> = {
@@ -305,9 +359,11 @@ function MessageItem({ index, message }: { index: number; message: { role: strin
         assistant: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
     };
 
-    const contentPreview = typeof message.content === 'string'
-        ? message.content.slice(0, 100) + (message.content.length > 100 ? '...' : '')
-        : JSON.stringify(message.content).slice(0, 100) + '...';
+    const contentStr = typeof message.content === 'string'
+        ? message.content
+        : JSON.stringify(message.content, null, 2);
+
+    const contentPreview = contentStr.slice(0, 100) + (contentStr.length > 100 ? '...' : '');
 
     return (
         <div className="border border-gray-200 dark:border-gray-600 rounded overflow-hidden">
@@ -321,8 +377,8 @@ function MessageItem({ index, message }: { index: number; message: { role: strin
                     <ChevronRightIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
                 )}
                 <span className="text-xs text-gray-400 w-6">{index}</span>
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${roleColors[message.role] || 'bg-gray-100 text-gray-600'}`}>
-                    {message.role}
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${roleColors[role] || 'bg-gray-100 text-gray-600'}`}>
+                    {role}
                 </span>
                 <span className="text-xs text-gray-600 dark:text-gray-400 truncate flex-1">
                     {contentPreview}
@@ -330,13 +386,48 @@ function MessageItem({ index, message }: { index: number; message: { role: strin
             </button>
             {isExpanded && (
                 <div className="p-2 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900">
-                    <pre className="text-xs font-mono overflow-x-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200">
-                        {typeof message.content === 'string'
-                            ? message.content
-                            : JSON.stringify(message.content, null, 2)}
+                    <div className="flex justify-end mb-1">
+                        <button
+                            onClick={() => onFullscreen({ title: `Message ${index} (${role})`, content: contentStr })}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            title="View fullscreen"
+                        >
+                            <ArrowsPointingOutIcon className="h-4 w-4" />
+                        </button>
+                    </div>
+                    <pre className="text-xs font-mono overflow-x-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200 resize-y overflow-y-auto min-h-[3rem] max-h-64">
+                        {contentStr}
                     </pre>
                 </div>
             )}
+        </div>
+    );
+}
+
+// Resizable and expandable content area
+function ExpandableContent({ content }: { content: string }) {
+    const [isMaximized, setIsMaximized] = useState(false);
+
+    return (
+        <div className="relative">
+            <div className="absolute top-2 right-2 z-10">
+                <button
+                    onClick={() => setIsMaximized(!isMaximized)}
+                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 bg-white dark:bg-gray-800 rounded"
+                    title={isMaximized ? "Collapse" : "Expand"}
+                >
+                    {isMaximized ? (
+                        <ArrowsPointingInIcon className="h-4 w-4" />
+                    ) : (
+                        <ArrowsPointingOutIcon className="h-4 w-4" />
+                    )}
+                </button>
+            </div>
+            <pre className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200 resize-y overflow-y-auto ${
+                isMaximized ? 'min-h-[20rem]' : 'min-h-[3rem] max-h-64'
+            }`}>
+                {content}
+            </pre>
         </div>
     );
 }
@@ -348,32 +439,44 @@ interface CollapsibleSectionProps {
     subtitleColor?: 'orange';
     isExpanded: boolean;
     onToggle: () => void;
+    onFullscreen?: () => void;
     children: React.ReactNode;
 }
 
-function CollapsibleSection({ title, subtitle, subtitleColor, isExpanded, onToggle, children }: CollapsibleSectionProps) {
+function CollapsibleSection({ title, subtitle, subtitleColor, isExpanded, onToggle, onFullscreen, children }: CollapsibleSectionProps) {
     return (
         <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
-            <button
-                onClick={onToggle}
-                className="w-full flex items-center gap-3 p-3 text-left bg-gray-50 dark:bg-gray-700/30 hover:bg-gray-100 dark:hover:bg-gray-700/50"
-            >
-                {isExpanded ? (
-                    <ChevronDownIcon className="h-4 w-4 text-gray-400" />
-                ) : (
-                    <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+            <div className="flex items-center bg-gray-50 dark:bg-gray-700/30">
+                <button
+                    onClick={onToggle}
+                    className="flex-1 flex items-center gap-3 p-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                >
+                    {isExpanded ? (
+                        <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                    ) : (
+                        <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+                    )}
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{title}</span>
+                    {subtitle && (
+                        <span className={`text-xs ${
+                            subtitleColor === 'orange'
+                                ? 'text-orange-600 dark:text-orange-400'
+                                : 'text-gray-500 dark:text-gray-400'
+                        }`}>
+                            {subtitle}
+                        </span>
+                    )}
+                </button>
+                {onFullscreen && (
+                    <button
+                        onClick={onFullscreen}
+                        className="p-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        title="View fullscreen"
+                    >
+                        <ArrowsPointingOutIcon className="h-4 w-4" />
+                    </button>
                 )}
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{title}</span>
-                {subtitle && (
-                    <span className={`text-xs ${
-                        subtitleColor === 'orange'
-                            ? 'text-orange-600 dark:text-orange-400'
-                            : 'text-gray-500 dark:text-gray-400'
-                    }`}>
-                        {subtitle}
-                    </span>
-                )}
-            </button>
+            </div>
             {isExpanded && (
                 <div className="p-3 border-t border-gray-200 dark:border-gray-600">
                     {children}
@@ -387,9 +490,10 @@ interface ToolCallCardProps {
     toolCall: ToolCall;
     isExpanded: boolean;
     onToggle: () => void;
+    onFullscreen: (content: { title: string; content: string }) => void;
 }
 
-function ToolCallCard({ toolCall, isExpanded, onToggle }: ToolCallCardProps) {
+function ToolCallCard({ toolCall, isExpanded, onToggle, onFullscreen }: ToolCallCardProps) {
     return (
         <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
             <button
@@ -424,12 +528,20 @@ function ToolCallCard({ toolCall, isExpanded, onToggle }: ToolCallCardProps) {
                             label="Input from Model"
                             sublabel="What the model requested"
                             content={toolCall.input_from_model}
+                            onFullscreen={() => onFullscreen({
+                                title: `${toolCall.tool_name} - Input from Model`,
+                                content: JSON.stringify(toolCall.input_from_model, null, 2)
+                            })}
                         />
                         <FlowArrow label="transformed" />
                         <BoundaryBox
                             label="Input to Executor"
                             sublabel="What the tool received"
                             content={toolCall.input_to_executor}
+                            onFullscreen={() => onFullscreen({
+                                title: `${toolCall.tool_name} - Input to Executor`,
+                                content: JSON.stringify(toolCall.input_to_executor, null, 2)
+                            })}
                         />
                         <FlowArrow label="executed" />
                         <BoundaryBox
@@ -437,6 +549,12 @@ function ToolCallCard({ toolCall, isExpanded, onToggle }: ToolCallCardProps) {
                             sublabel="Raw tool result"
                             content={toolCall.output_from_executor}
                             isOutput
+                            onFullscreen={() => onFullscreen({
+                                title: `${toolCall.tool_name} - Output from Executor`,
+                                content: typeof toolCall.output_from_executor === 'string'
+                                    ? toolCall.output_from_executor
+                                    : JSON.stringify(toolCall.output_from_executor, null, 2)
+                            })}
                         />
                         <FlowArrow label="formatted" />
                         <BoundaryBox
@@ -444,6 +562,10 @@ function ToolCallCard({ toolCall, isExpanded, onToggle }: ToolCallCardProps) {
                             sublabel="What went in the message"
                             content={toolCall.output_to_model}
                             isOutput
+                            onFullscreen={() => onFullscreen({
+                                title: `${toolCall.tool_name} - Output to Model`,
+                                content: toolCall.output_to_model
+                            })}
                         />
                     </div>
                 </div>
@@ -452,11 +574,12 @@ function ToolCallCard({ toolCall, isExpanded, onToggle }: ToolCallCardProps) {
     );
 }
 
-function BoundaryBox({ label, sublabel, content, isOutput }: {
+function BoundaryBox({ label, sublabel, content, isOutput, onFullscreen }: {
     label: string;
     sublabel: string;
     content: unknown;
     isOutput?: boolean;
+    onFullscreen?: () => void;
 }) {
     return (
         <div className={`border rounded-lg overflow-hidden ${
@@ -464,15 +587,26 @@ function BoundaryBox({ label, sublabel, content, isOutput }: {
                 ? 'border-green-200 dark:border-green-800'
                 : 'border-blue-200 dark:border-blue-800'
         }`}>
-            <div className={`px-3 py-1.5 text-xs font-medium ${
+            <div className={`flex items-center justify-between px-3 py-1.5 text-xs font-medium ${
                 isOutput
                     ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
                     : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
             }`}>
-                {label}
-                <span className="font-normal ml-2 text-gray-500 dark:text-gray-400">{sublabel}</span>
+                <div>
+                    {label}
+                    <span className="font-normal ml-2 text-gray-500 dark:text-gray-400">{sublabel}</span>
+                </div>
+                {onFullscreen && (
+                    <button
+                        onClick={onFullscreen}
+                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        title="View fullscreen"
+                    >
+                        <ArrowsPointingOutIcon className="h-3 w-3" />
+                    </button>
+                )}
             </div>
-            <pre className="p-2 text-xs font-mono overflow-x-auto max-h-32 overflow-y-auto bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+            <pre className="p-2 text-xs font-mono overflow-x-auto max-h-32 overflow-y-auto resize-y min-h-[2rem] bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200">
                 {typeof content === 'string' ? content : JSON.stringify(content, null, 2)}
             </pre>
         </div>
@@ -496,9 +630,10 @@ interface ConfigTabProps {
     diagnostics: AgentTrace;
     expandedSections: Set<string>;
     toggleSection: (id: string) => void;
+    onFullscreen: (content: { title: string; content: string }) => void;
 }
 
-function ConfigTab({ diagnostics, expandedSections, toggleSection }: ConfigTabProps) {
+function ConfigTab({ diagnostics, expandedSections, toggleSection, onFullscreen }: ConfigTabProps) {
     const [expandedTool, setExpandedTool] = useState<string | null>(null);
 
     return (
@@ -521,8 +656,9 @@ function ConfigTab({ diagnostics, expandedSections, toggleSection }: ConfigTabPr
                 subtitle={`${diagnostics.system_prompt?.length || 0} chars`}
                 isExpanded={expandedSections.has('system-prompt')}
                 onToggle={() => toggleSection('system-prompt')}
+                onFullscreen={() => onFullscreen({ title: 'System Prompt', content: diagnostics.system_prompt || '' })}
             >
-                <pre className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200 max-h-96 overflow-y-auto">
+                <pre className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200 max-h-96 overflow-y-auto resize-y min-h-[3rem]">
                     {diagnostics.system_prompt}
                 </pre>
             </CollapsibleSection>
@@ -535,23 +671,35 @@ function ConfigTab({ diagnostics, expandedSections, toggleSection }: ConfigTabPr
                 <div className="space-y-2">
                     {diagnostics.tools?.map((tool) => (
                         <div key={tool.name} className="border border-gray-200 dark:border-gray-700 rounded-lg">
-                            <button
-                                onClick={() => setExpandedTool(expandedTool === tool.name ? null : tool.name)}
-                                className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                            >
-                                <div>
-                                    <span className="font-mono text-sm text-blue-600 dark:text-blue-400">{tool.name}</span>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{tool.description}</p>
-                                </div>
-                                {expandedTool === tool.name ? (
-                                    <ChevronDownIcon className="h-4 w-4 text-gray-400" />
-                                ) : (
-                                    <ChevronRightIcon className="h-4 w-4 text-gray-400" />
-                                )}
-                            </button>
+                            <div className="flex items-center">
+                                <button
+                                    onClick={() => setExpandedTool(expandedTool === tool.name ? null : tool.name)}
+                                    className="flex-1 flex items-center justify-between p-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                                >
+                                    <div>
+                                        <span className="font-mono text-sm text-blue-600 dark:text-blue-400">{tool.name}</span>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{tool.description}</p>
+                                    </div>
+                                    {expandedTool === tool.name ? (
+                                        <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                                    ) : (
+                                        <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => onFullscreen({
+                                        title: `Tool: ${tool.name}`,
+                                        content: JSON.stringify(tool, null, 2)
+                                    })}
+                                    className="p-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                    title="View fullscreen"
+                                >
+                                    <ArrowsPointingOutIcon className="h-4 w-4" />
+                                </button>
+                            </div>
                             {expandedTool === tool.name && (
                                 <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-                                    <pre className="text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200">
+                                    <pre className="text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200 resize-y min-h-[3rem] max-h-64 overflow-y-auto">
                                         {JSON.stringify(tool.input_schema, null, 2)}
                                     </pre>
                                 </div>
@@ -571,8 +719,9 @@ function ConfigTab({ diagnostics, expandedSections, toggleSection }: ConfigTabPr
                     title="Context"
                     isExpanded={expandedSections.has('context')}
                     onToggle={() => toggleSection('context')}
+                    onFullscreen={() => onFullscreen({ title: 'Context', content: JSON.stringify(diagnostics.context, null, 2) })}
                 >
-                    <pre className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200">
+                    <pre className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200 resize-y min-h-[3rem] max-h-64 overflow-y-auto">
                         {JSON.stringify(diagnostics.context, null, 2)}
                     </pre>
                 </CollapsibleSection>
@@ -594,7 +743,10 @@ function ConfigCard({ label, value }: { label: string; value: string | number })
 // Metrics Tab - Token usage, timing, and outcome
 // ============================================================================
 
-function MetricsTab({ diagnostics }: { diagnostics: AgentTrace }) {
+function MetricsTab({ diagnostics, onFullscreen }: {
+    diagnostics: AgentTrace;
+    onFullscreen: (content: { title: string; content: string }) => void;
+}) {
     return (
         <div className="space-y-6">
             {/* Summary Cards */}
@@ -659,8 +811,17 @@ function MetricsTab({ diagnostics }: { diagnostics: AgentTrace }) {
             {/* Error Message */}
             {diagnostics.error_message && (
                 <div>
-                    <h4 className="text-sm font-semibold text-red-600 dark:text-red-400 mb-3">Error Message</h4>
-                    <pre className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-xs font-mono text-red-800 dark:text-red-200">
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-semibold text-red-600 dark:text-red-400">Error Message</h4>
+                        <button
+                            onClick={() => onFullscreen({ title: 'Error Message', content: diagnostics.error_message || '' })}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            title="View fullscreen"
+                        >
+                            <ArrowsPointingOutIcon className="h-4 w-4" />
+                        </button>
+                    </div>
+                    <pre className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-xs font-mono text-red-800 dark:text-red-200 resize-y min-h-[3rem] max-h-64 overflow-y-auto">
                         {diagnostics.error_message}
                     </pre>
                 </div>
@@ -668,10 +829,19 @@ function MetricsTab({ diagnostics }: { diagnostics: AgentTrace }) {
 
             {/* Final Text */}
             <div>
-                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                    Final Text ({diagnostics.final_text?.length || 0} chars)
-                </h4>
-                <pre className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200 max-h-64 overflow-y-auto">
+                <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        Final Text ({diagnostics.final_text?.length || 0} chars)
+                    </h4>
+                    <button
+                        onClick={() => onFullscreen({ title: 'Final Text', content: diagnostics.final_text || '' })}
+                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        title="View fullscreen"
+                    >
+                        <ArrowsPointingOutIcon className="h-4 w-4" />
+                    </button>
+                </div>
+                <pre className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200 max-h-64 overflow-y-auto resize-y min-h-[3rem]">
                     {diagnostics.final_text}
                 </pre>
             </div>
