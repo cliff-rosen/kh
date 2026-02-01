@@ -383,16 +383,19 @@ class ChatStreamService:
         Loads conversation history from database if chat_id is provided,
         otherwise starts fresh.
 
+        Note: Context is provided in the system prompt via _build_page_context,
+        so user messages are sent as-is without context wrapping.
+
         Returns:
             tuple: (messages_for_llm, clean_history)
-                - messages_for_llm: Full messages including context-wrapped current request
+                - messages_for_llm: Full messages including current request
                 - clean_history: Just the prior conversation (for diagnostics display)
         """
         history = []
 
         # Load history from database if we have a conversation
         # Exclude the last message - it's the current user message we just saved
-        # in _setup_chat, and we'll add it with context wrapper below
+        # in _setup_chat, and we'll add it below
         if chat_id:
             db_messages = await self.chat_service.get_messages(chat_id, self.user_id)
             # Skip the last message (the one we just saved)
@@ -401,17 +404,8 @@ class ChatStreamService:
                 if msg.role in ('user', 'assistant'):
                     history.append({"role": msg.role, "content": msg.content})
 
-        # Build user prompt with context
-        context_summary = "\n".join([f"{k}: {v}" for k, v in request.context.items()])
-        user_prompt = f"""User's current context:
-        {context_summary}
-
-        Interaction type: {request.interaction_type}
-
-        User's message: {request.message}"""
-
-        # Messages for LLM includes history + context-wrapped current request
-        messages_for_llm = history + [{"role": "user", "content": user_prompt}]
+        # User message sent as-is - context is already in system prompt
+        messages_for_llm = history + [{"role": "user", "content": request.message}]
 
         return messages_for_llm, history
 

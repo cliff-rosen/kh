@@ -351,6 +351,7 @@ function MessageItem({ index, message, onFullscreen }: {
     onFullscreen: (content: { title: string; content: string }) => void;
 }) {
     const role = (message.role as string) || 'unknown';
+    const content = message.content;
     const [isExpanded, setIsExpanded] = useState(false);
 
     const roleColors: Record<string, string> = {
@@ -359,11 +360,44 @@ function MessageItem({ index, message, onFullscreen }: {
         assistant: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
     };
 
-    const contentStr = typeof message.content === 'string'
-        ? message.content
-        : JSON.stringify(message.content, null, 2);
+    // Analyze content type for smart preview
+    const isArrayContent = Array.isArray(content);
+    const contentBlocks = isArrayContent ? (content as Array<Record<string, unknown>>) : null;
 
-    const contentPreview = contentStr.slice(0, 100) + (contentStr.length > 100 ? '...' : '');
+    // Generate smart preview based on content type
+    const getPreview = (): { text: string; badges: string[] } => {
+        if (typeof content === 'string') {
+            return {
+                text: content.slice(0, 80) + (content.length > 80 ? '...' : ''),
+                badges: []
+            };
+        }
+
+        if (contentBlocks) {
+            const badges: string[] = [];
+            let textPreview = '';
+
+            for (const block of contentBlocks) {
+                if (block.type === 'text' && typeof block.text === 'string') {
+                    if (!textPreview) textPreview = block.text.slice(0, 60);
+                } else if (block.type === 'tool_use') {
+                    badges.push(`tool_use:${block.name}`);
+                } else if (block.type === 'tool_result') {
+                    badges.push(`tool_result`);
+                }
+            }
+
+            return {
+                text: textPreview ? textPreview + '...' : '',
+                badges
+            };
+        }
+
+        return { text: JSON.stringify(content).slice(0, 60) + '...', badges: [] };
+    };
+
+    const preview = getPreview();
+    const fullContentStr = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
 
     return (
         <div className="border border-gray-200 dark:border-gray-600 rounded overflow-hidden">
@@ -380,26 +414,108 @@ function MessageItem({ index, message, onFullscreen }: {
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${roleColors[role] || 'bg-gray-100 text-gray-600'}`}>
                     {role}
                 </span>
+                {preview.badges.map((badge, i) => (
+                    <span key={i} className="px-1.5 py-0.5 rounded text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                        {badge}
+                    </span>
+                ))}
                 <span className="text-xs text-gray-600 dark:text-gray-400 truncate flex-1">
-                    {contentPreview}
+                    {preview.text}
                 </span>
             </button>
             {isExpanded && (
                 <div className="p-2 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900">
                     <div className="flex justify-end mb-1">
                         <button
-                            onClick={() => onFullscreen({ title: `Message ${index} (${role})`, content: contentStr })}
+                            onClick={() => onFullscreen({ title: `Message ${index} (${role})`, content: fullContentStr })}
                             className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                             title="View fullscreen"
                         >
                             <ArrowsPointingOutIcon className="h-4 w-4" />
                         </button>
                     </div>
-                    <pre className="text-xs font-mono overflow-x-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200 resize-y overflow-y-auto min-h-[3rem] max-h-64">
-                        {contentStr}
-                    </pre>
+                    {/* Render content based on type */}
+                    {typeof content === 'string' ? (
+                        <pre className="text-xs font-mono overflow-x-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200 resize-y overflow-y-auto min-h-[3rem] max-h-64">
+                            {content}
+                        </pre>
+                    ) : contentBlocks ? (
+                        <div className="space-y-2">
+                            {contentBlocks.map((block, blockIdx) => (
+                                <ContentBlock key={blockIdx} block={block} />
+                            ))}
+                        </div>
+                    ) : (
+                        <pre className="text-xs font-mono overflow-x-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200 resize-y overflow-y-auto min-h-[3rem] max-h-64">
+                            {fullContentStr}
+                        </pre>
+                    )}
                 </div>
             )}
+        </div>
+    );
+}
+
+// Render a content block (text, tool_use, tool_result)
+function ContentBlock({ block }: { block: Record<string, unknown> }) {
+    const blockType = block.type as string;
+
+    if (blockType === 'text') {
+        return (
+            <div className="bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-700">
+                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">text</div>
+                <pre className="text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+                    {block.text as string}
+                </pre>
+            </div>
+        );
+    }
+
+    if (blockType === 'tool_use') {
+        return (
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded p-2 border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">tool_use</span>
+                    <span className="text-xs font-mono text-blue-700 dark:text-blue-300">{block.name as string}</span>
+                    <span className="text-xs text-gray-400">id: {(block.id as string)?.slice(0, 8)}...</span>
+                </div>
+                <pre className="text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900 rounded p-1 max-h-32 overflow-y-auto">
+                    {JSON.stringify(block.input, null, 2)}
+                </pre>
+            </div>
+        );
+    }
+
+    if (blockType === 'tool_result') {
+        const isError = block.is_error === true;
+        return (
+            <div className={`rounded p-2 border ${
+                isError
+                    ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                    : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+            }`}>
+                <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-xs font-medium ${
+                        isError ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+                    }`}>
+                        tool_result {isError && '(error)'}
+                    </span>
+                    <span className="text-xs text-gray-400">for: {(block.tool_use_id as string)?.slice(0, 8)}...</span>
+                </div>
+                <pre className="text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900 rounded p-1 max-h-32 overflow-y-auto resize-y">
+                    {typeof block.content === 'string' ? block.content : JSON.stringify(block.content, null, 2)}
+                </pre>
+            </div>
+        );
+    }
+
+    // Unknown block type - show as JSON
+    return (
+        <div className="bg-gray-100 dark:bg-gray-700 rounded p-2 border border-gray-200 dark:border-gray-600">
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{blockType || 'unknown'}</div>
+            <pre className="text-xs font-mono whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+                {JSON.stringify(block, null, 2)}
+            </pre>
         </div>
     );
 }
@@ -516,6 +632,11 @@ function ToolCallCard({ toolCall, isExpanded, onToggle, onFullscreen }: ToolCall
                     }`}>
                         {toolCall.output_type}
                     </span>
+                    {toolCall.payload && (
+                        <span className="px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                            payload
+                        </span>
+                    )}
                 </div>
                 <span className="text-xs text-gray-500 dark:text-gray-400">{toolCall.execution_ms}ms</span>
             </button>
@@ -567,6 +688,36 @@ function ToolCallCard({ toolCall, isExpanded, onToggle, onFullscreen }: ToolCall
                                 content: toolCall.output_to_model
                             })}
                         />
+
+                        {/* Payload (if present) */}
+                        {toolCall.payload && (
+                            <>
+                                <FlowArrow label="payload" />
+                                <div className="border rounded-lg overflow-hidden border-purple-200 dark:border-purple-800">
+                                    <div className="flex items-center justify-between px-3 py-1.5 text-xs font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400">
+                                        <div>
+                                            Payload
+                                            <span className="font-normal ml-2 text-gray-500 dark:text-gray-400">
+                                                Data sent to frontend
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() => onFullscreen({
+                                                title: `${toolCall.tool_name} - Payload`,
+                                                content: JSON.stringify(toolCall.payload, null, 2)
+                                            })}
+                                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                            title="View fullscreen"
+                                        >
+                                            <ArrowsPointingOutIcon className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                    <pre className="p-2 text-xs font-mono overflow-x-auto max-h-32 overflow-y-auto resize-y min-h-[2rem] bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+                                        {JSON.stringify(toolCall.payload, null, 2)}
+                                    </pre>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

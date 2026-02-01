@@ -726,6 +726,7 @@ async def _process_tools(
             output_from_executor=_safe_serialize(output_from_executor),
             output_type=output_type,
             output_to_model=tool_result_str,
+            payload=_safe_serialize(tool_result_data) if tool_result_data else None,
             execution_ms=execution_ms,
         )
         tool_calls.append(tool_call)
