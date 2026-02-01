@@ -605,21 +605,19 @@ function MessageItem({ index, message, onFullscreen }: {
 
             {/* Expanded content */}
             {isExpanded && (
-                <div className="border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 p-2">
-                    <div className="flex justify-end mb-2">
-                        <button
-                            onClick={() => onFullscreen({
-                                title: `Message ${index} (${role})`,
-                                content: typeof message.content === 'string'
-                                    ? message.content
-                                    : JSON.stringify(message.content, null, 2)
-                            })}
-                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                            title="View fullscreen"
-                        >
-                            <ArrowsPointingOutIcon className="h-4 w-4" />
-                        </button>
-                    </div>
+                <div className="border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 p-2 relative">
+                    <button
+                        onClick={() => onFullscreen({
+                            title: `Message ${index} (${role})`,
+                            content: typeof message.content === 'string'
+                                ? message.content
+                                : JSON.stringify(message.content, null, 2)
+                        })}
+                        className="absolute top-2 right-2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 z-10"
+                        title="View fullscreen"
+                    >
+                        <ArrowsPointingOutIcon className="h-4 w-4" />
+                    </button>
                     <div className="space-y-2">
                         {blocks.map((block, blockIdx) => (
                             <ContentBlockRenderer key={blockIdx} block={block} />
