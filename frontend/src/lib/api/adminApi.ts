@@ -213,6 +213,40 @@ export const adminApi = {
   async getChatConfig(): Promise<ChatConfigResponse> {
     const response = await api.get('/api/admin/chat-config');
     return response.data;
+  },
+
+  // ==================== Help Content Management ====================
+
+  /**
+   * Get all help sections (platform admin only)
+   */
+  async getHelpSections(): Promise<HelpSectionsResponse> {
+    const response = await api.get('/api/admin/help/sections');
+    return response.data;
+  },
+
+  /**
+   * Get a specific help section with full content (platform admin only)
+   */
+  async getHelpSection(sectionId: string): Promise<HelpSectionDetail> {
+    const response = await api.get(`/api/admin/help/sections/${sectionId}`);
+    return response.data;
+  },
+
+  /**
+   * Preview TOC as seen by each role (platform admin only)
+   */
+  async getHelpTocPreview(): Promise<HelpTOCPreview[]> {
+    const response = await api.get('/api/admin/help/toc-preview');
+    return response.data;
+  },
+
+  /**
+   * Reload help content from YAML files (platform admin only)
+   */
+  async reloadHelpContent(): Promise<{ status: string; sections_loaded: number }> {
+    const response = await api.post('/api/admin/help/reload');
+    return response.data;
   }
 };
 
@@ -279,4 +313,27 @@ export interface ChatConfigResponse {
     total_streams: number;
     streams_with_instructions: number;
   };
+}
+
+// Help content types
+export interface HelpSectionSummary {
+  id: string;
+  title: string;
+  summary: string;
+  roles: string[];
+  order: number;
+}
+
+export interface HelpSectionDetail extends HelpSectionSummary {
+  content: string;
+}
+
+export interface HelpSectionsResponse {
+  sections: HelpSectionSummary[];
+  total: number;
+}
+
+export interface HelpTOCPreview {
+  role: string;
+  toc: string;
 }

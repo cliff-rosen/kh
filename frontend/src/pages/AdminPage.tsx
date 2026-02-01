@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon, ClockIcon, ChatBubbleLeftRightIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon, ClockIcon, ChatBubbleLeftRightIcon, Cog6ToothIcon, BookOpenIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
-import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList, ConversationList, ChatConfigList } from '../components/admin';
+import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList, ConversationList, ChatConfigList, HelpContentBrowser } from '../components/admin';
 
-type AdminTab = 'organizations' | 'users' | 'invitations' | 'streams' | 'activity' | 'conversations' | 'chat-config';
+type AdminTab = 'organizations' | 'users' | 'invitations' | 'streams' | 'activity' | 'conversations' | 'chat-config' | 'help-content';
 
 interface TabGroup {
     label: string;
@@ -41,6 +41,7 @@ const tabGroups: TabGroup[] = [
         label: 'System',
         tabs: [
             { id: 'chat-config', label: 'Chat Config', icon: Cog6ToothIcon },
+            { id: 'help-content', label: 'Help Content', icon: BookOpenIcon },
         ],
     },
 ];
@@ -119,6 +120,7 @@ export default function AdminPage() {
                 {activeTab === 'activity' && <ActivityList />}
                 {activeTab === 'conversations' && <ConversationList />}
                 {activeTab === 'chat-config' && <ChatConfigList />}
+                {activeTab === 'help-content' && <HelpContentBrowser />}
             </div>
         </div>
     );
