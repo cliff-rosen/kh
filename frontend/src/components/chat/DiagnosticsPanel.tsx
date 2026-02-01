@@ -9,24 +9,178 @@ interface DiagnosticsPanelProps {
 
 type TabType = 'messages' | 'config' | 'metrics';
 
-// Fullscreen viewer for long content
-function FullscreenViewer({ title, content, onClose }: { title: string; content: string; onClose: () => void }) {
+// Types for fullscreen content
+type FullscreenContent =
+    | { type: 'raw'; title: string; content: string }
+    | { type: 'messages'; title: string; messages: Array<Record<string, unknown>> }
+    | { type: 'blocks'; title: string; blocks: Array<Record<string, unknown>> };
+
+// Fullscreen viewer with tabs for rendered/raw views
+function FullscreenViewer({ content, onClose }: { content: FullscreenContent; onClose: () => void }) {
+    const [viewMode, setViewMode] = useState<'rendered' | 'raw'>('rendered');
+
+    const hasRenderedView = content.type === 'messages' || content.type === 'blocks';
+    const rawContent = content.type === 'raw'
+        ? content.content
+        : content.type === 'messages'
+        ? JSON.stringify(content.messages, null, 2)
+        : JSON.stringify(content.blocks, null, 2);
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-80 z-[60] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 bg-gray-900 border-b border-gray-700 flex-shrink-0">
-                <h3 className="text-lg font-semibold text-white">{title}</h3>
-                <button
-                    onClick={onClose}
-                    className="text-gray-400 hover:text-white p-2"
-                >
-                    <XMarkIcon className="h-6 w-6" />
-                </button>
+                <h3 className="text-lg font-semibold text-white">{content.title}</h3>
+                <div className="flex items-center gap-4">
+                    {hasRenderedView && (
+                        <div className="flex bg-gray-800 rounded-lg p-1">
+                            <button
+                                onClick={() => setViewMode('rendered')}
+                                className={`px-3 py-1 text-sm rounded ${
+                                    viewMode === 'rendered'
+                                        ? 'bg-gray-600 text-white'
+                                        : 'text-gray-400 hover:text-white'
+                                }`}
+                            >
+                                Rendered
+                            </button>
+                            <button
+                                onClick={() => setViewMode('raw')}
+                                className={`px-3 py-1 text-sm rounded ${
+                                    viewMode === 'raw'
+                                        ? 'bg-gray-600 text-white'
+                                        : 'text-gray-400 hover:text-white'
+                                }`}
+                            >
+                                Raw JSON
+                            </button>
+                        </div>
+                    )}
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-white p-2"
+                    >
+                        <XMarkIcon className="h-6 w-6" />
+                    </button>
+                </div>
             </div>
             <div className="flex-1 min-h-0 overflow-auto p-6">
+                {viewMode === 'raw' || !hasRenderedView ? (
+                    <pre className="text-sm font-mono whitespace-pre-wrap text-gray-200">
+                        {rawContent}
+                    </pre>
+                ) : content.type === 'messages' ? (
+                    <FullscreenMessagesList messages={content.messages} />
+                ) : (
+                    <FullscreenBlocksList blocks={content.blocks} />
+                )}
+            </div>
+        </div>
+    );
+}
+
+// Rendered messages list for fullscreen view
+function FullscreenMessagesList({ messages }: { messages: Array<Record<string, unknown>> }) {
+    return (
+        <div className="space-y-3 max-w-4xl mx-auto">
+            {messages.map((msg, idx) => (
+                <FullscreenMessageItem key={idx} index={idx} message={msg} />
+            ))}
+        </div>
+    );
+}
+
+function FullscreenMessageItem({ index, message }: { index: number; message: Record<string, unknown> }) {
+    const role = (message.role as string) || 'unknown';
+    const blocks = normalizeContent(message.content);
+    const roleStyle = ROLE_STYLES[role] || { bg: 'bg-gray-700', text: 'text-gray-300' };
+
+    return (
+        <div className="bg-gray-800 rounded-lg overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-700/50 border-b border-gray-600">
+                <span className="text-xs text-gray-400 w-6">{index}</span>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${roleStyle.bg} ${roleStyle.text}`}>
+                    {role}
+                </span>
+            </div>
+            <div className="p-4 space-y-3">
+                {blocks.map((block, blockIdx) => (
+                    <FullscreenContentBlock key={blockIdx} block={block} />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function FullscreenContentBlock({ block }: { block: ContentBlock }) {
+    if (block.type === 'text' && 'text' in block) {
+        const textBlock = block as TextBlock;
+        return (
+            <div className="bg-gray-900 rounded p-3 border border-gray-700">
+                <div className="text-xs font-medium text-gray-500 mb-2">text</div>
                 <pre className="text-sm font-mono whitespace-pre-wrap text-gray-200">
-                    {content}
+                    {textBlock.text}
                 </pre>
             </div>
+        );
+    }
+
+    if (block.type === 'tool_use' && 'name' in block) {
+        const toolUse = block as ToolUseBlock;
+        return (
+            <div className="bg-blue-900/30 rounded p-3 border border-blue-700">
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-medium text-blue-400">tool_use</span>
+                    <span className="text-sm font-mono font-semibold text-blue-300">{toolUse.name}</span>
+                    <span className="text-xs text-gray-500 font-mono">{toolUse.id?.slice(0, 12)}...</span>
+                </div>
+                <pre className="text-sm font-mono whitespace-pre-wrap text-gray-200 bg-gray-900 rounded p-2">
+                    {JSON.stringify(toolUse.input, null, 2)}
+                </pre>
+            </div>
+        );
+    }
+
+    if (block.type === 'tool_result' && 'tool_use_id' in block) {
+        const toolResult = block as ToolResultBlock;
+        const isError = toolResult.is_error === true;
+        return (
+            <div className={`rounded p-3 border ${
+                isError
+                    ? 'bg-red-900/30 border-red-700'
+                    : 'bg-green-900/30 border-green-700'
+            }`}>
+                <div className="flex items-center gap-2 mb-2">
+                    <span className={`text-xs font-medium ${isError ? 'text-red-400' : 'text-green-400'}`}>
+                        tool_result{isError && ' (error)'}
+                    </span>
+                    <span className="text-xs text-gray-500 font-mono">for {toolResult.tool_use_id?.slice(0, 12)}...</span>
+                </div>
+                <pre className="text-sm font-mono whitespace-pre-wrap text-gray-200 bg-gray-900 rounded p-2">
+                    {toolResult.content}
+                </pre>
+            </div>
+        );
+    }
+
+    // Unknown block type
+    const unknownBlock = block as UnknownBlock;
+    return (
+        <div className="bg-gray-700 rounded p-3 border border-gray-600">
+            <div className="text-xs text-gray-400 mb-2">{unknownBlock.type || 'unknown'}</div>
+            <pre className="text-sm font-mono whitespace-pre-wrap text-gray-200">
+                {JSON.stringify(block, null, 2)}
+            </pre>
+        </div>
+    );
+}
+
+// Rendered content blocks for fullscreen view
+function FullscreenBlocksList({ blocks }: { blocks: Array<Record<string, unknown>> }) {
+    return (
+        <div className="space-y-3 max-w-4xl mx-auto">
+            {blocks.map((block, idx) => (
+                <FullscreenContentBlock key={idx} block={block as ContentBlock} />
+            ))}
         </div>
     );
 }
@@ -36,7 +190,7 @@ export function DiagnosticsPanel({ diagnostics, onClose }: DiagnosticsPanelProps
     const [expandedIterations, setExpandedIterations] = useState<Set<number>>(new Set([1]));
     const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set());
     const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['messages']));
-    const [fullscreenContent, setFullscreenContent] = useState<{ title: string; content: string } | null>(null);
+    const [fullscreenContent, setFullscreenContent] = useState<FullscreenContent | null>(null);
 
     const toggleIteration = (iter: number) => {
         const next = new Set(expandedIterations);
@@ -144,8 +298,7 @@ export function DiagnosticsPanel({ diagnostics, onClose }: DiagnosticsPanelProps
             {/* Fullscreen content viewer */}
             {fullscreenContent && (
                 <FullscreenViewer
-                    title={fullscreenContent.title}
-                    content={fullscreenContent.content}
+                    content={fullscreenContent}
                     onClose={() => setFullscreenContent(null)}
                 />
             )}
@@ -165,7 +318,7 @@ interface MessagesTabProps {
     toggleIteration: (iter: number) => void;
     toggleToolCall: (id: string) => void;
     toggleSection: (id: string) => void;
-    onFullscreen: (content: { title: string; content: string }) => void;
+    onFullscreen: (content: FullscreenContent) => void;
 }
 
 function MessagesTab({
@@ -192,7 +345,7 @@ function MessagesTab({
                     subtitle={`${diagnostics.system_prompt.length} chars`}
                     isExpanded={expandedSections.has('system-message')}
                     onToggle={() => toggleSection('system-message')}
-                    onFullscreen={() => onFullscreen({ title: 'System Message', content: diagnostics.system_prompt })}
+                    onFullscreen={() => onFullscreen({ type: 'raw', title: 'System Message', content: diagnostics.system_prompt })}
                 >
                     <div className="bg-purple-50 dark:bg-purple-900/20 rounded p-3 border border-purple-200 dark:border-purple-800">
                         <div className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-2">system</div>
@@ -284,6 +437,7 @@ function MessagesTab({
                                     </div>
                                     <button
                                         onClick={() => onFullscreen({
+                                            type: 'raw',
                                             title: 'Custom Payload',
                                             content: JSON.stringify(diagnostics.final_response?.custom_payload, null, 2)
                                         })}
@@ -353,7 +507,7 @@ interface IterationCardProps {
     onToggle: () => void;
     onToggleToolCall: (id: string) => void;
     onToggleSection: (id: string) => void;
-    onFullscreen: (content: { title: string; content: string }) => void;
+    onFullscreen: (content: FullscreenContent) => void;
 }
 
 function IterationCard({
@@ -427,8 +581,9 @@ function IterationCard({
                         isExpanded={expandedSections.has(inputSectionId)}
                         onToggle={() => onToggleSection(inputSectionId)}
                         onFullscreen={() => onFullscreen({
+                            type: 'messages',
                             title: `Iteration ${iteration.iteration} - Input to Model`,
-                            content: JSON.stringify(iteration.messages_to_model, null, 2)
+                            messages: iteration.messages_to_model || []
                         })}
                     >
                         <MessagesList messages={iteration.messages_to_model || []} onFullscreen={onFullscreen} />
@@ -441,8 +596,9 @@ function IterationCard({
                         isExpanded={expandedSections.has(responseSectionId)}
                         onToggle={() => onToggleSection(responseSectionId)}
                         onFullscreen={() => onFullscreen({
+                            type: 'blocks',
                             title: `Iteration ${iteration.iteration} - Model Response`,
-                            content: JSON.stringify(iteration.response_content, null, 2)
+                            blocks: iteration.response_content || []
                         })}
                     >
                         <div className="space-y-2">
@@ -554,7 +710,7 @@ const ROLE_STYLES: Record<string, { bg: string; text: string }> = {
 
 function MessagesList({ messages, onFullscreen }: {
     messages: Array<Record<string, unknown>>;
-    onFullscreen: (content: { title: string; content: string }) => void;
+    onFullscreen: (content: FullscreenContent) => void;
 }) {
     return (
         <div className="space-y-2">
@@ -568,7 +724,7 @@ function MessagesList({ messages, onFullscreen }: {
 function MessageItem({ index, message, onFullscreen }: {
     index: number;
     message: Record<string, unknown>;
-    onFullscreen: (content: { title: string; content: string }) => void;
+    onFullscreen: (content: FullscreenContent) => void;
 }) {
     const [isExpanded, setIsExpanded] = useState(false);
 
@@ -608,10 +764,9 @@ function MessageItem({ index, message, onFullscreen }: {
                 <div className="border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 p-2 relative">
                     <button
                         onClick={() => onFullscreen({
+                            type: 'blocks',
                             title: `Message ${index} (${role})`,
-                            content: typeof message.content === 'string'
-                                ? message.content
-                                : JSON.stringify(message.content, null, 2)
+                            blocks: blocks as Array<Record<string, unknown>>
                         })}
                         className="absolute top-2 right-2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 z-10"
                         title="View fullscreen"
@@ -751,7 +906,7 @@ interface ToolCallCardProps {
     toolCall: ToolCall;
     isExpanded: boolean;
     onToggle: () => void;
-    onFullscreen: (content: { title: string; content: string }) => void;
+    onFullscreen: (content: FullscreenContent) => void;
 }
 
 function ToolCallCard({ toolCall, isExpanded, onToggle, onFullscreen }: ToolCallCardProps) {
@@ -795,6 +950,7 @@ function ToolCallCard({ toolCall, isExpanded, onToggle, onFullscreen }: ToolCall
                             sublabel="What model requested and tool received"
                             content={toolCall.tool_input}
                             onFullscreen={() => onFullscreen({
+                                type: 'raw',
                                 title: `${toolCall.tool_name} - Tool Input`,
                                 content: JSON.stringify(toolCall.tool_input, null, 2)
                             })}
@@ -806,6 +962,7 @@ function ToolCallCard({ toolCall, isExpanded, onToggle, onFullscreen }: ToolCall
                             content={toolCall.output_from_executor}
                             isOutput
                             onFullscreen={() => onFullscreen({
+                                type: 'raw',
                                 title: `${toolCall.tool_name} - Output from Executor`,
                                 content: typeof toolCall.output_from_executor === 'string'
                                     ? toolCall.output_from_executor
@@ -819,6 +976,7 @@ function ToolCallCard({ toolCall, isExpanded, onToggle, onFullscreen }: ToolCall
                             content={toolCall.output_to_model}
                             isOutput
                             onFullscreen={() => onFullscreen({
+                                type: 'raw',
                                 title: `${toolCall.tool_name} - Output to Model`,
                                 content: toolCall.output_to_model
                             })}
@@ -838,6 +996,7 @@ function ToolCallCard({ toolCall, isExpanded, onToggle, onFullscreen }: ToolCall
                                         </div>
                                         <button
                                             onClick={() => onFullscreen({
+                                                type: 'raw',
                                                 title: `${toolCall.tool_name} - Payload`,
                                                 content: JSON.stringify(toolCall.payload, null, 2)
                                             })}
@@ -916,7 +1075,7 @@ interface ConfigTabProps {
     diagnostics: AgentTrace;
     expandedSections: Set<string>;
     toggleSection: (id: string) => void;
-    onFullscreen: (content: { title: string; content: string }) => void;
+    onFullscreen: (content: FullscreenContent) => void;
 }
 
 function ConfigTab({ diagnostics, expandedSections, toggleSection, onFullscreen }: ConfigTabProps) {
@@ -942,7 +1101,7 @@ function ConfigTab({ diagnostics, expandedSections, toggleSection, onFullscreen 
                 subtitle={`${diagnostics.system_prompt?.length || 0} chars`}
                 isExpanded={expandedSections.has('system-prompt')}
                 onToggle={() => toggleSection('system-prompt')}
-                onFullscreen={() => onFullscreen({ title: 'System Prompt', content: diagnostics.system_prompt || '' })}
+                onFullscreen={() => onFullscreen({ type: 'raw', title: 'System Prompt', content: diagnostics.system_prompt || '' })}
             >
                 <pre className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap text-gray-800 dark:text-gray-200 max-h-96 overflow-y-auto resize-y min-h-[3rem]">
                     {diagnostics.system_prompt}
@@ -974,6 +1133,7 @@ function ConfigTab({ diagnostics, expandedSections, toggleSection, onFullscreen 
                                 </button>
                                 <button
                                     onClick={() => onFullscreen({
+                                        type: 'raw',
                                         title: `Tool: ${tool.name}`,
                                         content: JSON.stringify(tool, null, 2)
                                     })}
@@ -1005,7 +1165,7 @@ function ConfigTab({ diagnostics, expandedSections, toggleSection, onFullscreen 
                     title="Context"
                     isExpanded={expandedSections.has('context')}
                     onToggle={() => toggleSection('context')}
-                    onFullscreen={() => onFullscreen({ title: 'Context', content: JSON.stringify(diagnostics.context, null, 2) })}
+                    onFullscreen={() => onFullscreen({ type: 'raw', title: 'Context', content: JSON.stringify(diagnostics.context, null, 2) })}
                 >
                     <pre className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200 resize-y min-h-[3rem] max-h-64 overflow-y-auto">
                         {JSON.stringify(diagnostics.context, null, 2)}
@@ -1031,7 +1191,7 @@ function ConfigCard({ label, value }: { label: string; value: string | number })
 
 function MetricsTab({ diagnostics, onFullscreen }: {
     diagnostics: AgentTrace;
-    onFullscreen: (content: { title: string; content: string }) => void;
+    onFullscreen: (content: FullscreenContent) => void;
 }) {
     return (
         <div className="space-y-6">
@@ -1100,7 +1260,7 @@ function MetricsTab({ diagnostics, onFullscreen }: {
                     <div className="flex items-center justify-between mb-3">
                         <h4 className="text-sm font-semibold text-red-600 dark:text-red-400">Error Message</h4>
                         <button
-                            onClick={() => onFullscreen({ title: 'Error Message', content: diagnostics.error_message || '' })}
+                            onClick={() => onFullscreen({ type: 'raw', title: 'Error Message', content: diagnostics.error_message || '' })}
                             className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                             title="View fullscreen"
                         >
@@ -1120,7 +1280,7 @@ function MetricsTab({ diagnostics, onFullscreen }: {
                         Final Text ({diagnostics.final_text?.length || 0} chars)
                     </h4>
                     <button
-                        onClick={() => onFullscreen({ title: 'Final Text', content: diagnostics.final_text || '' })}
+                        onClick={() => onFullscreen({ type: 'raw', title: 'Final Text', content: diagnostics.final_text || '' })}
                         className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                         title="View fullscreen"
                     >
