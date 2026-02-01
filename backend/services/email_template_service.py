@@ -134,7 +134,7 @@ class EmailTemplateService:
             text-align: center;
         }}
         .header .logo {{
-            height: 60px;
+            height: 42px;
             margin-bottom: 8px;
         }}
         .header h1 {{
