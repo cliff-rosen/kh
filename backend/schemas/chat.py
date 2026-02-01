@@ -91,24 +91,113 @@ class ActionMetadata(BaseModel):
     action_data: Optional[Any] = None
 
 
-class ToolHistoryEntry(BaseModel):
-    """Record of a tool call made during the response"""
+# ============================================================================
+# Agent Trace Types (comprehensive execution tracing)
+# ============================================================================
+
+class ToolDefinition(BaseModel):
+    """Tool definition as sent to the model"""
+    name: str
+    description: str
+    input_schema: dict
+
+
+class TokenUsage(BaseModel):
+    """Token counts from model response"""
+    input_tokens: int
+    output_tokens: int
+
+
+class ToolCall(BaseModel):
+    """
+    Complete trace of a single tool call - exact data at each boundary.
+
+    Captures what each component actually saw, with no reconstruction needed.
+    """
+    tool_use_id: str
     tool_name: str
-    input: Any
-    output: Any
+
+    # What model requested (from tool_use block)
+    input_from_model: dict
+
+    # What executor function received
+    input_to_executor: dict
+
+    # What executor returned (raw, before formatting)
+    output_from_executor: Any
+    output_type: str  # "ToolResult", "str", "error", etc.
+
+    # What went into tool_result message back to model
+    output_to_model: str
+
+    # Timing
+    execution_ms: int
 
 
-class ChatDiagnostics(BaseModel):
-    """Diagnostics info about what was passed to the agent loop"""
+class AgentIteration(BaseModel):
+    """One complete iteration of the agent loop"""
+    iteration: int  # 1-indexed
+
+    # EXACT messages array sent to model
+    messages_to_model: List[dict]
+
+    # Model response
+    response_content: List[dict]  # Content blocks (text, tool_use)
+    stop_reason: str  # "end_turn", "tool_use", "max_tokens"
+    usage: TokenUsage
+    api_call_ms: int
+
+    # Tool calls made this iteration (empty list if none)
+    tool_calls: List[ToolCall]
+
+
+class AgentTrace(BaseModel):
+    """
+    Complete trace of an agent loop execution.
+
+    Captures exact data at every boundary - no reconstruction needed.
+    When debugging, you see precisely what each component saw.
+    """
+    # Correlation
+    trace_id: str  # UUID for linking across systems
+
+    # === CONFIGURATION (immutable inputs) ===
     model: str
     max_tokens: int
     max_iterations: int
     temperature: float
-    tools: List[str]  # List of tool names available
     system_prompt: str
-    messages: List[dict]  # The messages passed to the LLM
-    context: dict  # The context object
-    raw_llm_response: Optional[str] = None  # Raw text collected from LLM before parsing
+    tools: List[ToolDefinition]  # Full definitions, not just names
+    context: dict  # Request context
+
+    # === INPUT (the stored conversation) ===
+    # Messages from DB + new user request - the "real" conversation that persists
+    initial_messages: List[dict]
+
+    # === EXECUTION (what happened) ===
+    iterations: List[AgentIteration]
+
+    # === OUTCOME ===
+    final_text: str  # The concatenated response text
+    total_iterations: int
+    outcome: Literal["complete", "max_iterations", "cancelled", "error"]
+    error_message: Optional[str] = None
+
+    # === METRICS ===
+    total_input_tokens: int
+    total_output_tokens: int
+    total_duration_ms: int
+
+
+# Backwards compatibility alias
+ChatDiagnostics = AgentTrace
+
+
+class ToolHistoryEntry(BaseModel):
+    """Record of a tool call made during the response (simplified view for UI)"""
+    tool_name: str
+    input: Any
+    output: Any
 
 
 class ChatResponsePayload(BaseModel):

@@ -27,20 +27,62 @@ interface ToolRecord {
     output: string;
 }
 
+// Legacy diagnostics format (for old messages)
+interface LegacyDiagnostics {
+    model: string;
+    max_tokens: number;
+    max_iterations?: number;
+    temperature?: number;
+    system_prompt: string;
+    tools: string[];
+    messages: Array<{ role: string; content: string }>;
+    context: Record<string, unknown>;
+    raw_llm_response?: string;
+}
+
+// New trace format (for new messages)
+interface AgentTrace {
+    trace_id: string;
+    model: string;
+    max_tokens: number;
+    max_iterations: number;
+    temperature: number;
+    system_prompt: string;
+    tools: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>;
+    context: Record<string, unknown>;
+    initial_messages: Array<Record<string, unknown>>;
+    iterations: Array<{
+        iteration: number;
+        messages_to_model: Array<Record<string, unknown>>;
+        response_content: Array<Record<string, unknown>>;
+        stop_reason: string;
+        usage: { input_tokens: number; output_tokens: number };
+        api_call_ms: number;
+        tool_calls: Array<{
+            tool_use_id: string;
+            tool_name: string;
+            input_from_model: Record<string, unknown>;
+            input_to_executor: Record<string, unknown>;
+            output_from_executor: unknown;
+            output_type: string;
+            output_to_model: string;
+            execution_ms: number;
+        }>;
+    }>;
+    final_text: string;
+    total_iterations: number;
+    outcome: string;
+    error_message?: string;
+    total_input_tokens: number;
+    total_output_tokens: number;
+    total_duration_ms: number;
+}
+
 interface MessageExtras {
     tool_history?: ToolRecord[];
     custom_payload?: Record<string, unknown>;
-    diagnostics?: {
-        model: string;
-        max_tokens: number;
-        max_iterations?: number;
-        temperature?: number;
-        system_prompt: string;
-        tools: string[];
-        messages: Array<{ role: string; content: string }>;
-        context: Record<string, unknown>;
-        raw_llm_response?: string;
-    };
+    diagnostics?: LegacyDiagnostics;  // Legacy format
+    trace?: AgentTrace;  // New format
     suggested_values?: SuggestedValue[];
     suggested_actions?: SuggestedAction[];
 }
@@ -387,9 +429,9 @@ export function ConversationList() {
                                                     {/* Badges for extras */}
                                                     {msg.extras && Object.keys(msg.extras).length > 0 && (
                                                         <div className="flex flex-wrap gap-1 mt-2">
-                                                            {msg.extras.diagnostics && (
+                                                            {(msg.extras.trace || msg.extras.diagnostics) && (
                                                                 <span className="px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
-                                                                    diagnostics
+                                                                    {msg.extras.trace ? 'trace' : 'diagnostics'}
                                                                 </span>
                                                             )}
                                                             {msg.extras.tool_history && msg.extras.tool_history.length > 0 && (
@@ -442,8 +484,15 @@ export function ConversationList() {
 // Full detail panel for a selected message
 function MessageDetailPanel({ message }: { message: Message }) {
     const extras = message.extras || {};
-    const hasDiagnostics = !!extras.diagnostics;
-    const hasRawOutput = !!extras.diagnostics?.raw_llm_response;
+
+    // Support both old diagnostics format and new trace format
+    const trace = extras.trace;
+    const legacyDiagnostics = extras.diagnostics;
+    const hasDiagnostics = !!trace || !!legacyDiagnostics;
+
+    // For raw output, check both formats
+    const hasRawOutput = !!trace?.final_text || !!legacyDiagnostics?.raw_llm_response;
+    const hasIterations = trace?.iterations && trace.iterations.length > 0;
     const hasToolCalls = extras.tool_history && extras.tool_history.length > 0;
     const hasExtras = !!extras.custom_payload ||
                       (extras.suggested_values && extras.suggested_values.length > 0) ||
@@ -451,13 +500,14 @@ function MessageDetailPanel({ message }: { message: Message }) {
 
     const tabs = [
         { id: 'input' as const, label: 'LLM Input', show: hasDiagnostics },
+        { id: 'iterations' as const, label: `Iterations (${trace?.iterations?.length || 0})`, show: hasIterations },
         { id: 'raw' as const, label: 'Raw Output', show: hasRawOutput },
         { id: 'tools' as const, label: `Tool Calls (${extras.tool_history?.length || 0})`, show: hasToolCalls },
         { id: 'extras' as const, label: 'Extras', show: hasExtras },
     ].filter(t => t.show);
 
     // Default to first available tab
-    const [activeTab, setActiveTab] = useState<'input' | 'raw' | 'tools' | 'extras'>(
+    const [activeTab, setActiveTab] = useState<'input' | 'iterations' | 'raw' | 'tools' | 'extras'>(
         tabs.length > 0 ? tabs[0].id : 'input'
     );
 
@@ -514,39 +564,64 @@ function MessageDetailPanel({ message }: { message: Message }) {
                         </div>
                     )}
 
-                    {/* LLM Input Tab */}
-                    {activeTab === 'input' && extras.diagnostics && (
+                    {/* LLM Input Tab - supports both old diagnostics and new trace format */}
+                    {activeTab === 'input' && hasDiagnostics && (
                         <div className="space-y-4">
                             {/* Model Config */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Model</div>
-                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{extras.diagnostics.model}</div>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace?.model || legacyDiagnostics?.model}</div>
                                 </div>
                                 <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Max Tokens</div>
-                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{extras.diagnostics.max_tokens}</div>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace?.max_tokens || legacyDiagnostics?.max_tokens}</div>
                                 </div>
-                                {extras.diagnostics.temperature !== undefined && (
-                                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Temperature</div>
-                                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{extras.diagnostics.temperature}</div>
-                                    </div>
-                                )}
-                                {extras.diagnostics.max_iterations !== undefined && (
-                                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Max Iterations</div>
-                                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{extras.diagnostics.max_iterations}</div>
-                                    </div>
-                                )}
+                                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Temperature</div>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace?.temperature ?? legacyDiagnostics?.temperature ?? 'N/A'}</div>
+                                </div>
+                                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Max Iterations</div>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace?.max_iterations ?? legacyDiagnostics?.max_iterations ?? 'N/A'}</div>
+                                </div>
                             </div>
 
+                            {/* Trace metrics (new format only) */}
+                            {trace && (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Outcome</div>
+                                        <div className="font-mono text-sm text-green-700 dark:text-green-300">{trace.outcome}</div>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Iterations</div>
+                                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace.total_iterations}</div>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Tokens</div>
+                                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace.total_input_tokens} in / {trace.total_output_tokens} out</div>
+                                    </div>
+                                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Duration</div>
+                                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace.total_duration_ms}ms</div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Tools */}
-                            {extras.diagnostics.tools && extras.diagnostics.tools.length > 0 && (
+                            {((trace?.tools && trace.tools.length > 0) || (legacyDiagnostics?.tools && legacyDiagnostics.tools.length > 0)) && (
                                 <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Available Tools ({extras.diagnostics.tools.length})</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                        Available Tools ({trace?.tools?.length || legacyDiagnostics?.tools?.length || 0})
+                                    </div>
                                     <div className="flex flex-wrap gap-1">
-                                        {extras.diagnostics.tools.map((tool, idx) => (
+                                        {(trace?.tools || []).map((tool, idx) => (
+                                            <span key={idx} className="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-xs font-mono">
+                                                {tool.name}
+                                            </span>
+                                        ))}
+                                        {(!trace && legacyDiagnostics?.tools || []).map((tool, idx) => (
                                             <span key={idx} className="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-xs font-mono">
                                                 {tool}
                                             </span>
@@ -556,29 +631,40 @@ function MessageDetailPanel({ message }: { message: Message }) {
                             )}
 
                             {/* Context */}
-                            {extras.diagnostics.context && (
+                            {(trace?.context || legacyDiagnostics?.context) && (
                                 <div>
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Context</div>
                                     <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-48 overflow-y-auto">
-                                        {JSON.stringify(extras.diagnostics.context, null, 2)}
+                                        {JSON.stringify(trace?.context || legacyDiagnostics?.context, null, 2)}
                                     </pre>
                                 </div>
                             )}
 
                             {/* System Prompt */}
                             <div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">System Prompt ({extras.diagnostics.system_prompt?.length || 0} chars)</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                    System Prompt ({(trace?.system_prompt || legacyDiagnostics?.system_prompt)?.length || 0} chars)
+                                </div>
                                 <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap">
-                                    {extras.diagnostics.system_prompt}
+                                    {trace?.system_prompt || legacyDiagnostics?.system_prompt}
                                 </pre>
                             </div>
 
-                            {/* Message History */}
-                            {extras.diagnostics.messages && extras.diagnostics.messages.length > 0 && (
+                            {/* Initial Messages (new format) or Message History (old format) */}
+                            {trace?.initial_messages && trace.initial_messages.length > 0 ? (
                                 <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Message History ({extras.diagnostics.messages.length} messages)</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                        Initial Messages ({trace.initial_messages.length}) - stored conversation before tool exchange
+                                    </div>
+                                    <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-64 overflow-y-auto">
+                                        {JSON.stringify(trace.initial_messages, null, 2)}
+                                    </pre>
+                                </div>
+                            ) : legacyDiagnostics?.messages && legacyDiagnostics.messages.length > 0 ? (
+                                <div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Message History ({legacyDiagnostics.messages.length} messages)</div>
                                     <div className="space-y-2 max-h-64 overflow-y-auto">
-                                        {extras.diagnostics.messages.map((msg, idx) => (
+                                        {legacyDiagnostics.messages.map((msg, idx) => (
                                             <div key={idx} className="bg-gray-50 dark:bg-gray-900 p-2 rounded text-xs">
                                                 <span className="font-semibold text-gray-600 dark:text-gray-400">{msg.role}:</span>
                                                 <span className="ml-2 text-gray-800 dark:text-gray-200">{msg.content?.substring(0, 200)}{msg.content?.length > 200 ? '...' : ''}</span>
@@ -586,18 +672,84 @@ function MessageDetailPanel({ message }: { message: Message }) {
                                         ))}
                                     </div>
                                 </div>
-                            )}
+                            ) : null}
                         </div>
                     )}
 
-                    {/* Raw Output Tab */}
-                    {activeTab === 'raw' && extras.diagnostics?.raw_llm_response && (
+                    {/* Iterations Tab (new trace format only) */}
+                    {activeTab === 'iterations' && trace?.iterations && (
+                        <div className="space-y-4">
+                            {trace.iterations.map((iter, idx) => (
+                                <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                    <div className="bg-gray-50 dark:bg-gray-700/50 p-3 flex justify-between items-center">
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-semibold text-gray-900 dark:text-white">Iteration {iter.iteration}</span>
+                                            <span className={`px-2 py-0.5 rounded text-xs ${
+                                                iter.stop_reason === 'end_turn' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                                iter.stop_reason === 'tool_use' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                            }`}>
+                                                {iter.stop_reason}
+                                            </span>
+                                            {iter.tool_calls?.length > 0 && (
+                                                <span className="text-xs text-gray-500">{iter.tool_calls.length} tool calls</span>
+                                            )}
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                            {iter.usage?.input_tokens || 0} in / {iter.usage?.output_tokens || 0} out | {iter.api_call_ms}ms
+                                        </div>
+                                    </div>
+                                    <div className="p-3 space-y-3 bg-white dark:bg-gray-800">
+                                        <div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Messages to Model ({iter.messages_to_model?.length || 0})</div>
+                                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-2 rounded overflow-x-auto max-h-32 overflow-y-auto">
+                                                {JSON.stringify(iter.messages_to_model, null, 2)}
+                                            </pre>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Response Content</div>
+                                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-2 rounded overflow-x-auto max-h-32 overflow-y-auto">
+                                                {JSON.stringify(iter.response_content, null, 2)}
+                                            </pre>
+                                        </div>
+                                        {iter.tool_calls && iter.tool_calls.length > 0 && (
+                                            <div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Tool Calls</div>
+                                                {iter.tool_calls.map((tc, tcIdx) => (
+                                                    <div key={tcIdx} className="bg-blue-50 dark:bg-blue-900/30 p-2 rounded mb-2 text-xs">
+                                                        <div className="font-mono text-blue-700 dark:text-blue-300 mb-1">{tc.tool_name} ({tc.execution_ms}ms)</div>
+                                                        <div className="grid grid-cols-2 gap-2 mt-2">
+                                                            <div>
+                                                                <div className="text-gray-500 dark:text-gray-400 mb-1">Input</div>
+                                                                <pre className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-900 p-1 rounded overflow-x-auto">
+                                                                    {JSON.stringify(tc.input_from_model, null, 2)}
+                                                                </pre>
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-gray-500 dark:text-gray-400 mb-1">Output to Model</div>
+                                                                <pre className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-900 p-1 rounded overflow-x-auto max-h-24 overflow-y-auto whitespace-pre-wrap">
+                                                                    {tc.output_to_model?.substring(0, 500)}{tc.output_to_model?.length > 500 ? '...' : ''}
+                                                                </pre>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Raw Output Tab - supports both formats */}
+                    {activeTab === 'raw' && hasRawOutput && (
                         <div>
                             <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                Raw LLM Response ({extras.diagnostics.raw_llm_response.length} chars)
+                                {trace ? 'Final Text' : 'Raw LLM Response'} ({(trace?.final_text || legacyDiagnostics?.raw_llm_response)?.length || 0} chars)
                             </div>
                             <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
-                                {extras.diagnostics.raw_llm_response}
+                                {trace?.final_text || legacyDiagnostics?.raw_llm_response}
                             </pre>
                         </div>
                     )}

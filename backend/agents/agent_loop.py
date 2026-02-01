@@ -10,14 +10,24 @@ Used by:
 """
 
 import asyncio
+import copy
 import logging
+import time
+import uuid
 from dataclasses import dataclass, field
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 import anthropic
 from sqlalchemy.orm import Session
 
 from tools.registry import ToolConfig, ToolResult, ToolProgress
+from schemas.chat import (
+    AgentTrace,
+    AgentIteration,
+    ToolCall,
+    ToolDefinition,
+    TokenUsage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,8 +91,9 @@ class AgentToolComplete(AgentEvent):
 class AgentComplete(AgentEvent):
     """Emitted when the agent loop completes successfully."""
     text: str
-    tool_calls: List[Dict[str, Any]]
+    tool_calls: List[Dict[str, Any]]  # Simplified view for UI
     payloads: List[Dict[str, Any]] = field(default_factory=list)
+    trace: Optional[AgentTrace] = None  # Full execution trace
 
 
 @dataclass
@@ -91,6 +102,7 @@ class AgentCancelled(AgentEvent):
     text: str
     tool_calls: List[Dict[str, Any]]
     payloads: List[Dict[str, Any]] = field(default_factory=list)
+    trace: Optional[AgentTrace] = None
 
 
 @dataclass
@@ -100,6 +112,7 @@ class AgentError(AgentEvent):
     text: str = ""
     tool_calls: List[Dict[str, Any]] = field(default_factory=list)
     payloads: List[Dict[str, Any]] = field(default_factory=list)
+    trace: Optional[AgentTrace] = None
 
 
 # =============================================================================
@@ -111,13 +124,16 @@ class _ModelResult:
     """Final result from _call_model generator."""
     response: Any
     text: str
+    usage: TokenUsage
+    api_call_ms: int
 
 
 @dataclass
 class _ToolsResult:
     """Final result from _process_tools generator."""
-    tool_results: List[Dict]
-    tool_records: List[Dict]
+    tool_results: List[Dict]  # For message to model
+    tool_records: List[Dict]  # Simplified view for UI
+    tool_calls: List[ToolCall]  # Full trace data
     payloads: List[Dict]
 
 
@@ -142,6 +158,103 @@ class CancellationToken:
         """Raise CancelledError if cancelled."""
         if self._cancelled:
             raise asyncio.CancelledError("Operation was cancelled")
+
+
+# =============================================================================
+# Trace Builder
+# =============================================================================
+
+class TraceBuilder:
+    """
+    Builds an AgentTrace incrementally during loop execution.
+
+    Consolidates all trace-related state and provides helper methods
+    to keep the main loop clean.
+    """
+
+    def __init__(
+        self,
+        model: str,
+        max_tokens: int,
+        max_iterations: int,
+        temperature: float,
+        system_prompt: str,
+        tools: Dict[str, ToolConfig],
+        context: Dict[str, Any],
+        initial_messages: List[Dict],
+    ):
+        self._start_time = time.time()
+        self._trace_id = str(uuid.uuid4())
+
+        # Configuration (immutable)
+        self._model = model
+        self._max_tokens = max_tokens
+        self._max_iterations = max_iterations
+        self._temperature = temperature
+        self._system_prompt = system_prompt
+        self._context = context
+        self._initial_messages = copy.deepcopy(initial_messages)
+        self._tool_definitions = [
+            ToolDefinition(
+                name=config.name,
+                description=config.description,
+                input_schema=config.input_schema
+            )
+            for config in tools.values()
+        ]
+
+        # Accumulated state
+        self._iterations: List[AgentIteration] = []
+        self._total_input_tokens = 0
+        self._total_output_tokens = 0
+
+    def add_tokens(self, usage: TokenUsage) -> None:
+        """Add token usage from a model call."""
+        self._total_input_tokens += usage.input_tokens
+        self._total_output_tokens += usage.output_tokens
+
+    def add_iteration(
+        self,
+        iteration: int,
+        messages_to_model: List[Dict],
+        response_content: List[Dict],
+        stop_reason: str,
+        usage: TokenUsage,
+        api_call_ms: int,
+        tool_calls: Optional[List[ToolCall]] = None,
+    ) -> None:
+        """Record a completed iteration."""
+        self._iterations.append(AgentIteration(
+            iteration=iteration,
+            messages_to_model=messages_to_model,
+            response_content=response_content,
+            stop_reason=stop_reason,
+            usage=usage,
+            api_call_ms=api_call_ms,
+            tool_calls=tool_calls or [],
+        ))
+
+    def build(self, outcome: str, final_text: str, error_message: Optional[str] = None) -> AgentTrace:
+        """Build the final trace object."""
+        return AgentTrace(
+            trace_id=self._trace_id,
+            model=self._model,
+            max_tokens=self._max_tokens,
+            max_iterations=self._max_iterations,
+            temperature=self._temperature,
+            system_prompt=self._system_prompt,
+            tools=self._tool_definitions,
+            context=self._context,
+            initial_messages=self._initial_messages,
+            iterations=self._iterations,
+            final_text=final_text,
+            total_iterations=len(self._iterations),
+            outcome=outcome,
+            error_message=error_message,
+            total_input_tokens=self._total_input_tokens,
+            total_output_tokens=self._total_output_tokens,
+            total_duration_ms=int((time.time() - self._start_time) * 1000),
+        )
 
 
 # =============================================================================
@@ -187,8 +300,20 @@ async def run_agent_loop(
     context = context or {}
     cancellation_token = cancellation_token or CancellationToken()
 
-    # Setup
+    # Initialize trace builder and API kwargs
+    trace_builder = TraceBuilder(
+        model=model,
+        max_tokens=max_tokens,
+        max_iterations=max_iterations,
+        temperature=temperature,
+        system_prompt=system_prompt,
+        tools=tools,
+        context=context,
+        initial_messages=messages,
+    )
     api_kwargs = _build_api_kwargs(model, max_tokens, temperature, system_prompt, messages, tools)
+
+    # Accumulated results for events
     collected_text = ""
     tool_call_history: List[Dict[str, Any]] = []
     collected_payloads: List[Dict[str, Any]] = []
@@ -198,43 +323,85 @@ async def run_agent_loop(
     try:
         for iteration in range(1, max_iterations + 1):
             if cancellation_token.is_cancelled:
-                yield AgentCancelled(text=collected_text, tool_calls=tool_call_history, payloads=collected_payloads)
+                yield AgentCancelled(
+                    text=collected_text,
+                    tool_calls=tool_call_history,
+                    payloads=collected_payloads,
+                    trace=trace_builder.build("cancelled", collected_text)
+                )
                 return
 
             logger.debug(f"Agent loop iteration {iteration}")
 
+            # Snapshot messages before API call
+            messages_to_model = copy.deepcopy(api_kwargs["messages"])
+
             # 1. Call model
             response = None
+            model_result: Optional[_ModelResult] = None
             async for event in _call_model(client, api_kwargs, stream_text, cancellation_token):
                 if isinstance(event, _ModelResult):
                     response = event.response
+                    model_result = event
                     collected_text += event.text
+                    trace_builder.add_tokens(event.usage)
                 else:
                     yield event
 
             if cancellation_token.is_cancelled:
-                yield AgentCancelled(text=collected_text, tool_calls=tool_call_history, payloads=collected_payloads)
+                yield AgentCancelled(
+                    text=collected_text,
+                    tool_calls=tool_call_history,
+                    payloads=collected_payloads,
+                    trace=trace_builder.build("cancelled", collected_text)
+                )
                 return
 
-            # 2. Check for tool use
+            response_content = _response_content_to_dicts(response)
             tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
 
+            # 2. No tools - complete
             if not tool_use_blocks:
+                trace_builder.add_iteration(
+                    iteration=iteration,
+                    messages_to_model=messages_to_model,
+                    response_content=response_content,
+                    stop_reason=response.stop_reason or "end_turn",
+                    usage=model_result.usage,
+                    api_call_ms=model_result.api_call_ms,
+                )
                 logger.info(f"Agent loop complete after {iteration} iterations")
-                yield AgentComplete(text=collected_text, tool_calls=tool_call_history, payloads=collected_payloads)
+                yield AgentComplete(
+                    text=collected_text,
+                    tool_calls=tool_call_history,
+                    payloads=collected_payloads,
+                    trace=trace_builder.build("complete", collected_text)
+                )
                 return
 
             # 3. Process tools
             tool_results = None
+            tools_result: Optional[_ToolsResult] = None
             async for event in _process_tools(
                 tool_use_blocks, tools, db, user_id, context, cancellation_token
             ):
                 if isinstance(event, _ToolsResult):
+                    tools_result = event
                     tool_results = event.tool_results
                     tool_call_history.extend(event.tool_records)
                     collected_payloads.extend(event.payloads)
                 else:
                     yield event
+
+            trace_builder.add_iteration(
+                iteration=iteration,
+                messages_to_model=messages_to_model,
+                response_content=response_content,
+                stop_reason=response.stop_reason or "tool_use",
+                usage=model_result.usage,
+                api_call_ms=model_result.api_call_ms,
+                tool_calls=tools_result.tool_calls if tools_result else None,
+            )
 
             # 4. Update messages for next iteration
             _append_tool_exchange(messages, response, tool_results)
@@ -244,41 +411,77 @@ async def run_agent_loop(
                 collected_text += "\n\n"
                 yield AgentTextDelta(text="\n\n")
 
-        # Max iterations reached - make one final call without tools to get a summary
+        # Max iterations - final summary call
         logger.warning(f"Agent loop reached max iterations ({max_iterations}), requesting final summary")
 
-        # Add a message asking for a final answer
         messages.append({
             "role": "user",
             "content": "You've reached the maximum number of tool calls. Please provide a final summary of what you found based on your research above. Do not call any more tools."
         })
 
-        # Remove tools to force a text response
         final_kwargs = {**api_kwargs, "messages": messages}
         final_kwargs.pop("tools", None)
-
-        # Clear collected_text - we want only the final summary, not the "thinking" text
+        messages_to_model = copy.deepcopy(final_kwargs["messages"])
         collected_text = ""
 
-        # Make final call
+        model_result = None
         async for event in _call_model(client, final_kwargs, stream_text, cancellation_token):
             if isinstance(event, _ModelResult):
-                collected_text = event.text  # Use final summary only
+                collected_text = event.text
+                model_result = event
+                trace_builder.add_tokens(event.usage)
             else:
                 yield event
 
-        yield AgentComplete(text=collected_text, tool_calls=tool_call_history, payloads=collected_payloads)
+        if model_result:
+            trace_builder.add_iteration(
+                iteration=max_iterations + 1,
+                messages_to_model=messages_to_model,
+                response_content=_response_content_to_dicts(model_result.response),
+                stop_reason=model_result.response.stop_reason or "end_turn",
+                usage=model_result.usage,
+                api_call_ms=model_result.api_call_ms,
+            )
+
+        yield AgentComplete(
+            text=collected_text,
+            tool_calls=tool_call_history,
+            payloads=collected_payloads,
+            trace=trace_builder.build("max_iterations", collected_text)
+        )
 
     except asyncio.CancelledError:
-        yield AgentCancelled(text=collected_text, tool_calls=tool_call_history, payloads=collected_payloads)
+        yield AgentCancelled(
+            text=collected_text,
+            tool_calls=tool_call_history,
+            payloads=collected_payloads,
+            trace=trace_builder.build("cancelled", collected_text)
+        )
     except Exception as e:
         logger.error(f"Agent loop error: {e}", exc_info=True)
         yield AgentError(
             error=_format_error_message(e),
             text=collected_text,
             tool_calls=tool_call_history,
-            payloads=collected_payloads
+            payloads=collected_payloads,
+            trace=trace_builder.build("error", collected_text, error_message=str(e))
         )
+
+
+def _response_content_to_dicts(response: Any) -> List[Dict]:
+    """Convert response content blocks to dicts for trace storage."""
+    result = []
+    for block in response.content:
+        if block.type == "text":
+            result.append({"type": "text", "text": block.text})
+        elif block.type == "tool_use":
+            result.append({
+                "type": "tool_use",
+                "id": block.id,
+                "name": block.name,
+                "input": block.input
+            })
+    return result
 
 
 # =============================================================================
@@ -334,9 +537,10 @@ async def _call_model(
     Yields:
         AgentTextDelta events (if streaming)
         AgentMessage event (if not streaming)
-        _ModelResult as final item with response and collected text
+        _ModelResult as final item with response, collected text, usage, and timing
     """
     collected_text = ""
+    start_time = time.time()
 
     if stream_text:
         async with client.messages.stream(**api_kwargs) as stream:
@@ -362,7 +566,13 @@ async def _call_model(
         if collected_text:
             yield AgentMessage(text=collected_text, iteration=0)
 
-    yield _ModelResult(response=response, text=collected_text)
+    api_call_ms = int((time.time() - start_time) * 1000)
+    usage = TokenUsage(
+        input_tokens=response.usage.input_tokens,
+        output_tokens=response.usage.output_tokens,
+    )
+
+    yield _ModelResult(response=response, text=collected_text, usage=usage, api_call_ms=api_call_ms)
 
 
 # =============================================================================
@@ -382,32 +592,41 @@ async def _process_tools(
 
     Yields:
         AgentToolStart, AgentToolProgress, AgentToolComplete events
-        _ToolsResult as final item with results, records, and payloads
+        _ToolsResult as final item with results, records, tool_calls, and payloads
     """
-    tool_results = []
-    tool_records = []
+    tool_results = []  # For message back to model
+    tool_records = []  # Simplified view for UI
+    tool_calls = []  # Full trace data
     payloads = []
 
     for tool_block in tool_use_blocks:
         tool_name = tool_block.name
-        tool_input = tool_block.input
+        tool_input_from_model = tool_block.input  # Exact input from model
         tool_use_id = tool_block.id
 
         logger.info(f"Agent tool call: {tool_name}")
 
         yield AgentToolStart(
             tool_name=tool_name,
-            tool_input=tool_input,
+            tool_input=tool_input_from_model,
             tool_use_id=tool_use_id
         )
 
-        # Execute tool
-        tool_config = tools.get(tool_name)
+        # Prepare trace data
+        tool_start_time = time.time()
+        input_to_executor = copy.deepcopy(tool_input_from_model)  # What we pass to executor
+        output_from_executor: Any = None
+        output_type = "unknown"
         tool_result_str = ""
         tool_result_data = None
 
+        # Execute tool
+        tool_config = tools.get(tool_name)
+
         if not tool_config:
             tool_result_str = f"Unknown tool: {tool_name}"
+            output_from_executor = tool_result_str
+            output_type = "error"
         else:
             try:
                 if cancellation_token.is_cancelled:
@@ -416,24 +635,28 @@ async def _process_tools(
                 # Check if executor is async (coroutine function)
                 if asyncio.iscoroutinefunction(tool_config.executor):
                     # Async executor - await it directly
-                    tool_result = await tool_config.executor(
-                        tool_input,
+                    raw_result = await tool_config.executor(
+                        input_to_executor,
                         db,
                         user_id,
                         context
                     )
                 else:
                     # Sync executor - run in thread pool
-                    tool_result = await asyncio.to_thread(
+                    raw_result = await asyncio.to_thread(
                         tool_config.executor,
-                        tool_input,
+                        input_to_executor,
                         db,
                         user_id,
                         context
                     )
 
+                # Capture raw output before any processing
+                output_from_executor = raw_result
+
                 # Check if result is a generator (streaming tool - sync only)
-                if hasattr(tool_result, '__next__'):
+                if hasattr(raw_result, '__next__'):
+                    output_type = "generator"
                     # It's a generator - collect progress and result
                     def run_generator(gen):
                         results = []
@@ -445,7 +668,8 @@ async def _process_tools(
                             results.append(('result', e.value))
                         return results
 
-                    items = await asyncio.to_thread(run_generator, tool_result)
+                    items = await asyncio.to_thread(run_generator, raw_result)
+                    generator_final_result = None
                     for item_type, item_value in items:
                         if item_type == 'progress' and isinstance(item_value, ToolProgress):
                             yield AgentToolProgress(
@@ -456,35 +680,61 @@ async def _process_tools(
                                 data=item_value.data
                             )
                         elif item_type == 'result':
+                            generator_final_result = item_value
                             if isinstance(item_value, ToolResult):
                                 tool_result_str = item_value.text
                                 tool_result_data = item_value.payload
+                                output_type = "ToolResult"
                             elif isinstance(item_value, str):
                                 tool_result_str = item_value
+                                output_type = "str"
                             else:
                                 tool_result_str = str(item_value) if item_value else ""
-                elif isinstance(tool_result, ToolResult):
-                    tool_result_str = tool_result.text
-                    tool_result_data = tool_result.payload
-                elif isinstance(tool_result, str):
-                    tool_result_str = tool_result
+                                output_type = type(item_value).__name__ if item_value else "None"
+                    # Update output_from_executor with final result from generator
+                    output_from_executor = generator_final_result
+                elif isinstance(raw_result, ToolResult):
+                    output_type = "ToolResult"
+                    tool_result_str = raw_result.text
+                    tool_result_data = raw_result.payload
+                elif isinstance(raw_result, str):
+                    output_type = "str"
+                    tool_result_str = raw_result
                 else:
-                    tool_result_str = str(tool_result)
+                    output_type = type(raw_result).__name__
+                    tool_result_str = str(raw_result)
 
             except asyncio.CancelledError:
                 raise
             except Exception as e:
                 logger.error(f"Tool execution error: {e}", exc_info=True)
                 tool_result_str = f"Error executing tool: {str(e)}"
+                output_from_executor = str(e)
+                output_type = "error"
 
         if cancellation_token.is_cancelled:
             raise asyncio.CancelledError("Cancelled after tool execution")
 
-        # Record tool call - always store text output for diagnostics
+        execution_ms = int((time.time() - tool_start_time) * 1000)
+
+        # Build full trace record
+        tool_call = ToolCall(
+            tool_use_id=tool_use_id,
+            tool_name=tool_name,
+            input_from_model=tool_input_from_model,
+            input_to_executor=input_to_executor,
+            output_from_executor=_safe_serialize(output_from_executor),
+            output_type=output_type,
+            output_to_model=tool_result_str,
+            execution_ms=execution_ms,
+        )
+        tool_calls.append(tool_call)
+
+        # Record simplified view for UI
         tool_record = {
             "tool_name": tool_name,
-            "input": tool_input,
-            "output": tool_result_str  # Always text for diagnostic viewing
+            "input": tool_input_from_model,
+            "output": tool_result_str
         }
         tool_records.append(tool_record)
 
@@ -492,7 +742,7 @@ async def _process_tools(
         if tool_result_data:
             payloads.append(tool_result_data)
 
-        # Collect result for message
+        # Collect result for message to model
         tool_results.append({
             "type": "tool_result",
             "tool_use_id": tool_use_id,
@@ -505,7 +755,26 @@ async def _process_tools(
             result_data=tool_result_data
         )
 
-    yield _ToolsResult(tool_results=tool_results, tool_records=tool_records, payloads=payloads)
+    yield _ToolsResult(tool_results=tool_results, tool_records=tool_records, tool_calls=tool_calls, payloads=payloads)
+
+
+def _safe_serialize(obj: Any) -> Any:
+    """Safely serialize an object for trace storage."""
+    if obj is None:
+        return None
+    if isinstance(obj, (str, int, float, bool)):
+        return obj
+    if isinstance(obj, dict):
+        return {k: _safe_serialize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_safe_serialize(item) for item in obj]
+    if isinstance(obj, ToolResult):
+        return {"text": obj.text, "payload": _safe_serialize(obj.payload)}
+    # For other objects, try to get a useful representation
+    try:
+        return str(obj)
+    except Exception:
+        return f"<{type(obj).__name__}>"
 
 
 # =============================================================================

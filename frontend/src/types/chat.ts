@@ -59,17 +59,81 @@ export interface ToolHistoryEntry {
     output: string | Record<string, unknown>;
 }
 
-export interface ChatDiagnostics {
+
+// ============================================================================
+// Agent Trace Types (comprehensive execution tracing)
+// ============================================================================
+
+export interface ToolDefinition {
+    name: string;
+    description: string;
+    input_schema: Record<string, unknown>;
+}
+
+export interface TokenUsage {
+    input_tokens: number;
+    output_tokens: number;
+}
+
+export interface ToolCall {
+    tool_use_id: string;
+    tool_name: string;
+    /** What model requested (from tool_use block) */
+    input_from_model: Record<string, unknown>;
+    /** What executor function received */
+    input_to_executor: Record<string, unknown>;
+    /** What executor returned (raw, before formatting) */
+    output_from_executor: unknown;
+    output_type: string;
+    /** What went into tool_result message back to model */
+    output_to_model: string;
+    execution_ms: number;
+}
+
+export interface AgentIteration {
+    iteration: number;
+    /** EXACT messages array sent to model */
+    messages_to_model: Record<string, unknown>[];
+    /** Model response content blocks */
+    response_content: Record<string, unknown>[];
+    stop_reason: string;
+    usage: TokenUsage;
+    api_call_ms: number;
+    tool_calls: ToolCall[];
+}
+
+export interface AgentTrace {
+    trace_id: string;
+
+    // Configuration
     model: string;
     max_tokens: number;
     max_iterations: number;
     temperature: number;
-    tools: string[];
     system_prompt: string;
-    messages: Record<string, unknown>[];
+    tools: ToolDefinition[];
     context: Record<string, unknown>;
-    raw_llm_response?: string;  // Raw text collected from LLM before parsing
+
+    // Input - the stored conversation (before tool exchange)
+    initial_messages: Record<string, unknown>[];
+
+    // Execution
+    iterations: AgentIteration[];
+
+    // Outcome
+    final_text: string;
+    total_iterations: number;
+    outcome: 'complete' | 'max_iterations' | 'cancelled' | 'error';
+    error_message?: string;
+
+    // Metrics
+    total_input_tokens: number;
+    total_output_tokens: number;
+    total_duration_ms: number;
 }
+
+/** @deprecated Use AgentTrace instead - kept for backwards compatibility */
+export type ChatDiagnostics = AgentTrace;
 
 export interface ActionMetadata {
     action_identifier: string;
@@ -84,7 +148,8 @@ export interface ActionMetadata {
 export interface MessageExtras {
     tool_history?: ToolHistoryEntry[];
     custom_payload?: CustomPayload;
-    diagnostics?: ChatDiagnostics;
+    trace?: AgentTrace;  // Full execution trace
+    diagnostics?: AgentTrace;  // Alias for backwards compatibility
     suggested_values?: SuggestedValue[];
     suggested_actions?: SuggestedAction[];
 }

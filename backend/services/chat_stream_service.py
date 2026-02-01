@@ -15,7 +15,7 @@ import logging
 import uuid
 from schemas.chat import (
     ChatResponsePayload,
-    ChatDiagnostics,
+    AgentTrace,
     TextDeltaEvent,
     StatusEvent,
     ToolStartEvent,
@@ -102,7 +102,7 @@ class ChatStreamService:
 
             # Build prompts
             system_prompt = await self._build_system_prompt(context_with_chat, chat_id)
-            messages, conversation_history = await self._build_messages(request, chat_id)
+            messages, _ = await self._build_messages(request, chat_id)  # Trace captures messages internally
 
             # Get tools for this page, tab, and subtab (global + page + tab + subtab)
             current_page = context_with_chat.get("current_page", "unknown")
@@ -113,23 +113,11 @@ class ChatStreamService:
             # Send initial status
             yield StatusEvent(message="Thinking...").model_dump_json()
 
-            # Build diagnostics object (what we're passing to the agent)
-            # Store clean conversation history (not the LLM-formatted messages)
-            diagnostics = ChatDiagnostics(
-                model=CHAT_MODEL,
-                max_tokens=CHAT_MAX_TOKENS,
-                max_iterations=MAX_TOOL_ITERATIONS,
-                temperature=0.0,
-                tools=list(tools_by_name.keys()),
-                system_prompt=system_prompt,
-                messages=conversation_history,  # Clean history without context wrapper
-                context=request.context
-            )
-
-            # Run the agent loop
+            # Run the agent loop - it captures full trace internally
             collected_text = ""
             tool_call_history = []
             collected_payloads = []
+            trace: Optional[AgentTrace] = None
             tool_call_index = 0
 
             async for event in run_agent_loop(
@@ -183,13 +171,12 @@ class ChatStreamService:
                 elif isinstance(event, (AgentComplete, AgentCancelled)):
                     tool_call_history = event.tool_calls
                     collected_payloads = event.payloads
+                    trace = event.trace  # Get full trace from agent loop
 
                 elif isinstance(event, AgentError):
+                    trace = event.trace  # Capture trace even on error
                     yield ErrorEvent(message=event.error).model_dump_json()
                     return
-
-            # Add raw LLM response to diagnostics
-            diagnostics.raw_llm_response = collected_text
 
             # Parse response and build final payload
             parsed = self._parse_llm_response(collected_text, request.context)
@@ -210,7 +197,7 @@ class ChatStreamService:
                 "tool_history": tool_call_history if tool_call_history else None,
                 "custom_payload": custom_payload,  # For UI rendering
                 "payloads": payloads_with_ids if payloads_with_ids else None,  # Full list for retrieval
-                "diagnostics": diagnostics.model_dump() if diagnostics else None,
+                "trace": trace.model_dump() if trace else None,  # Full execution trace
                 "suggested_values": parsed.get("suggested_values"),
                 "suggested_actions": parsed.get("suggested_actions"),
             }
@@ -233,7 +220,7 @@ class ChatStreamService:
                 custom_payload=custom_payload,
                 tool_history=tool_call_history if tool_call_history else None,
                 conversation_id=chat_id,
-                diagnostics=diagnostics
+                diagnostics=trace  # AgentTrace is aliased as ChatDiagnostics for backwards compat
             )
             yield CompleteEvent(payload=final_payload).model_dump_json()
 
@@ -404,9 +391,13 @@ class ChatStreamService:
         history = []
 
         # Load history from database if we have a conversation
+        # Exclude the last message - it's the current user message we just saved
+        # in _setup_chat, and we'll add it with context wrapper below
         if chat_id:
             db_messages = await self.chat_service.get_messages(chat_id, self.user_id)
-            for msg in db_messages:
+            # Skip the last message (the one we just saved)
+            prior_messages = db_messages[:-1] if db_messages else []
+            for msg in prior_messages:
                 if msg.role in ('user', 'assistant'):
                     history.append({"role": msg.role, "content": msg.content})
 

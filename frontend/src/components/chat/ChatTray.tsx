@@ -5,7 +5,7 @@ import { useChatContext } from '../../context/ChatContext';
 import { trackEvent } from '../../lib/api/trackingApi';
 import { getPayloadHandler } from '../../lib/chat'; // Import from index to trigger payload registration
 
-import { InteractionType, PayloadHandler, ToolHistoryEntry, ChatDiagnostics } from '../../types/chat';
+import { InteractionType, PayloadHandler, ToolHistoryEntry, AgentTrace } from '../../types/chat';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import ToolResultCard, { ToolHistoryPanel } from './ToolResultCard';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
@@ -209,7 +209,7 @@ export default function ChatTray({
     // Track which message indices have had their payloads dismissed
     const [dismissedPayloads, setDismissedPayloads] = useState<Set<number>>(new Set());
     const [toolsToShow, setToolsToShow] = useState<ToolHistoryEntry[] | null>(null);
-    const [diagnosticsToShow, setDiagnosticsToShow] = useState<ChatDiagnostics | null>(null);
+    const [diagnosticsToShow, setDiagnosticsToShow] = useState<AgentTrace | null>(null);
 
     // Track previous values to detect changes (start with undefined to trigger initial set)
     const prevHiddenRef = useRef<boolean | undefined>(undefined);
