@@ -297,6 +297,46 @@ function MessagesTab({
                                 </pre>
                             </div>
                         )}
+
+                        {/* Tool History */}
+                        {diagnostics.final_response.tool_history && diagnostics.final_response.tool_history.length > 0 && (
+                            <div>
+                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                                    Tool History ({diagnostics.final_response.tool_history.length})
+                                </div>
+                                <div className="space-y-2">
+                                    {diagnostics.final_response.tool_history.map((th, i) => (
+                                        <div key={i} className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded p-2">
+                                            <div className="text-xs font-medium text-orange-800 dark:text-orange-200 font-mono mb-1">
+                                                {th.tool_name}
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <div>
+                                                    <div className="text-gray-500 dark:text-gray-400 mb-1">Input</div>
+                                                    <pre className="bg-white dark:bg-gray-900 rounded p-1 font-mono text-gray-800 dark:text-gray-200 max-h-20 overflow-auto">
+                                                        {JSON.stringify(th.input, null, 2)}
+                                                    </pre>
+                                                </div>
+                                                <div>
+                                                    <div className="text-gray-500 dark:text-gray-400 mb-1">Output</div>
+                                                    <pre className="bg-white dark:bg-gray-900 rounded p-1 font-mono text-gray-800 dark:text-gray-200 max-h-20 overflow-auto">
+                                                        {typeof th.output === 'string' ? th.output.slice(0, 200) : JSON.stringify(th.output, null, 2).slice(0, 200)}
+                                                        {(typeof th.output === 'string' ? th.output.length : JSON.stringify(th.output).length) > 200 ? '...' : ''}
+                                                    </pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Conversation ID */}
+                        {diagnostics.final_response.conversation_id && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                                Conversation ID: <span className="font-mono">{diagnostics.final_response.conversation_id}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -1093,81 +1133,6 @@ function MetricsTab({ diagnostics, onFullscreen }: {
                     {diagnostics.final_text}
                 </pre>
             </div>
-
-            {/* Final Response (what was sent to frontend) */}
-            {diagnostics.final_response && (
-                <div>
-                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                        Final Response to Frontend
-                    </h4>
-                    <div className="space-y-3">
-                        {/* Suggested Values */}
-                        {diagnostics.final_response.suggested_values && diagnostics.final_response.suggested_values.length > 0 && (
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                                <div className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-2">
-                                    Suggested Values ({diagnostics.final_response.suggested_values.length})
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {diagnostics.final_response.suggested_values.map((sv, i) => (
-                                        <span key={i} className="px-2 py-1 bg-blue-100 dark:bg-blue-800 rounded text-xs text-blue-800 dark:text-blue-200">
-                                            {sv.label}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Suggested Actions */}
-                        {diagnostics.final_response.suggested_actions && diagnostics.final_response.suggested_actions.length > 0 && (
-                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
-                                <div className="text-xs font-medium text-green-700 dark:text-green-400 mb-2">
-                                    Suggested Actions ({diagnostics.final_response.suggested_actions.length})
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {diagnostics.final_response.suggested_actions.map((sa, i) => (
-                                        <span key={i} className="px-2 py-1 bg-green-100 dark:bg-green-800 rounded text-xs text-green-800 dark:text-green-200">
-                                            {sa.label} → {sa.action}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Custom Payload */}
-                        {diagnostics.final_response.custom_payload && (
-                            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="text-xs font-medium text-purple-700 dark:text-purple-400">
-                                        Custom Payload (type: {diagnostics.final_response.custom_payload.type})
-                                    </div>
-                                    <button
-                                        onClick={() => onFullscreen({
-                                            title: 'Custom Payload',
-                                            content: JSON.stringify(diagnostics.final_response?.custom_payload, null, 2)
-                                        })}
-                                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                                        title="View fullscreen"
-                                    >
-                                        <ArrowsPointingOutIcon className="h-3 w-3" />
-                                    </button>
-                                </div>
-                                <pre className="text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-900 rounded p-2 max-h-32 overflow-y-auto">
-                                    {JSON.stringify(diagnostics.final_response.custom_payload.data, null, 2)}
-                                </pre>
-                            </div>
-                        )}
-
-                        {/* No extras */}
-                        {!diagnostics.final_response.suggested_values?.length &&
-                         !diagnostics.final_response.suggested_actions?.length &&
-                         !diagnostics.final_response.custom_payload && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400 italic">
-                                No suggested values, actions, or custom payload in response
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

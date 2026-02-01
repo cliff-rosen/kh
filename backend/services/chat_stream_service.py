@@ -207,6 +207,12 @@ class ChatStreamService:
 
             custom_payload_obj = CustomPayload(**custom_payload) if custom_payload else None
 
+            # Build tool history for final response
+            tool_history_entries = None
+            if tool_call_history:
+                from schemas.chat import ToolHistoryEntry
+                tool_history_entries = [ToolHistoryEntry(**th) for th in tool_call_history]
+
             # Add final response to trace (what's being sent to frontend)
             if trace:
                 trace.final_response = FinalResponse(
@@ -214,6 +220,8 @@ class ChatStreamService:
                     suggested_values=suggested_values,
                     suggested_actions=suggested_actions,
                     custom_payload=custom_payload_obj,
+                    tool_history=tool_history_entries,
+                    conversation_id=chat_id,
                 )
 
             # Build extras for persistence

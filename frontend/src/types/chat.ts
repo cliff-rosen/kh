@@ -107,6 +107,8 @@ export interface FinalResponse {
     suggested_values?: SuggestedValue[];
     suggested_actions?: SuggestedAction[];
     custom_payload?: CustomPayload;
+    tool_history?: ToolHistoryEntry[];
+    conversation_id?: number;
 }
 
 export interface AgentTrace {
