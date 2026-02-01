@@ -47,6 +47,8 @@ def _load_help_content() -> None:
         logger.warning(f"Help directory not found: {HELP_DIR}")
         return
 
+    logger.info(f"Loading help content from {HELP_DIR}")
+
     # Load each .yaml file in the help directory
     for yaml_file in sorted(HELP_DIR.glob("**/*.yaml")):
         try:
@@ -54,6 +56,7 @@ def _load_help_content() -> None:
                 data = yaml.safe_load(f)
 
             if not data or "sections" not in data:
+                logger.debug(f"Skipping {yaml_file}: no sections found")
                 continue
 
             for idx, section_data in enumerate(data["sections"]):
@@ -66,9 +69,14 @@ def _load_help_content() -> None:
                     order=section_data.get("order", idx)
                 )
                 _help_sections[section.id] = section
+                logger.debug(f"Loaded help section: {section.id}")
+
+            logger.info(f"Loaded {len(data['sections'])} sections from {yaml_file.name}")
 
         except Exception as e:
-            logger.error(f"Error loading help file {yaml_file}: {e}")
+            logger.error(f"Error loading help file {yaml_file}: {e}", exc_info=True)
+
+    logger.info(f"Help registry loaded {len(_help_sections)} total sections")
 
 
 def get_help_toc_for_role(role: str) -> str:

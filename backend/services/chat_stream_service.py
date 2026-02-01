@@ -493,12 +493,15 @@ class ChatStreamService:
             sections.append(f"== CAPABILITIES ==\n{capabilities}")
 
         # 5. HELP TABLE OF CONTENTS (role-filtered help sections)
-        help_toc = get_help_toc_for_role(user_role)
-        if help_toc:
-            sections.append(
-                f"== HELP TABLE OF CONTENTS ==\n"
-                f"When users ask how to do something, use get_help_section with a section_id below:\n{help_toc}"
-            )
+        try:
+            help_toc = get_help_toc_for_role(user_role)
+            if help_toc:
+                sections.append(
+                    f"== HELP TABLE OF CONTENTS ==\n"
+                    f"When users ask how to do something, use get_help_section with a section_id below:\n{help_toc}"
+                )
+        except Exception as e:
+            logger.error(f"Failed to load help TOC: {e}")
 
         # 6. CUSTOM INSTRUCTIONS (stream-specific, only if defined)
         stream_instructions = await self._load_stream_instructions(context)
