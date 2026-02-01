@@ -10,8 +10,7 @@ sections:
       **Report Structure:**
       - **Title & Date Range** - The report period and generation date
       - **Executive Summary** - AI-generated overview of key themes and findings
-      - **Key Highlights** - Bullet points of the most important takeaways
-      - **Thematic Analysis** - Deeper analysis of emerging themes
+      - **Category Summaries** - AI summaries for each article category
       - **Articles** - Individual research articles with summaries
 
       **Article Information:**
@@ -24,10 +23,10 @@ sections:
 
       Reports are generated automatically based on the stream's schedule (daily, weekly, etc.).
 
-  - id: reports/views
+  - id: reports/views-member
     title: Report View Modes
     summary: Different ways to view report articles (All Articles, By Category)
-    roles: [member, org_admin, platform_admin]
+    roles: [member]
     order: 11
     content: |
       Reports offer different view modes to help you explore articles:
@@ -39,14 +38,45 @@ sections:
 
       **By Category View:**
       - Articles grouped into thematic categories
+      - Each category has an AI-generated summary
       - Collapse/expand each category section
-      - Categories are defined by the stream configuration
       - Useful when you want to focus on specific topics
 
       **Switching Views:**
       Use the view mode buttons in the report header:
       - "All Articles" - Linear list view
-      - "By Category" - Grouped by theme
+      - "By Category" - Grouped by theme with category summaries
+
+  - id: reports/views-admin
+    title: Report View Modes
+    summary: Different ways to view report articles (All Articles, By Category, Tablizer)
+    roles: [org_admin, platform_admin]
+    order: 11
+    content: |
+      Reports offer different view modes to help you explore articles:
+
+      **All Articles View:**
+      - Shows every article in a single list
+      - Sorted by relevance or date
+      - Good for scanning everything quickly
+
+      **By Category View:**
+      - Articles grouped into thematic categories
+      - Each category has an AI-generated summary
+      - Collapse/expand each category section
+      - Useful when you want to focus on specific topics
+
+      **Tablizer View:**
+      - Advanced table view with sortable columns
+      - Add AI-powered columns for custom analysis
+      - Filter and search across all data
+      - See "reports/tablizer" for details
+
+      **Switching Views:**
+      Use the view mode buttons in the report header:
+      - "All Articles" - Linear list view
+      - "By Category" - Grouped by theme with category summaries
+      - "Tablizer" - Table view with AI columns
 
   - id: reports/card-formats
     title: Card Display Formats
@@ -124,6 +154,7 @@ sections:
       **What Chat Can Access:**
       - The current report's content and articles
       - Article titles, abstracts, and AI summaries
+      - Category summaries
       - Your conversation history in this session
 
       **Limitations:**
