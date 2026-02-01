@@ -67,6 +67,9 @@ async def chat_stream(
         try:
             service = service_factory(current_user.user_id)
 
+            # Inject user_role into context for role-sensitive features (e.g., help docs)
+            request.context["user_role"] = current_user.role.value if current_user.role else "member"
+
             # Stream typed events from the service
             async for event_json in service.stream_chat_message(request):
                 yield {

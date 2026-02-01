@@ -1,0 +1,49 @@
+sections:
+  - id: getting-started
+    title: Getting Started
+    summary: Overview of Knowledge Horizon and how to navigate the app
+    roles: [member, org_admin, platform_admin]
+    order: 1
+    content: |
+      Knowledge Horizon helps you stay current with biomedical research through curated intelligence reports.
+
+      **What You Can Do:**
+      - **Reports** - View research intelligence reports with article summaries and key findings
+      - **Streams** - Browse research streams that generate your reports
+      - **Chat** - Ask questions about reports and get help navigating the app
+
+      **Navigation:**
+      Use the top navigation bar to move between sections:
+      - **Dashboard** - Your home page with recent reports
+      - **Streams** - View available research streams
+      - **Reports** - Read and explore reports
+
+      **Getting Help:**
+      Click the chat button (bottom right) on any page to ask questions. The assistant can help you:
+      - Navigate features
+      - Understand report content
+      - Find specific information
+
+  - id: navigation
+    title: App Navigation
+    summary: How to navigate between pages and features
+    roles: [member, org_admin, platform_admin]
+    order: 2
+    content: |
+      **Top Navigation Bar:**
+      - **Dashboard** - Home page showing recent reports and quick access
+      - **Streams** - List of research streams you can access
+      - **Reports** - Full report viewing interface
+      - **Profile** - Your account settings
+      - **Theme Toggle** - Switch between light and dark mode
+
+      **Additional Navigation (Admins):**
+      - **Tools** - Utilities for search testing and document analysis
+      - **Operations** - Pipeline management and report approvals
+      - **Admin** - Platform administration
+
+      **Within Reports:**
+      - Left sidebar lists available reports
+      - Click a report to view it
+      - Use view mode buttons to change how articles display
+      - Click any article to open the full article viewer

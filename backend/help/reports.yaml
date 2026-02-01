@@ -1,0 +1,168 @@
+sections:
+  - id: reports/overview
+    title: Understanding Reports
+    summary: What reports contain and how they're organized
+    roles: [member, org_admin, platform_admin]
+    order: 10
+    content: |
+      Reports are curated collections of recent research findings from your subscribed streams.
+
+      **Report Structure:**
+      - **Title & Date Range** - The report period and generation date
+      - **Executive Summary** - AI-generated overview of key themes and findings
+      - **Key Highlights** - Bullet points of the most important takeaways
+      - **Thematic Analysis** - Deeper analysis of emerging themes
+      - **Articles** - Individual research articles with summaries
+
+      **Article Information:**
+      Each article includes:
+      - Title and authors
+      - Publication details (journal, date)
+      - Abstract from the original paper
+      - AI-generated summary of key findings
+      - Link to full article on PubMed
+
+      Reports are generated automatically based on the stream's schedule (daily, weekly, etc.).
+
+  - id: reports/views
+    title: Report View Modes
+    summary: Different ways to view report articles (All Articles, By Category)
+    roles: [member, org_admin, platform_admin]
+    order: 11
+    content: |
+      Reports offer different view modes to help you explore articles:
+
+      **All Articles View:**
+      - Shows every article in a single list
+      - Sorted by relevance or date
+      - Good for scanning everything quickly
+
+      **By Category View:**
+      - Articles grouped into thematic categories
+      - Collapse/expand each category section
+      - Categories are defined by the stream configuration
+      - Useful when you want to focus on specific topics
+
+      **Switching Views:**
+      Use the view mode buttons in the report header:
+      - "All Articles" - Linear list view
+      - "By Category" - Grouped by theme
+
+  - id: reports/card-formats
+    title: Card Display Formats
+    summary: Compact, Abstract, and AI Summary display options
+    roles: [member, org_admin, platform_admin]
+    order: 12
+    content: |
+      Control how much detail shows for each article card:
+
+      **Compact:**
+      - Shows title only
+      - Best for quickly scanning many articles
+      - Click to expand full details
+
+      **Abstract:**
+      - Shows title plus the original paper abstract
+      - Good for seeing the author's own summary
+      - More text but original source content
+
+      **AI Summary:**
+      - Shows title plus AI-generated summary
+      - Highlights key findings and relevance
+      - Often more concise than abstracts
+      - Purple button indicates AI-generated content
+
+      **How to Switch:**
+      Use the format buttons (Compact / Abstract / AI Summary) in the report header.
+      Your preference is saved and remembered for next time.
+
+  - id: reports/article-viewer
+    title: Reading Articles
+    summary: How to open and navigate the article viewer
+    roles: [member, org_admin, platform_admin]
+    order: 13
+    content: |
+      Click any article card to open the full article viewer.
+
+      **Article Viewer Features:**
+      - Full title and author list
+      - Publication details (journal, date, PMID)
+      - Complete abstract
+      - AI-generated summary
+      - Notes section (if available)
+      - Links to PubMed and DOI
+
+      **Navigation:**
+      - Use Previous/Next buttons to move between articles
+      - Press Escape or click outside to close
+      - Use the chat button to ask questions about the article
+
+      **External Links:**
+      - "View on PubMed" - Opens the full paper on PubMed
+      - "DOI" link - Direct link to the publisher's version
+
+  - id: reports/using-chat
+    title: Using Chat with Reports
+    summary: How to ask questions about report content
+    roles: [member, org_admin, platform_admin]
+    order: 14
+    content: |
+      The chat assistant can help you understand and explore report content.
+
+      **What You Can Ask:**
+      - "What are the key themes in this report?"
+      - "Which articles discuss [topic]?"
+      - "Summarize the findings about [subject]"
+      - "How do these studies compare?"
+      - "Explain the methodology in [article title]"
+
+      **Tips for Good Questions:**
+      - Be specific about what you want to know
+      - Reference article titles when asking about specific papers
+      - Ask follow-up questions to dig deeper
+
+      **What Chat Can Access:**
+      - The current report's content and articles
+      - Article titles, abstracts, and AI summaries
+      - Your conversation history in this session
+
+      **Limitations:**
+      - Cannot access the full text of papers (only abstracts/summaries)
+      - Cannot modify reports or settings (members)
+
+  - id: reports/tablizer
+    title: Tablizer View (Table with AI Columns)
+    summary: Advanced table view with custom AI-powered columns
+    roles: [org_admin, platform_admin]
+    order: 15
+    content: |
+      Tablizer provides an advanced table view of report articles with AI-powered analysis.
+
+      **Accessing Tablizer:**
+      Click the "Tablizer" button in the report header view mode options.
+
+      **Table Features:**
+      - Sort by any column
+      - Show/hide columns using column visibility toggle
+      - Search across all columns
+      - Filter rows by column values
+
+      **AI Columns:**
+      Add custom columns that use AI to analyze each article:
+
+      1. Click "Add AI Column"
+      2. Choose column type:
+         - **Boolean** - Yes/No classification (e.g., "Is this about drug X?")
+         - **Text** - Extract specific information (e.g., "What dosage was used?")
+         - **Number** - Score or count (e.g., "Sample size")
+      3. Enter your criteria/question
+      4. Optionally enable "Show reasoning" for transparency
+
+      **Data Fetching:**
+      - Initial view shows ~20 articles for fast display
+      - Adding an AI column automatically fetches more articles (up to 500)
+      - This ensures AI analysis covers the full dataset
+
+      **Export & Copy:**
+      - Copy filtered results to clipboard
+      - Export data for external analysis

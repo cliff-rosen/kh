@@ -452,14 +452,17 @@ class ChatStreamService:
         2. CONTEXT - Current page and loaded data
         3. PAYLOAD MANIFEST - Available payloads from conversation history (if any)
         4. CAPABILITIES - Available tools and payloads (only if any)
-        5. CUSTOM INSTRUCTIONS - Stream-specific instructions (only if defined)
-        6. GUIDELINES - Brief response guidance
+        5. HELP TABLE OF CONTENTS - Available help sections (role-filtered)
+        6. CUSTOM INSTRUCTIONS - Stream-specific instructions (only if defined)
+        7. GUIDELINES - Brief response guidance
         """
         from services.chat_page_config import get_identity
+        from services.help_registry import get_help_toc_for_role
 
         current_page = context.get("current_page", "unknown")
         active_tab = context.get("active_tab")
         active_subtab = context.get("active_subtab")
+        user_role = context.get("user_role", "member")
 
         sections = []
 
@@ -489,12 +492,20 @@ class ChatStreamService:
         if capabilities:
             sections.append(f"== CAPABILITIES ==\n{capabilities}")
 
-        # 5. CUSTOM INSTRUCTIONS (stream-specific, only if defined)
+        # 5. HELP TABLE OF CONTENTS (role-filtered help sections)
+        help_toc = get_help_toc_for_role(user_role)
+        if help_toc:
+            sections.append(
+                f"== HELP TABLE OF CONTENTS ==\n"
+                f"When users ask how to do something, use get_help_section with a section_id below:\n{help_toc}"
+            )
+
+        # 6. CUSTOM INSTRUCTIONS (stream-specific, only if defined)
         stream_instructions = await self._load_stream_instructions(context)
         if stream_instructions:
             sections.append(f"== CUSTOM INSTRUCTIONS ==\n{stream_instructions}")
 
-        # 6. GUIDELINES (always present, brief)
+        # 7. GUIDELINES (always present, brief)
         sections.append(self._get_guidelines())
 
         return "\n\n".join(sections)
