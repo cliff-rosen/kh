@@ -119,6 +119,7 @@ export default function ReportsPage() {
     }, [selectedReport]);
 
     // Chat context for the general chat system
+    // Only include report info if a stream is also selected (report belongs to stream)
     const chatContext = useMemo(() => {
         const context: Record<string, any> = { current_page: 'reports' };
         if (selectedStream) {
@@ -126,11 +127,12 @@ export default function ReportsPage() {
             if (streamDetails) {
                 context.stream_name = streamDetails.stream_name;
             }
-        }
-        if (selectedReport) {
-            context.report_id = selectedReport.report_id;
-            context.report_name = selectedReport.report_name;
-            context.article_count = selectedReport.articles?.length || 0;
+            // Only include report info when we have a stream context
+            if (selectedReport) {
+                context.report_id = selectedReport.report_id;
+                context.report_name = selectedReport.report_name;
+                context.article_count = selectedReport.articles?.length || 0;
+            }
         }
         return context;
     }, [selectedReport, selectedStream, streamDetails]);
