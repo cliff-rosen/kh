@@ -4,9 +4,10 @@ Help Tool
 Provides access to app documentation for the chat system.
 Retrieves help content filtered by user role.
 
-Supports two query modes:
-1. By category only: Returns summaries of all topics in that category
-2. By category + topic: Returns the full content of a specific topic
+Usage:
+- get_help() - List all help categories
+- get_help(category="...") - List topics in a category with summaries
+- get_help(category="...", topic="...") - Get full content for a specific topic
 """
 
 import logging
@@ -111,24 +112,17 @@ async def execute_get_help(
 
 register_tool(ToolConfig(
     name="get_help",
-    description="""Retrieve help documentation about how to use the app.
-
-Query modes:
-- get_help() - List all help categories
-- get_help(category="reports") - List all topics in the reports category with summaries
-- get_help(category="reports", topic="overview") - Get full content for a specific topic
-
-Categories: general, reports, streams, tools, operations""",
+    description="""Retrieve help documentation about how to use the app. See the HELP section of the system prompt for available topics and when to use this tool.""",
     input_schema={
         "type": "object",
         "properties": {
             "category": {
                 "type": "string",
-                "description": "Help category: general, reports, streams, tools, or operations. Omit to list categories."
+                "description": "Help category (e.g., general, reports, article-viewer, tablizer). Omit to list categories."
             },
             "topic": {
                 "type": "string",
-                "description": "Specific topic within the category (e.g., 'overview', 'viewing'). Omit to see all topics in category."
+                "description": "Specific topic within the category. Omit to see all topics in category."
             }
         },
         "required": []

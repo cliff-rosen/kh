@@ -22,7 +22,7 @@ import {
     ArrowsPointingOutIcon,
     ArrowsPointingInIcon,
 } from '@heroicons/react/24/outline';
-import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpCategorySummary, type HelpCategoryDetail, type HelpTOCPreview, type StreamChatConfig, type PageChatConfig, type ToolInfo } from '../../lib/api/adminApi';
+import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpCategorySummary, type HelpCategoryDetail, type HelpTOCConfig, type StreamChatConfig, type PageChatConfig, type ToolInfo, type TopicSummariesResponse } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
 
 type ConfigTab = 'streams' | 'pages' | 'payloads' | 'tools' | 'help';
@@ -110,15 +110,24 @@ export function ChatConfigPanel() {
     const [helpTotalOverrides, setHelpTotalOverrides] = useState(0);
     const [selectedHelpCategory, setSelectedHelpCategory] = useState<HelpCategoryDetail | null>(null);
     const [editingTopics, setEditingTopics] = useState<EditingTopicContent[]>([]);
-    const [tocPreviews, setTocPreviews] = useState<HelpTOCPreview[]>([]);
     const [isLoadingHelp, setIsLoadingHelp] = useState(false);
     const [isLoadingHelpCategory, setIsLoadingHelpCategory] = useState(false);
     const [isSavingHelp, setIsSavingHelp] = useState(false);
     const [isReloadingHelp, setIsReloadingHelp] = useState(false);
     const [helpError, setHelpError] = useState<string | null>(null);
-    const [helpViewMode, setHelpViewMode] = useState<'categories' | 'toc-preview'>('categories');
+    const [helpViewMode, setHelpViewMode] = useState<'content' | 'llm-view'>('content');
     const [isHelpMaximized, setIsHelpMaximized] = useState(false);
     const [collapsedTopics, setCollapsedTopics] = useState<Set<string>>(new Set());
+
+    // LLM View state
+    const [tocConfig, setTocConfig] = useState<HelpTOCConfig | null>(null);
+    const [topicSummaries, setTopicSummaries] = useState<TopicSummariesResponse | null>(null);
+    const [selectedPreviewRole, setSelectedPreviewRole] = useState<'member' | 'org_admin' | 'platform_admin'>('member');
+
+    // Inline editing state
+    const [editingField, setEditingField] = useState<string | null>(null);  // 'narrative', 'preamble', 'label:category', 'summary:category/topic'
+    const [editingValue, setEditingValue] = useState('');
+    const [isSavingField, setIsSavingField] = useState(false);
 
     // Check if any topics have been modified
     const hasHelpChanges = useMemo(() => {
@@ -282,18 +291,81 @@ export function ChatConfigPanel() {
         setIsLoadingHelp(true);
         setHelpError(null);
         try {
-            const [categoriesRes, tocRes] = await Promise.all([
+            const [categoriesRes, tocConfigRes, summariesRes] = await Promise.all([
                 adminApi.getHelpCategories(),
-                adminApi.getHelpTocPreview(),
+                adminApi.getHelpTocConfig(),
+                adminApi.getHelpSummaries(),
             ]);
             setHelpCategories(categoriesRes.categories);
             setHelpTotalTopics(categoriesRes.total_topics);
             setHelpTotalOverrides(categoriesRes.total_overrides);
-            setTocPreviews(tocRes);
+            setTocConfig(tocConfigRes);
+            setTopicSummaries(summariesRes);
         } catch (err) {
             setHelpError(handleApiError(err));
         } finally {
             setIsLoadingHelp(false);
+        }
+    };
+
+    // Inline editing functions for LLM View
+    const startEditing = (field: string, currentValue: string) => {
+        setEditingField(field);
+        setEditingValue(currentValue);
+    };
+
+    const cancelEditing = () => {
+        setEditingField(null);
+        setEditingValue('');
+    };
+
+    const saveEditing = async () => {
+        if (!editingField || !tocConfig) return;
+
+        setIsSavingField(true);
+        try {
+            if (editingField === 'narrative') {
+                const updated = await adminApi.updateHelpTocConfig({ narrative: editingValue });
+                setTocConfig(updated);
+            } else if (editingField === 'preamble') {
+                const updated = await adminApi.updateHelpTocConfig({ preamble: editingValue });
+                setTocConfig(updated);
+            } else if (editingField.startsWith('label:')) {
+                const category = editingField.replace('label:', '');
+                const newLabels = { ...tocConfig.category_labels, [category]: editingValue };
+                const updated = await adminApi.updateHelpTocConfig({ category_labels: newLabels });
+                setTocConfig(updated);
+            } else if (editingField.startsWith('summary:')) {
+                const [category, topic] = editingField.replace('summary:', '').split('/');
+                await adminApi.updateHelpSummary(category, topic, editingValue);
+                // Reload summaries
+                const summariesRes = await adminApi.getHelpSummaries();
+                setTopicSummaries(summariesRes);
+            }
+            cancelEditing();
+        } catch (err) {
+            setHelpError(handleApiError(err));
+        } finally {
+            setIsSavingField(false);
+        }
+    };
+
+    const resetAllLlmConfig = async () => {
+        if (!confirm('Reset all LLM configuration to defaults? This will reset the narrative, preamble, category names, and all topic summaries.')) return;
+        setIsSavingField(true);
+        try {
+            await adminApi.resetHelpTocConfig();
+            // Reload everything
+            const [tocConfigRes, summariesRes] = await Promise.all([
+                adminApi.getHelpTocConfig(),
+                adminApi.getHelpSummaries(),
+            ]);
+            setTocConfig(tocConfigRes);
+            setTopicSummaries(summariesRes);
+        } catch (err) {
+            setHelpError(handleApiError(err));
+        } finally {
+            setIsSavingField(false);
         }
     };
 
@@ -987,29 +1059,29 @@ export function ChatConfigPanel() {
                         <div className="border-b border-gray-200 dark:border-gray-700">
                             <nav className="flex gap-4">
                                 <button
-                                    onClick={() => setHelpViewMode('categories')}
+                                    onClick={() => setHelpViewMode('content')}
                                     className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                                        helpViewMode === 'categories'
+                                        helpViewMode === 'content'
                                             ? 'border-purple-500 text-purple-600 dark:text-purple-400'
                                             : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                                     }`}
                                 >
                                     <div className="flex items-center gap-2">
                                         <BookOpenIcon className="h-4 w-4" />
-                                        Categories ({helpCategories.length})
+                                        Content
                                     </div>
                                 </button>
                                 <button
-                                    onClick={() => setHelpViewMode('toc-preview')}
+                                    onClick={() => setHelpViewMode('llm-view')}
                                     className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                                        helpViewMode === 'toc-preview'
+                                        helpViewMode === 'llm-view'
                                             ? 'border-purple-500 text-purple-600 dark:text-purple-400'
                                             : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                                     }`}
                                 >
                                     <div className="flex items-center gap-2">
                                         <EyeIcon className="h-4 w-4" />
-                                        TOC by Role
+                                        LLM View
                                     </div>
                                 </button>
                             </nav>
@@ -1019,7 +1091,7 @@ export function ChatConfigPanel() {
                             <div className="flex items-center justify-center py-12">
                                 <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-400" />
                             </div>
-                        ) : helpViewMode === 'categories' ? (
+                        ) : helpViewMode === 'content' ? (
                             <div className="flex gap-6 h-[calc(100vh-20rem)]">
                                 {/* Left column - Categories list */}
                                 <div className="w-1/4 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
@@ -1176,20 +1248,248 @@ export function ChatConfigPanel() {
                                 </div>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {tocPreviews.map((preview) => (
-                                    <div key={preview.role} className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-                                        <div className="flex items-center gap-2 mb-3">
-                                            {getRoleIcon(preview.role)}
-                                            <span className={`font-medium ${getRoleBadgeColor(preview.role)} px-2 py-0.5 rounded-full text-sm`}>
-                                                {preview.role}
-                                            </span>
+                            /* LLM View - Preview with inline editing */
+                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col h-[calc(100vh-18rem)]">
+                                {/* Header with role selector and reset button */}
+                                <div className="flex-shrink-0 px-6 py-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Preview as:</span>
+                                        <div className="flex gap-2">
+                                            {(['member', 'org_admin', 'platform_admin'] as const).map((role) => (
+                                                <button
+                                                    key={role}
+                                                    onClick={() => setSelectedPreviewRole(role)}
+                                                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                                        selectedPreviewRole === role
+                                                            ? 'bg-purple-600 text-white'
+                                                            : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                                    }`}
+                                                >
+                                                    {role === 'member' ? 'Member' : role === 'org_admin' ? 'Org Admin' : 'Platform Admin'}
+                                                </button>
+                                            ))}
                                         </div>
-                                        <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 p-3 rounded max-h-64 overflow-y-auto">
-                                            {preview.toc || '(No sections visible to this role)'}
-                                        </pre>
                                     </div>
-                                ))}
+                                    <button
+                                        onClick={resetAllLlmConfig}
+                                        disabled={isSavingField}
+                                        className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                                    >
+                                        Reset All to Defaults
+                                    </button>
+                                </div>
+
+                                {/* Preview content - scrollable */}
+                                <div className="flex-1 overflow-y-auto p-6">
+                                    <div className="font-mono text-sm space-y-6">
+                                        {/* Section header */}
+                                        <div className="text-purple-600 dark:text-purple-400 font-bold">== HELP ==</div>
+
+                                        {/* Narrative - editable */}
+                                        {tocConfig && (
+                                            <div className="group relative">
+                                                {editingField === 'narrative' ? (
+                                                    <div className="space-y-2">
+                                                        <textarea
+                                                            value={editingValue}
+                                                            onChange={(e) => setEditingValue(e.target.value)}
+                                                            rows={8}
+                                                            className="w-full px-3 py-2 border-2 border-purple-500 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-mono"
+                                                            autoFocus
+                                                        />
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={saveEditing}
+                                                                disabled={isSavingField}
+                                                                className="px-3 py-1 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded disabled:opacity-50"
+                                                            >
+                                                                {isSavingField ? 'Saving...' : 'Save'}
+                                                            </button>
+                                                            <button
+                                                                onClick={cancelEditing}
+                                                                disabled={isSavingField}
+                                                                className="px-3 py-1 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div
+                                                        onClick={() => startEditing('narrative', tocConfig.narrative)}
+                                                        className="cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded p-2 -m-2 border border-transparent hover:border-purple-300 dark:hover:border-purple-700"
+                                                    >
+                                                        <div className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{tocConfig.narrative}</div>
+                                                        <PencilSquareIcon className="h-4 w-4 text-purple-500 opacity-0 group-hover:opacity-100 absolute top-2 right-2" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Tool usage - read only */}
+                                        <div className="text-gray-600 dark:text-gray-400">
+                                            <div className="font-bold text-gray-800 dark:text-gray-200">**Tool usage:**</div>
+                                            <div>- `get_help()` - List all help categories</div>
+                                            <div>- `get_help(category="...")` - List topics in a category with summaries</div>
+                                            <div>- `get_help(category="...", topic="...")` - Get full content for a specific topic</div>
+                                        </div>
+
+                                        {/* Available Help Topics header */}
+                                        <div className="font-bold text-gray-800 dark:text-gray-200">**Available Help Topics:**</div>
+
+                                        {/* Preamble - editable */}
+                                        {tocConfig && (
+                                            <div className="group relative">
+                                                {editingField === 'preamble' ? (
+                                                    <div className="space-y-2">
+                                                        <input
+                                                            type="text"
+                                                            value={editingValue}
+                                                            onChange={(e) => setEditingValue(e.target.value)}
+                                                            className="w-full px-3 py-2 border-2 border-purple-500 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-mono"
+                                                            autoFocus
+                                                        />
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={saveEditing}
+                                                                disabled={isSavingField}
+                                                                className="px-3 py-1 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded disabled:opacity-50"
+                                                            >
+                                                                {isSavingField ? 'Saving...' : 'Save'}
+                                                            </button>
+                                                            <button
+                                                                onClick={cancelEditing}
+                                                                disabled={isSavingField}
+                                                                className="px-3 py-1 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div
+                                                        onClick={() => startEditing('preamble', tocConfig.preamble)}
+                                                        className="cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded p-2 -m-2 border border-transparent hover:border-purple-300 dark:hover:border-purple-700 text-gray-600 dark:text-gray-400"
+                                                    >
+                                                        {tocConfig.preamble}
+                                                        <PencilSquareIcon className="h-4 w-4 text-purple-500 opacity-0 group-hover:opacity-100 absolute top-2 right-2" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Categories and topics */}
+                                        {tocConfig && topicSummaries && Object.entries(topicSummaries.categories).map(([category, topics]) => {
+                                            // Note: Role-based filtering would require role info in TopicSummaryInfo
+                                            // For now, platform admins see all topics (which is the editing context)
+                                            const visibleTopics = topics;
+
+                                            if (visibleTopics.length === 0) return null;
+
+                                            const categoryLabel = tocConfig.category_labels[category] || category;
+
+                                            return (
+                                                <div key={category} className="space-y-1">
+                                                    {/* Category name - editable */}
+                                                    <div className="group relative">
+                                                        {editingField === `label:${category}` ? (
+                                                            <div className="space-y-2">
+                                                                <input
+                                                                    type="text"
+                                                                    value={editingValue}
+                                                                    onChange={(e) => setEditingValue(e.target.value)}
+                                                                    className="px-3 py-1 border-2 border-purple-500 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-mono font-bold"
+                                                                    autoFocus
+                                                                />
+                                                                <div className="flex gap-2">
+                                                                    <button
+                                                                        onClick={saveEditing}
+                                                                        disabled={isSavingField}
+                                                                        className="px-2 py-0.5 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded disabled:opacity-50"
+                                                                    >
+                                                                        Save
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={cancelEditing}
+                                                                        disabled={isSavingField}
+                                                                        className="px-2 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div
+                                                                onClick={() => startEditing(`label:${category}`, categoryLabel)}
+                                                                className="cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded px-2 py-1 -mx-2 border border-transparent hover:border-purple-300 dark:hover:border-purple-700 inline-block"
+                                                            >
+                                                                <span className="font-bold text-gray-800 dark:text-gray-200">**{categoryLabel}**:</span>
+                                                                <PencilSquareIcon className="h-3 w-3 text-purple-500 opacity-0 group-hover:opacity-100 inline ml-2" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Topics with summaries */}
+                                                    {visibleTopics.map((topic) => (
+                                                        <div key={`${category}/${topic.topic}`} className="pl-4 group relative">
+                                                            {editingField === `summary:${category}/${topic.topic}` ? (
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-start gap-2">
+                                                                        <span className="text-gray-600 dark:text-gray-400">- {topic.topic}:</span>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={editingValue}
+                                                                            onChange={(e) => setEditingValue(e.target.value)}
+                                                                            className="flex-1 px-2 py-1 border-2 border-purple-500 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-mono"
+                                                                            autoFocus
+                                                                        />
+                                                                    </div>
+                                                                    <div className="flex gap-2 ml-4">
+                                                                        <button
+                                                                            onClick={saveEditing}
+                                                                            disabled={isSavingField}
+                                                                            className="px-2 py-0.5 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded disabled:opacity-50"
+                                                                        >
+                                                                            Save
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={cancelEditing}
+                                                                            disabled={isSavingField}
+                                                                            className="px-2 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                                                                        >
+                                                                            Cancel
+                                                                        </button>
+                                                                        {topic.has_override && (
+                                                                            <span className="text-xs text-purple-600 dark:text-purple-400">(customized)</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div
+                                                                    onClick={() => startEditing(`summary:${category}/${topic.topic}`, topic.current_summary)}
+                                                                    className="cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded px-2 py-0.5 -mx-2 border border-transparent hover:border-purple-300 dark:hover:border-purple-700"
+                                                                >
+                                                                    <span className="text-gray-600 dark:text-gray-400">
+                                                                        - {topic.topic}: {topic.current_summary}
+                                                                    </span>
+                                                                    {topic.has_override && (
+                                                                        <span className="ml-2 text-xs text-purple-600 dark:text-purple-400">(customized)</span>
+                                                                    )}
+                                                                    <PencilSquareIcon className="h-3 w-3 text-purple-500 opacity-0 group-hover:opacity-100 inline ml-2" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Help text footer */}
+                                <div className="flex-shrink-0 px-6 py-3 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
+                                    Click any highlighted text to edit it. Changes are saved immediately.
+                                </div>
                             </div>
                         )}
                     </div>

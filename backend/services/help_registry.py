@@ -10,15 +10,48 @@ Each help section has:
 - summary: Brief description for TOC (shown in system prompt)
 - roles: List of roles that can see this section (member, org_admin, platform_admin)
 - content: Full markdown content (retrieved via tool)
+
+TOC Configuration:
+- Preamble text can be customized via ChatConfig (scope='help', scope_key='toc-preamble')
+- Category labels can be customized via ChatConfig (scope='help', scope_key='category-label:{category}')
 """
 
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 import yaml
 
 logger = logging.getLogger(__name__)
+
+# Default TOC preamble
+DEFAULT_TOC_PREAMBLE = "Use get_help(category, topic) to retrieve help content."
+
+# Default help narrative (explains when/why to use the help tool)
+DEFAULT_HELP_NARRATIVE = """When users ask "how do I..." or need guidance on using the app, use the get_help tool to retrieve relevant documentation. The help system contains detailed guides for all features.
+
+**When to use help:**
+- User asks how to do something
+- User seems confused about a feature
+- User asks what options are available
+- You need to explain a workflow
+
+**How to use:**
+- First scan the TOC below to find the relevant category and topic
+- Call get_help(category, topic) to retrieve the full content
+- Synthesize the help content with your response - don't just paste it"""
+
+# Default category labels (category -> display label)
+DEFAULT_CATEGORY_LABELS = {
+    'general': 'General',
+    'getting-started': 'Getting Started',
+    'reports': 'Reports',
+    'article-viewer': 'Article Viewer',
+    'tablizer': 'Tablizer',
+    'streams': 'Streams',
+    'tools': 'Tools',
+    'operations': 'Operations',
+}
 
 # Path to help content directory
 HELP_DIR = Path(__file__).parent.parent / "help"
@@ -99,13 +132,21 @@ def _load_help_content() -> None:
     logger.info(f"Help registry loaded {len(_help_sections)} total sections")
 
 
-def get_help_toc_for_role(role: str) -> str:
+def get_help_toc_for_role(
+    role: str,
+    preamble: Optional[str] = None,
+    category_labels: Optional[Dict[str, str]] = None,
+    summary_overrides: Optional[Dict[str, str]] = None
+) -> str:
     """
     Get the help table of contents formatted for the system prompt.
     Filters sections by user role, grouped by category.
 
     Args:
         role: User role (member, org_admin, platform_admin)
+        preamble: Optional custom preamble text (uses default if None)
+        category_labels: Optional dict of category -> display label overrides
+        summary_overrides: Optional dict of 'category/topic' -> summary overrides
 
     Returns:
         Formatted TOC string for inclusion in system prompt
@@ -134,16 +175,30 @@ def get_help_toc_for_role(role: str) -> str:
         by_category[cat].sort(key=lambda s: (s.order, s.topic))
 
     # Category order
-    category_order = {'general': 0, 'reports': 1, 'streams': 2, 'tools': 3, 'operations': 4}
+    category_order = {'general': 0, 'getting-started': 1, 'reports': 2, 'article-viewer': 3, 'tablizer': 4, 'streams': 5, 'tools': 6, 'operations': 7}
+
+    # Use provided preamble or default
+    toc_preamble = preamble if preamble is not None else DEFAULT_TOC_PREAMBLE
+
+    # Merge default labels with any overrides
+    labels = dict(DEFAULT_CATEGORY_LABELS)
+    if category_labels:
+        labels.update(category_labels)
+
+    # Summary overrides dict (or empty)
+    summaries = summary_overrides or {}
 
     # Format as grouped TOC
-    lines = ["Use get_help(category, topic) to retrieve help content.", ""]
+    lines = [toc_preamble, ""]
 
     for category in sorted(by_category.keys(), key=lambda c: (category_order.get(c, 99), c)):
         sections = by_category[category]
-        lines.append(f"**{category}**:")
+        label = labels.get(category, category.title())
+        lines.append(f"**{label}**:")
         for section in sections:
-            lines.append(f"  - {section.topic}: {section.summary}")
+            # Use overridden summary if available, otherwise default
+            summary = summaries.get(section.id, section.summary)
+            lines.append(f"  - {section.topic}: {summary}")
 
     return "\n".join(lines)
 
@@ -165,12 +220,75 @@ def get_all_categories() -> List[str]:
     # Sort by defined order
     order = {
         'general': 0,
-        'reports': 1,
-        'streams': 2,
-        'tools': 3,
-        'operations': 4,
+        'getting-started': 1,
+        'reports': 2,
+        'article-viewer': 3,
+        'tablizer': 4,
+        'streams': 5,
+        'tools': 6,
+        'operations': 7,
     }
     return sorted(categories, key=lambda c: (order.get(c, 99), c))
+
+
+def get_toc_config() -> Dict[str, Any]:
+    """Get the current TOC configuration (defaults).
+
+    Returns dict with:
+    - preamble: The TOC intro text
+    - category_labels: Dict of category -> display label
+    - narrative: The help narrative text
+    """
+    return {
+        'preamble': DEFAULT_TOC_PREAMBLE,
+        'category_labels': dict(DEFAULT_CATEGORY_LABELS),
+        'narrative': DEFAULT_HELP_NARRATIVE,
+    }
+
+
+def get_help_section_for_role(
+    role: str,
+    narrative: Optional[str] = None,
+    preamble: Optional[str] = None,
+    category_labels: Optional[Dict[str, str]] = None,
+    summary_overrides: Optional[Dict[str, str]] = None
+) -> str:
+    """
+    Build the complete HELP section for the system prompt.
+
+    Combines:
+    - Narrative (explains when/why to use help)
+    - Tool usage instructions
+    - Table of contents
+
+    Args:
+        role: User role for filtering sections
+        narrative: Optional custom narrative (uses default if None)
+        preamble: Optional custom TOC preamble (uses default if None)
+        category_labels: Optional category label overrides
+        summary_overrides: Optional topic summary overrides
+
+    Returns:
+        Complete help section string for system prompt
+    """
+    parts = []
+
+    # 1. Narrative (why/when to use help)
+    help_narrative = narrative if narrative is not None else DEFAULT_HELP_NARRATIVE
+    parts.append(help_narrative)
+
+    # 2. Tool usage
+    parts.append("""**Tool usage:**
+- `get_help()` - List all help categories
+- `get_help(category="...")` - List topics in a category with summaries
+- `get_help(category="...", topic="...")` - Get full content for a specific topic""")
+
+    # 3. TOC
+    toc = get_help_toc_for_role(role, preamble, category_labels, summary_overrides)
+    if toc:
+        parts.append("**Available Help Topics:**\n" + toc)
+
+    return "\n\n".join(parts)
 
 
 def get_topics_by_category(category: str) -> List[HelpSection]:

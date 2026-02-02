@@ -36,7 +36,8 @@
       "WebFetch(domain:www.nlm.nih.gov)",
       "WebFetch(domain:pubmed.ncbi.nlm.nih.gov)",
       "WebFetch(domain:nsaunders.wordpress.com)",
-      "WebFetch(domain:www.linkedin.com)"
+      "WebFetch(domain:www.linkedin.com)",
+      "Bash(\"C:\\\\code\\\\kh\\\\backend\\\\venv\\\\Scripts\\\\python.exe\" \"C:\\\\code\\\\kh\\\\backend\\\\migrations\\\\add_summary_to_help_override.py\")"
     ],
     "deny": [],
     "ask": [],

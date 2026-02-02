@@ -465,7 +465,7 @@ class ChatStreamService:
         2. STREAM INSTRUCTIONS - Domain-specific context (narrows focus)
         3. CONTEXT - Current page state and loaded data (facts)
         4. CAPABILITIES - Available tools and actions (what it can do)
-        5. HELP TOC - Reference material (lookup resource)
+        5. HELP - Help system documentation and TOC (reference material)
         6. FORMAT RULES - Technical formatting (least important)
 
         Args:
@@ -473,8 +473,6 @@ class ChatStreamService:
             chat_id: Optional conversation ID
             db_messages: Optional pre-fetched messages (avoids redundant DB call)
         """
-        from services.help_registry import get_help_toc_for_role
-
         current_page = context.get("current_page", "unknown")
         active_tab = context.get("active_tab")
         active_subtab = context.get("active_subtab")
@@ -507,16 +505,10 @@ class ChatStreamService:
         if capabilities:
             sections.append(f"== CAPABILITIES ==\n{capabilities}")
 
-        # 6. HELP TABLE OF CONTENTS (role-filtered help sections)
-        try:
-            help_toc = get_help_toc_for_role(user_role)
-            if help_toc:
-                sections.append(
-                    f"== HELP TABLE OF CONTENTS ==\n"
-                    f"When users ask how to do something, use get_help_section with a section_id below:\n{help_toc}"
-                )
-        except Exception as e:
-            logger.error(f"Failed to load help TOC: {e}")
+        # 6. HELP (consolidated: narrative + tool usage + TOC)
+        help_section = await self._build_help_section(user_role)
+        if help_section:
+            sections.append(f"== HELP ==\n{help_section}")
 
         # 7. FORMAT RULES (fixed technical instructions)
         sections.append(f"== FORMAT RULES ==\n{self.FORMAT_INSTRUCTIONS}")
@@ -586,6 +578,62 @@ SUGGESTED ACTIONS (optional, ONLY use actions listed in CLIENT ACTIONS above):
 To offer clickable buttons that trigger UI actions. You may ONLY use actions explicitly listed in the CLIENT ACTIONS section above. Do NOT invent new actions.
 SUGGESTED_ACTIONS:
 [{"label": "Button Text", "action": "action_from_list", "handler": "client"}]"""
+
+    async def _build_help_section(self, user_role: str) -> Optional[str]:
+        """
+        Build the consolidated help section with narrative, tool usage, and TOC.
+
+        Loads configuration from database (narrative, preamble, category labels, summary overrides)
+        and falls back to defaults.
+        """
+        from models import ChatConfig, HelpContentOverride
+        from services.help_registry import get_help_section_for_role
+
+        narrative = None
+        preamble = None
+        category_labels = {}
+        summary_overrides = {}
+
+        try:
+            # Load help configuration from database
+            result = await self.db.execute(
+                select(ChatConfig).where(ChatConfig.scope == "help")
+            )
+            help_configs = result.scalars().all()
+
+            for config in help_configs:
+                if config.scope_key == "narrative" and config.content:
+                    narrative = config.content
+                elif config.scope_key == "toc-preamble" and config.content:
+                    preamble = config.content
+                elif config.scope_key and config.scope_key.startswith("category-label:") and config.content:
+                    category = config.scope_key.replace("category-label:", "")
+                    category_labels[category] = config.content
+
+            # Load summary overrides from help_content_override table
+            result = await self.db.execute(
+                select(HelpContentOverride).where(HelpContentOverride.summary.isnot(None))
+            )
+            overrides = result.scalars().all()
+            for override in overrides:
+                if override.summary:
+                    topic_id = f"{override.category}/{override.topic}"
+                    summary_overrides[topic_id] = override.summary
+
+        except Exception as e:
+            logger.warning(f"Failed to load help configuration: {e}")
+
+        try:
+            return get_help_section_for_role(
+                role=user_role,
+                narrative=narrative,
+                preamble=preamble,
+                category_labels=category_labels if category_labels else None,
+                summary_overrides=summary_overrides if summary_overrides else None
+            )
+        except Exception as e:
+            logger.error(f"Failed to build help section: {e}")
+            return None
 
     async def _get_persona(self, current_page: str) -> str:
         """

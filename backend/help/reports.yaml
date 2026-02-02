@@ -73,7 +73,7 @@ sections:
       - Advanced table view with sortable columns
       - Add AI-powered columns for custom analysis
       - Filter and search across all data
-      - See "reports/tablizer" for details
+      - See the **tablizer** help category for full details
 
       **Switching Views:**
       Use the view mode buttons in the report header:
@@ -111,55 +111,22 @@ sections:
       Your preference is saved and remembered for next time.
 
   - category: reports
-    topic: article-viewer
-    title: Reading Articles
-    summary: How to open and navigate the article viewer, including stance analysis
+    topic: opening-articles
+    title: Opening Articles
+    summary: How to open articles in the Article Viewer
     roles: [member, org_admin, platform_admin]
     order: 13
     content: |
-      Click any article card to open the full article viewer.
+      Click any article card to open it in the Article Viewer.
 
-      **Article Viewer Features:**
-      - Full title and author list
-      - Publication details (journal, date, PMID)
-      - Complete abstract
+      The Article Viewer provides:
+      - Full article details (title, authors, abstract)
       - AI-generated summary
-      - Links to PubMed and DOI
+      - Stance analysis (if configured)
+      - Notes and annotations
+      - Links to PubMed and full text
 
-      **Workspace Tabs:**
-      - **Analysis** - Stance analysis results (see below)
-      - **Notes** - Notes attached to the article
-      - **Links** - Full text links and external resources
-
-      **Navigation:**
-      - Use Previous/Next buttons to move between articles
-      - Press Escape or click outside to close
-      - Use the chat button to ask questions about the article
-
-      **External Links:**
-      - "View on PubMed" - Opens the full paper on PubMed
-      - "DOI" link - Direct link to the publisher's version
-
-      **Stance Analysis:**
-      Stance analysis uses AI to evaluate an article's position on a topic.
-
-      *What it shows:*
-      - **Stance** - The article's position: Pro-Defense, Pro-Plaintiff, Neutral, or Mixed
-      - **Confidence** - How confident the AI is in its assessment (percentage)
-      - **Analysis** - Explanation of why this stance was determined
-      - **Key Factors** - Specific elements that influenced the stance
-      - **Relevant Quotes** - Direct quotes from the article supporting the analysis
-
-      *How it's generated:*
-      - Stance analysis is configured at the stream level by admins
-      - The AI analyzes the article's abstract using customized prompts
-      - Results may be pre-computed or generated on-demand
-      - Click "Run AI Analysis" to generate stance for articles without it
-
-      *Use cases:*
-      - Quickly identify which articles support or challenge a position
-      - Find neutral articles for balanced perspectives
-      - Understand the reasoning behind stance classifications
+      See the **article-viewer** help category for full details on using the Article Viewer.
 
   - category: reports
     topic: using-chat
@@ -191,41 +158,3 @@ sections:
       **Limitations:**
       - Cannot access the full text of papers (only abstracts/summaries)
       - Cannot modify reports or settings (members)
-
-  - category: reports
-    topic: tablizer
-    title: Tablizer View (Table with AI Columns)
-    summary: Advanced table view with custom AI-powered columns
-    roles: [org_admin, platform_admin]
-    order: 15
-    content: |
-      Tablizer provides an advanced table view of report articles with AI-powered analysis.
-
-      **Accessing Tablizer:**
-      Click the "Tablizer" button in the report header view mode options.
-
-      **Table Features:**
-      - Sort by any column
-      - Show/hide columns using column visibility toggle
-      - Search across all columns
-      - Filter rows by column values
-
-      **AI Columns:**
-      Add custom columns that use AI to analyze each article:
-
-      1. Click "Add AI Column"
-      2. Choose column type:
-         - **Boolean** - Yes/No classification (e.g., "Is this about drug X?")
-         - **Text** - Extract specific information (e.g., "What dosage was used?")
-         - **Number** - Score or count (e.g., "Sample size")
-      3. Enter your criteria/question
-      4. Optionally enable "Show reasoning" for transparency
-
-      **Data Fetching:**
-      - Initial view shows ~20 articles for fast display
-      - Adding an AI column automatically fetches more articles (up to 500)
-      - This ensures AI analysis covers the full dataset
-
-      **Export & Copy:**
-      - Copy filtered results to clipboard
-      - Export data for external analysis

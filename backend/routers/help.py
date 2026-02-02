@@ -12,13 +12,13 @@ the `help_content_override` table and take precedence over YAML defaults.
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import Any, List, Optional, Dict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
 from database import get_async_db
-from models import User, HelpContentOverride
+from models import User, HelpContentOverride, ChatConfig
 from routers.auth import get_current_user
 from services.help_registry import (
     get_all_topic_ids,
@@ -27,7 +27,9 @@ from services.help_registry import (
     get_topic,
     get_help_toc_for_role,
     reload_help_content,
-    get_default_topic,
+    DEFAULT_TOC_PREAMBLE,
+    DEFAULT_CATEGORY_LABELS,
+    DEFAULT_HELP_NARRATIVE,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,11 +46,13 @@ class HelpTopicContent(BaseModel):
     category: str
     topic: str
     title: str
-    summary: str
+    summary: str  # Current summary (may be overridden)
+    default_summary: str  # Original summary from YAML
     roles: List[str]
     order: int
     content: str
-    has_override: bool = False
+    has_content_override: bool = False
+    has_summary_override: bool = False
 
 
 class HelpCategorySummary(BaseModel):
@@ -91,6 +95,42 @@ class HelpTOCPreview(BaseModel):
     toc: str
 
 
+class HelpTOCConfig(BaseModel):
+    """TOC configuration for customizing help display in system prompts."""
+    preamble: str
+    category_labels: Dict[str, str]
+    narrative: str  # Explains when/why to use the help tool
+
+
+class HelpTOCConfigUpdate(BaseModel):
+    """Update for TOC config."""
+    preamble: Optional[str] = None
+    category_labels: Optional[Dict[str, str]] = None
+    narrative: Optional[str] = None
+
+
+class TopicSummaryInfo(BaseModel):
+    """Info about a topic summary for editing."""
+    category: str
+    topic: str
+    title: str
+    default_summary: str  # From YAML
+    current_summary: str  # May be overridden
+    has_override: bool
+
+
+class TopicSummariesResponse(BaseModel):
+    """All topic summaries grouped by category."""
+    categories: Dict[str, List[TopicSummaryInfo]]
+
+
+class TopicSummaryUpdate(BaseModel):
+    """Update for a single topic summary."""
+    category: str
+    topic: str
+    summary: str  # New summary (empty string to reset to default)
+
+
 # ============================================================================
 # Helpers
 # ============================================================================
@@ -102,32 +142,34 @@ def require_platform_admin(current_user: User = Depends(get_current_user)) -> Us
     return current_user
 
 
-def get_category_label(category: str) -> str:
+def get_category_label(category: str, custom_labels: Optional[Dict[str, str]] = None) -> str:
     """Get human-readable label for a category."""
-    labels = {
-        'general': 'Getting Started',
-        'reports': 'Reports',
-        'streams': 'Streams',
-        'tools': 'Tools',
-        'operations': 'Operations',
-    }
+    # Start with defaults
+    labels = dict(DEFAULT_CATEGORY_LABELS)
+    # Merge in custom labels if provided
+    if custom_labels:
+        labels.update(custom_labels)
     return labels.get(category, category.replace('-', ' ').title())
 
 
-async def get_all_overrides(db: AsyncSession) -> Dict[str, str]:
-    """Get all help content overrides as a dict of 'category/topic' -> content."""
+async def get_all_overrides(db: AsyncSession) -> Dict[str, Dict[str, Optional[str]]]:
+    """Get all help overrides as a dict of 'category/topic' -> {content, summary}."""
     result = await db.execute(select(HelpContentOverride))
-    return {f"{row.category}/{row.topic}": row.content for row in result.scalars().all()}
+    return {
+        f"{row.category}/{row.topic}": {"content": row.content, "summary": row.summary}
+        for row in result.scalars().all()
+    }
 
 
 async def save_override(
     db: AsyncSession,
     category: str,
     topic: str,
-    content: str,
-    user_id: int
+    user_id: int,
+    content: Optional[str] = None,
+    summary: Optional[str] = None
 ) -> None:
-    """Save a help content override."""
+    """Save a help override (content and/or summary)."""
     from sqlalchemy import and_
     result = await db.execute(
         select(HelpContentOverride).where(
@@ -140,13 +182,17 @@ async def save_override(
     existing = result.scalars().first()
 
     if existing:
-        existing.content = content
+        if content is not None:
+            existing.content = content
+        if summary is not None:
+            existing.summary = summary
         existing.updated_by = user_id
     else:
         override = HelpContentOverride(
             category=category,
             topic=topic,
             content=content,
+            summary=summary,
             updated_by=user_id
         )
         db.add(override)
@@ -230,18 +276,24 @@ async def get_help_category(
     # Build topic list
     topics = []
     for section in sections:
-        has_override = section.id in overrides
-        content = overrides[section.id] if has_override else section.content
+        override = overrides.get(section.id, {})
+        has_content_override = override.get("content") is not None
+        has_summary_override = override.get("summary") is not None
+
+        content = override.get("content") if has_content_override else section.content
+        summary = override.get("summary") if has_summary_override else section.summary
 
         topics.append(HelpTopicContent(
             category=section.category,
             topic=section.topic,
             title=section.title,
-            summary=section.summary,
+            summary=summary,
+            default_summary=section.summary,
             roles=section.roles,
             order=section.order,
             content=content,
-            has_override=has_override
+            has_content_override=has_content_override,
+            has_summary_override=has_summary_override
         ))
 
     return HelpCategoryDetail(
@@ -266,18 +318,24 @@ async def get_help_topic(
         raise HTTPException(status_code=404, detail=f"Help topic '{category}/{topic}' not found")
 
     overrides = await get_all_overrides(db)
-    has_override = section.id in overrides
-    content = overrides[section.id] if has_override else section.content
+    override = overrides.get(section.id, {})
+    has_content_override = override.get("content") is not None
+    has_summary_override = override.get("summary") is not None
+
+    content = override.get("content") if has_content_override else section.content
+    summary = override.get("summary") if has_summary_override else section.summary
 
     return HelpTopicContent(
         category=section.category,
         topic=section.topic,
         title=section.title,
-        summary=section.summary,
+        summary=summary,
+        default_summary=section.summary,
         roles=section.roles,
         order=section.order,
         content=content,
-        has_override=has_override
+        has_content_override=has_content_override,
+        has_summary_override=has_summary_override
     )
 
 
@@ -317,7 +375,7 @@ async def update_help_category(
                 await delete_override(db, topic_update.category, topic_update.topic)
             else:
                 # Content differs - save override
-                await save_override(db, topic_update.category, topic_update.topic, topic_update.content, current_user.user_id)
+                await save_override(db, topic_update.category, topic_update.topic, current_user.user_id, content=topic_update.content)
 
         await db.commit()
     except Exception as e:
@@ -347,7 +405,7 @@ async def update_help_topic(
         if topic_data and content == topic_data.content:
             await delete_override(db, category, topic)
         else:
-            await save_override(db, category, topic, content, current_user.user_id)
+            await save_override(db, category, topic, current_user.user_id, content=content)
         await db.commit()
     except Exception as e:
         logger.error(f"Failed to update help topic {category}/{topic}: {e}", exc_info=True)
@@ -408,16 +466,26 @@ async def reset_help_topic(
 
 @router.get("/toc-preview", response_model=List[HelpTOCPreview])
 async def preview_help_toc(
-    current_user: User = Depends(require_platform_admin)
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db)
 ) -> List[HelpTOCPreview]:
     """
     Preview the help TOC as seen by each role (platform admin only).
+    Uses the current TOC configuration from the database.
     """
+    # Get current config
+    config = await get_toc_config_from_db(db)
+
     roles = ["member", "org_admin", "platform_admin"]
     previews = []
 
     for role in roles:
-        toc = get_help_toc_for_role(role)
+        toc = get_help_toc_for_role(
+            role,
+            preamble=config['preamble'],
+            category_labels=config['category_labels'],
+            summary_overrides=config.get('summary_overrides', {})
+        )
         previews.append(HelpTOCPreview(role=role, toc=toc or "(empty)"))
 
     return previews
@@ -437,4 +505,294 @@ async def reload_help(
         return {"status": "ok", "topics_loaded": topic_count}
     except Exception as e:
         logger.error(f"Failed to reload help content: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Topic Summary Endpoints
+# ============================================================================
+
+@router.get("/summaries", response_model=TopicSummariesResponse)
+async def get_topic_summaries(
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db)
+) -> TopicSummariesResponse:
+    """
+    Get all topic summaries for editing (platform admin only).
+    Returns summaries grouped by category with override status.
+    """
+    from services.help_registry import get_all_categories, get_topics_by_category
+
+    overrides = await get_all_overrides(db)
+    categories_dict = {}
+
+    for category in get_all_categories():
+        topics = get_topics_by_category(category)
+        summaries = []
+
+        for topic in topics:
+            override = overrides.get(topic.id, {})
+            has_override = override.get("summary") is not None
+            current = override.get("summary") if has_override else topic.summary
+
+            summaries.append(TopicSummaryInfo(
+                category=topic.category,
+                topic=topic.topic,
+                title=topic.title,
+                default_summary=topic.summary,
+                current_summary=current,
+                has_override=has_override
+            ))
+
+        categories_dict[category] = summaries
+
+    return TopicSummariesResponse(categories=categories_dict)
+
+
+@router.put("/summaries/{category}/{topic}")
+async def update_topic_summary(
+    category: str,
+    topic: str,
+    update: TopicSummaryUpdate,
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db)
+) -> TopicSummaryInfo:
+    """
+    Update a topic's summary (platform admin only).
+    Send empty string to reset to default.
+    """
+    from services.help_registry import get_topic as get_topic_section
+
+    section = get_topic_section(category, topic)
+    if not section:
+        raise HTTPException(status_code=404, detail=f"Topic '{category}/{topic}' not found")
+
+    # If empty string or matches default, clear the override
+    if not update.summary.strip() or update.summary.strip() == section.summary:
+        # Remove summary override (but keep content if it exists)
+        from sqlalchemy import and_
+        result = await db.execute(
+            select(HelpContentOverride).where(
+                and_(
+                    HelpContentOverride.category == category,
+                    HelpContentOverride.topic == topic
+                )
+            )
+        )
+        existing = result.scalars().first()
+        if existing:
+            existing.summary = None
+            # If both content and summary are null, delete the row
+            if existing.content is None:
+                await db.delete(existing)
+        await db.commit()
+
+        return TopicSummaryInfo(
+            category=category,
+            topic=topic,
+            title=section.title,
+            default_summary=section.summary,
+            current_summary=section.summary,
+            has_override=False
+        )
+    else:
+        # Save summary override
+        await save_override(db, category, topic, current_user.user_id, summary=update.summary.strip())
+        await db.commit()
+
+        return TopicSummaryInfo(
+            category=category,
+            topic=topic,
+            title=section.title,
+            default_summary=section.summary,
+            current_summary=update.summary.strip(),
+            has_override=True
+        )
+
+
+# ============================================================================
+# TOC Config Endpoints
+# ============================================================================
+
+async def get_toc_config_from_db(db: AsyncSession) -> Dict[str, Any]:
+    """Get TOC config from database, falling back to defaults."""
+    import json
+
+    # Load all help-related ChatConfig entries at once
+    result = await db.execute(
+        select(ChatConfig).where(ChatConfig.scope == "help")
+    )
+    help_configs = {row.scope_key: row.content for row in result.scalars().all()}
+
+    # Get preamble
+    preamble = help_configs.get("toc-preamble") or DEFAULT_TOC_PREAMBLE
+
+    # Get narrative
+    narrative = help_configs.get("narrative") or DEFAULT_HELP_NARRATIVE
+
+    # Get category labels
+    labels_content = help_configs.get("category-labels")
+    if labels_content:
+        try:
+            category_labels = json.loads(labels_content)
+        except json.JSONDecodeError:
+            category_labels = dict(DEFAULT_CATEGORY_LABELS)
+    else:
+        category_labels = dict(DEFAULT_CATEGORY_LABELS)
+
+    # Get summary overrides from help_content_override table
+    summary_result = await db.execute(select(HelpContentOverride))
+    summary_overrides = {
+        f"{row.category}/{row.topic}": row.summary
+        for row in summary_result.scalars().all()
+        if row.summary  # Only include non-null summaries
+    }
+
+    return {
+        'preamble': preamble,
+        'narrative': narrative,
+        'category_labels': category_labels,
+        'summary_overrides': summary_overrides,
+    }
+
+
+@router.get("/toc-config", response_model=HelpTOCConfig)
+async def get_help_toc_config(
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db)
+) -> HelpTOCConfig:
+    """
+    Get the current TOC configuration (platform admin only).
+
+    Returns:
+    - narrative: Text explaining when/why to use the help tool
+    - preamble: Text shown before the TOC listing
+    - category_labels: Custom labels for each category
+    """
+    config = await get_toc_config_from_db(db)
+    return HelpTOCConfig(
+        preamble=config['preamble'],
+        narrative=config['narrative'],
+        category_labels=config['category_labels']
+    )
+
+
+@router.put("/toc-config", response_model=HelpTOCConfig)
+async def update_help_toc_config(
+    update: HelpTOCConfigUpdate,
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db)
+) -> HelpTOCConfig:
+    """
+    Update the TOC configuration (platform admin only).
+
+    All fields are optional - only provided fields are updated.
+    """
+    import json
+    from datetime import datetime
+
+    try:
+        # Update preamble if provided
+        if update.preamble is not None:
+            preamble_result = await db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "help",
+                    ChatConfig.scope_key == "toc-preamble"
+                )
+            )
+            existing = preamble_result.scalars().first()
+
+            if existing:
+                existing.content = update.preamble
+                existing.updated_at = datetime.utcnow()
+                existing.updated_by = current_user.user_id
+            else:
+                db.add(ChatConfig(
+                    scope="help",
+                    scope_key="toc-preamble",
+                    content=update.preamble,
+                    updated_by=current_user.user_id
+                ))
+
+        # Update narrative if provided
+        if update.narrative is not None:
+            narrative_result = await db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "help",
+                    ChatConfig.scope_key == "narrative"
+                )
+            )
+            existing = narrative_result.scalars().first()
+
+            if existing:
+                existing.content = update.narrative
+                existing.updated_at = datetime.utcnow()
+                existing.updated_by = current_user.user_id
+            else:
+                db.add(ChatConfig(
+                    scope="help",
+                    scope_key="narrative",
+                    content=update.narrative,
+                    updated_by=current_user.user_id
+                ))
+
+        # Update category labels if provided
+        if update.category_labels is not None:
+            labels_result = await db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "help",
+                    ChatConfig.scope_key == "category-labels"
+                )
+            )
+            existing = labels_result.scalars().first()
+            labels_json = json.dumps(update.category_labels)
+
+            if existing:
+                existing.content = labels_json
+                existing.updated_at = datetime.utcnow()
+                existing.updated_by = current_user.user_id
+            else:
+                db.add(ChatConfig(
+                    scope="help",
+                    scope_key="category-labels",
+                    content=labels_json,
+                    updated_by=current_user.user_id
+                ))
+
+        await db.commit()
+        logger.info(f"User {current_user.email} updated help TOC config")
+
+    except Exception as e:
+        logger.error(f"Failed to update TOC config: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Return updated config
+    return await get_help_toc_config(current_user, db)
+
+
+@router.delete("/toc-config")
+async def reset_help_toc_config(
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db)
+) -> dict:
+    """
+    Reset TOC configuration to defaults (platform admin only).
+
+    Resets narrative, preamble, and category labels to their defaults.
+    """
+    try:
+        # Delete all help-scoped config entries (narrative, preamble, labels)
+        result = await db.execute(
+            select(ChatConfig).where(ChatConfig.scope == "help")
+        )
+        for config_row in result.scalars().all():
+            await db.delete(config_row)
+
+        await db.commit()
+        logger.info(f"User {current_user.email} reset help TOC config to defaults")
+
+        return {"status": "ok", "message": "Help configuration reset to defaults"}
+
+    except Exception as e:
+        logger.error(f"Failed to reset TOC config: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

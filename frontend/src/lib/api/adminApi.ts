@@ -289,6 +289,46 @@ export const adminApi = {
     return response.data;
   },
 
+  /**
+   * Get help TOC configuration (platform admin only)
+   */
+  async getHelpTocConfig(): Promise<HelpTOCConfig> {
+    const response = await api.get('/api/admin/help/toc-config');
+    return response.data;
+  },
+
+  /**
+   * Update help TOC configuration (platform admin only)
+   */
+  async updateHelpTocConfig(update: HelpTOCConfigUpdate): Promise<HelpTOCConfig> {
+    const response = await api.put('/api/admin/help/toc-config', update);
+    return response.data;
+  },
+
+  /**
+   * Reset help TOC configuration to defaults (platform admin only)
+   */
+  async resetHelpTocConfig(): Promise<{ status: string; message: string }> {
+    const response = await api.delete('/api/admin/help/toc-config');
+    return response.data;
+  },
+
+  /**
+   * Get all topic summaries for inline editing (platform admin only)
+   */
+  async getHelpSummaries(): Promise<TopicSummariesResponse> {
+    const response = await api.get('/api/admin/help/summaries');
+    return response.data;
+  },
+
+  /**
+   * Update a single topic summary (platform admin only)
+   */
+  async updateHelpSummary(category: string, topic: string, summary: string): Promise<TopicSummaryInfo> {
+    const response = await api.put(`/api/admin/help/summaries/${category}/${topic}`, { category, topic, summary });
+    return response.data;
+  },
+
   // ==================== Unified Chat Config Management ====================
 
   /**
@@ -467,6 +507,32 @@ export interface HelpTopicUpdate {
 export interface HelpTOCPreview {
   role: string;
   toc: string;
+}
+
+export interface HelpTOCConfig {
+  preamble: string;
+  narrative: string;  // Explains when/why to use the help tool
+  category_labels: Record<string, string>;
+}
+
+export interface HelpTOCConfigUpdate {
+  preamble?: string | null;
+  narrative?: string | null;  // Explains when/why to use the help tool
+  category_labels?: Record<string, string> | null;
+}
+
+// Topic summary types for inline editing
+export interface TopicSummaryInfo {
+  category: string;
+  topic: string;
+  title: string;
+  default_summary: string;  // From YAML
+  current_summary: string;  // May be overridden
+  has_override: boolean;
+}
+
+export interface TopicSummariesResponse {
+  categories: Record<string, TopicSummaryInfo[]>;
 }
 
 // Unified Chat Config types

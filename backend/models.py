@@ -737,12 +737,17 @@ class HelpContentOverride(Base):
     Two-level hierarchy:
     - category: Feature area (reports, streams, tools, operations, general)
     - topic: Specific topic within the category (overview, viewing, etc.)
+
+    Fields:
+    - content: Override for the full help content (markdown)
+    - summary: Override for the short description shown in TOC (sent to LLM)
     """
     __tablename__ = "help_content_override"
 
     category = Column(String(50), primary_key=True)  # e.g., "reports"
     topic = Column(String(50), primary_key=True)     # e.g., "overview"
-    content = Column(Text, nullable=False)           # Markdown content
+    content = Column(Text, nullable=True)            # Markdown content override
+    summary = Column(String(200), nullable=True)     # TOC summary override (shown to LLM)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
 

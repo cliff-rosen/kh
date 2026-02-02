@@ -1,0 +1,151 @@
+sections:
+  - category: tablizer
+    topic: overview
+    title: Tablizer Overview
+    summary: Search PubMed and analyze articles with AI-powered columns
+    roles: [org_admin, platform_admin]
+    order: 10
+    content: |
+      Tablizer is a powerful tool for searching PubMed and analyzing articles with custom AI columns.
+
+      **Accessing Tablizer:**
+      - From a report: Click the "Tablizer" view mode button
+      - Standalone: Navigate to the Tablizer page directly
+
+      **Core Features:**
+      1. **Search** - Query PubMed with standard syntax
+      2. **AI Columns** - Add custom analysis columns
+      3. **Filter & Sort** - Refine results dynamically
+      4. **History** - Track and compare searches
+      5. **Export** - Download results as CSV
+
+  - category: tablizer
+    topic: searching
+    title: Searching PubMed
+    summary: How to construct effective PubMed queries
+    roles: [org_admin, platform_admin]
+    order: 20
+    content: |
+      Tablizer uses standard PubMed query syntax for searching.
+
+      **Basic Search:**
+      Enter keywords or phrases to search across titles, abstracts, and MeSH terms.
+
+      **Advanced Syntax:**
+      - `AND` / `OR` / `NOT` - Boolean operators
+      - `"phrase"` - Exact phrase matching
+      - `[ti]` - Search title only
+      - `[au]` - Search author
+      - `[mh]` - Search MeSH terms
+      - `[pt]` - Publication type
+
+      **Examples:**
+      - `asbestos AND mesothelioma`
+      - `"lung cancer"[ti] AND treatment`
+      - `Smith J[au] AND 2023[dp]`
+
+      **Date Filters:**
+      Use the date filter controls to limit by:
+      - Publication date
+      - Entry date (when added to PubMed)
+
+      **Results:**
+      - Initial search returns ~20 articles quickly
+      - Adding AI columns fetches up to 500 for analysis
+
+  - category: tablizer
+    topic: ai-columns
+    title: AI-Powered Columns
+    summary: Add custom AI analysis to your search results
+    roles: [org_admin, platform_admin]
+    order: 30
+    content: |
+      AI columns let you analyze articles with custom criteria.
+
+      **Adding an AI Column:**
+      1. Click "Add AI Column"
+      2. Choose column type
+      3. Enter your criteria/question
+      4. Optionally enable "Show reasoning"
+      5. Click "Add"
+
+      **Column Types:**
+
+      **Boolean (Yes/No)**
+      Best for filtering. Examples:
+      - "Is this a clinical trial?"
+      - "Does this study involve human subjects?"
+      - "Is this about drug X?"
+
+      After adding, use Yes/No toggle buttons to filter.
+
+      **Text**
+      Extract specific information. Examples:
+      - "What is the study design?"
+      - "Summarize the main finding in one sentence"
+      - "What population was studied?"
+
+      **Number**
+      Extract numeric values. Examples:
+      - "What is the sample size?"
+      - "How many months of follow-up?"
+
+      **Tips:**
+      - Be specific in your criteria
+      - Boolean columns are most useful for filtering
+      - "Show reasoning" helps understand AI decisions
+
+  - category: tablizer
+    topic: history-compare
+    title: History and Compare
+    summary: Track searches and find differences between result sets
+    roles: [org_admin, platform_admin]
+    order: 40
+    content: |
+      The History panel tracks your searches and enables powerful comparisons.
+
+      **History Panel:**
+      - Every search is automatically saved
+      - Click a past search to view those results
+      - Delete old searches you no longer need
+
+      **Compare Mode:**
+      Select two searches to compare and see:
+      - **Intersection** - Articles in both searches
+      - **Only in A** - Articles unique to first search
+      - **Only in B** - Articles unique to second search
+
+      **Use Case: Finding False Negatives**
+      A common workflow for validating search strategies:
+
+      1. Run your original query (Query A)
+      2. Run a broader alternative (Query B)
+      3. Compare A vs B
+      4. Check "Only in B" for relevant articles A missed
+      5. If you find relevant articles, refine Query A
+
+      This helps ensure your search strategy isn't missing important literature.
+
+  - category: tablizer
+    topic: export
+    title: Exporting Results
+    summary: Copy and export filtered article data
+    roles: [org_admin, platform_admin]
+    order: 50
+    content: |
+      Export your Tablizer results for use in other tools.
+
+      **Copy to Clipboard:**
+      - Click "Copy" to copy visible rows
+      - Includes all columns (standard and AI)
+      - Paste into Excel, Google Sheets, etc.
+
+      **Export CSV:**
+      - Click "Export" for a CSV download
+      - Contains all filtered results
+      - AI column values included
+
+      **Tips:**
+      - Apply filters before exporting to get specific subsets
+      - Boolean AI columns help narrow down relevant articles
+      - Use text AI columns to pre-extract information you need
