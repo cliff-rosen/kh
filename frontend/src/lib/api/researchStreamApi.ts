@@ -50,7 +50,6 @@ export interface ResearchStreamUpdateRequest {
     purpose?: string;
     schedule_config?: ScheduleConfig;
     is_active?: boolean;
-    chat_instructions?: string | null;
     semantic_space?: SemanticSpace;
     retrieval_config?: RetrievalConfig;
     presentation_config?: PresentationConfig;

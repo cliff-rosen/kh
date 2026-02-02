@@ -176,7 +176,7 @@ export interface EnrichmentConfig {
 /**
  * Configuration for article-level analysis features.
  * Contains stance analysis prompt.
- * Note: chat_instructions is stored directly on the stream, not here.
+ * Note: chat_instructions are stored in the chat_config table (admin only).
  */
 export interface ArticleAnalysisConfig {
     stance_analysis_prompt?: PromptTemplate | null;
@@ -253,9 +253,6 @@ export interface ResearchStream {
 
     // === CONTROL PANEL ===
     llm_config?: PipelineLLMConfig | null;
-
-    // === CHAT ===
-    chat_instructions?: string | null;
 
     // === SCHEDULING ===
     schedule_config?: ScheduleConfig | null;

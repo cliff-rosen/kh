@@ -96,7 +96,6 @@ class ResearchStreamService:
         retrieval_config: Dict[str, Any],
         presentation_config: Dict[str, Any],
         schedule_config: Optional[Dict[str, Any]] = None,
-        chat_instructions: Optional[str] = None,
         org_id: Optional[int] = None,
     ) -> ResearchStream:
         """
@@ -138,7 +137,6 @@ class ResearchStreamService:
             stream_name=stream_name,
             purpose=purpose,
             schedule_config=schedule_config,
-            chat_instructions=chat_instructions,
             semantic_space=semantic_space,
             retrieval_config=retrieval_config,
             presentation_config=presentation_config,
@@ -591,37 +589,22 @@ class ResearchStreamService:
             return ResearchStreamSchema.model_validate(stream)
         return None
 
-    async def get_all_streams_with_chat_instructions(self) -> List[dict]:
-        """Get all streams with their chat instructions status (async). For admin chat config."""
+    async def get_all_streams_basic_info(self) -> List[dict]:
+        """Get basic info (id, name) for all streams (async). For admin chat config."""
         result = await self.db.execute(
             select(ResearchStream).order_by(ResearchStream.stream_name)
         )
         streams = result.scalars().all()
 
-        results = []
-        for stream in streams:
-            has_instr = (
-                stream.chat_instructions is not None
-                and len(stream.chat_instructions.strip()) > 0
-            )
-            preview = None
-            if has_instr:
-                preview = (
-                    stream.chat_instructions[:200] + "..."
-                    if len(stream.chat_instructions) > 200
-                    else stream.chat_instructions
-                )
+        results = [
+            {
+                "stream_id": stream.stream_id,
+                "stream_name": stream.stream_name,
+            }
+            for stream in streams
+        ]
 
-            results.append(
-                {
-                    "stream_id": stream.stream_id,
-                    "stream_name": stream.stream_name,
-                    "has_instructions": has_instr,
-                    "instructions_preview": preview,
-                }
-            )
-
-        logger.info(f"Got chat instructions status for {len(results)} streams")
+        logger.info(f"Got basic info for {len(results)} streams")
         return results
 
     async def get_stream_by_id(self, stream_id: int) -> ResearchStream:

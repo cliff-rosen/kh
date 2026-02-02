@@ -620,10 +620,9 @@ class ChatStreamService:
     async def _load_stream_instructions(self, context: Dict[str, Any]) -> Optional[str]:
         """Load stream-specific chat instructions based on stream_id in context (async).
 
-        Checks chat_config table first for overrides, then falls back to
-        the stream's chat_instructions column.
+        Instructions are stored in the chat_config table (scope='stream').
         """
-        from models import ResearchStream, Report, ChatConfig
+        from models import Report, ChatConfig
 
         stream_id = context.get("stream_id")
 
@@ -641,7 +640,7 @@ class ChatStreamService:
         if not stream_id:
             return None
 
-        # Check chat_config table first for override
+        # Get instructions from chat_config table
         try:
             result = await self.db.execute(
                 select(ChatConfig).where(
@@ -649,24 +648,13 @@ class ChatStreamService:
                     ChatConfig.scope_key == str(stream_id)
                 )
             )
-            config_override = result.scalars().first()
-            if config_override and config_override.instructions:
-                return config_override.instructions.strip()
+            config = result.scalars().first()
+            if config and config.instructions:
+                return config.instructions.strip()
         except Exception as e:
-            logger.warning(f"Failed to check stream config override: {e}")
+            logger.warning(f"Failed to load stream instructions: {e}")
 
-        # Fall back to stream's chat_instructions column
-        stmt = select(ResearchStream).where(
-            ResearchStream.stream_id == stream_id,
-            ResearchStream.user_id == self.user_id
-        )
-        result = await self.db.execute(stmt)
-        stream = result.scalars().first()
-
-        if not stream or not stream.chat_instructions:
-            return None
-
-        return stream.chat_instructions.strip()
+        return None
 
     async def _load_report_context(self, report_id: int, context: Dict[str, Any]) -> Optional[str]:
         """Load report data from database and format it for LLM context (async)."""

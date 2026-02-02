@@ -134,7 +134,6 @@ class ResearchStreamCreateRequest(BaseModel):
     stream_name: str = Field(..., min_length=1, max_length=255)
     purpose: str = Field(..., min_length=1, description="Why this stream exists")
     schedule_config: Optional[ScheduleConfig] = Field(None, description="Scheduling configuration (frequency, timing, etc.)")
-    chat_instructions: Optional[str] = Field(None, description="Stream-specific instructions for the chat assistant")
     # Scope determines visibility (personal, organization, or global)
     # - personal: Only creator can see (default)
     # - organization: All org members can subscribe (org_admin only)
@@ -151,7 +150,6 @@ class ResearchStreamUpdateRequest(BaseModel):
     purpose: Optional[str] = None
     schedule_config: Optional[ScheduleConfig] = None
     is_active: Optional[bool] = None
-    chat_instructions: Optional[str] = Field(None, description="Stream-specific instructions for the chat assistant")
     # Three-layer architecture
     semantic_space: Optional[SemanticSpace] = None
     retrieval_config: Optional[RetrievalConfig] = None
@@ -294,7 +292,6 @@ async def create_research_stream(
             retrieval_config=retrieval_config_dict,
             presentation_config=presentation_config_dict,
             schedule_config=schedule_config_dict,
-            chat_instructions=request.chat_instructions,
             org_id=current_user.org_id
         )
 

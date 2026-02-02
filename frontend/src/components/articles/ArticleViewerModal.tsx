@@ -125,6 +125,7 @@ export default function ArticleViewerModal({
 
     // Memoize chat context to include full current article info
     // Must be after stanceCache declaration since it depends on it
+    // Override current_page to 'article_detail' for article-specific chat behavior
     const articleChatContext = useMemo(() => {
         if (!chatContext) return undefined;
 
@@ -134,6 +135,7 @@ export default function ArticleViewerModal({
 
         return {
             ...chatContext,
+            current_page: 'article_detail',  // Override to use article_detail page config
             current_article: article ? {
                 article_id: article.id,
                 pmid: article.pmid,

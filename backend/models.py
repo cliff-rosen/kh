@@ -202,12 +202,6 @@ class ResearchStream(Base):
     # Format: {"semantic_filter": {"model": "gpt-5-mini", "reasoning_effort": "medium"}, ...}
     llm_config = Column(JSON, nullable=True)
 
-    # === CHAT CONFIGURATION ===
-    # Stream-specific instructions for the chat assistant
-    # These are included in the system prompt when chatting about this stream/reports
-    # Example: Classification rules, domain expertise, special terminology
-    chat_instructions = Column(Text, nullable=True)
-
     # === METADATA ===
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

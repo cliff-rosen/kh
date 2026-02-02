@@ -55,7 +55,6 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
             lookback_days: null
         } as ScheduleConfig,
-        chat_instructions: '',
 
         // === LAYER 1: SEMANTIC SPACE ===
         semantic_space: {
@@ -155,7 +154,6 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
             stream_name: form.stream_name,
             purpose: purpose,
             schedule_config: form.schedule_config,
-            chat_instructions: form.chat_instructions || null,
             scope: form.scope,  // Stream visibility scope
             // Three-layer architecture
             semantic_space: form.semantic_space,
@@ -273,23 +271,6 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                         <option value={ReportFrequency.BIWEEKLY}>Bi-weekly</option>
                         <option value={ReportFrequency.MONTHLY}>Monthly</option>
                     </select>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Chat Instructions
-                        <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">(Optional)</span>
-                    </label>
-                    <textarea
-                        value={form.chat_instructions}
-                        onChange={(e) => setForm({ ...form, chat_instructions: e.target.value })}
-                        placeholder="Enter stream-specific instructions for the AI assistant. For example: classification rules, domain expertise, terminology guidance..."
-                        rows={4}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                    />
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        These instructions will be included in the system prompt when chatting about this stream's reports and articles.
-                    </p>
                 </div>
             </div>
 

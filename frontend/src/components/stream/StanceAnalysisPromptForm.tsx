@@ -180,7 +180,7 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
             const usingDefault = isUsingDefaultPrompt();
 
             // Build config - only contains stance_analysis_prompt
-            // (chat_instructions is now stored in a separate field on the stream)
+            // (chat_instructions are stored in chat_config table, editable via admin)
             const config = usingDefault ? null : {
                 stance_analysis_prompt: prompt,
             };

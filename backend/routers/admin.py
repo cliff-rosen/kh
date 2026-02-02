@@ -856,6 +856,7 @@ class ChatConfigResponse(BaseModel):
 async def get_chat_config(
     current_user: User = Depends(require_platform_admin),
     stream_service: ResearchStreamService = Depends(get_research_stream_service),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Get complete chat system configuration. Platform admin only."""
     logger.info(f"get_chat_config - admin_user_id={current_user.user_id}")
@@ -921,17 +922,32 @@ async def get_chat_config(
                 )
             )
 
-        # Get stream chat instructions (async)
-        streams_data = await stream_service.get_all_streams_with_chat_instructions()
-        stream_instructions = [
-            StreamInstructionsInfo(
-                stream_id=s["stream_id"],
-                stream_name=s["stream_name"],
-                has_instructions=s["has_instructions"],
-                instructions_preview=s["instructions_preview"],
+        # Get stream chat instructions from chat_config table
+        streams_data = await stream_service.get_all_streams_basic_info()
+
+        # Get instructions from chat_config
+        config_result = await db.execute(
+            select(ChatConfig).where(ChatConfig.scope == "stream")
+        )
+        configs_by_stream = {cc.scope_key: cc.instructions for cc in config_result.scalars().all()}
+
+        stream_instructions = []
+        for s in streams_data:
+            stream_key = str(s["stream_id"])
+            instructions = configs_by_stream.get(stream_key)
+            has_instr = instructions is not None and len(instructions.strip()) > 0
+            preview = None
+            if has_instr and instructions:
+                preview = instructions[:200] + "..." if len(instructions) > 200 else instructions
+
+            stream_instructions.append(
+                StreamInstructionsInfo(
+                    stream_id=s["stream_id"],
+                    stream_name=s["stream_name"],
+                    has_instructions=has_instr,
+                    instructions_preview=preview,
+                )
             )
-            for s in streams_data
-        ]
 
         # Build summary
         streams_with_instructions = len(
@@ -1022,30 +1038,25 @@ async def list_stream_configs(
     """Get all streams with their chat config (platform admin only)."""
     try:
         # Get all streams
-        streams_data = await stream_service.get_all_streams_with_chat_instructions()
+        streams_data = await stream_service.get_all_streams_basic_info()
 
-        # Get overrides from chat_config table
+        # Get instructions from chat_config table
         result = await db.execute(
             select(ChatConfig).where(ChatConfig.scope == "stream")
         )
-        overrides = {cc.scope_key: cc.instructions for cc in result.scalars().all()}
+        configs_by_stream = {cc.scope_key: cc.instructions for cc in result.scalars().all()}
 
         configs = []
         for stream in streams_data:
             stream_key = str(stream["stream_id"])
-            override = overrides.get(stream_key)
-
-            # Use override if exists, otherwise use stream's chat_instructions
-            instructions = override if stream_key in overrides else (
-                stream.get("chat_instructions") if stream.get("has_instructions") else None
-            )
+            instructions = configs_by_stream.get(stream_key)
 
             configs.append(
                 StreamConfigInfo(
                     stream_id=stream["stream_id"],
                     stream_name=stream["stream_name"],
                     instructions=instructions,
-                    has_override=stream_key in overrides,
+                    has_override=stream_key in configs_by_stream,
                 )
             )
 
@@ -1093,7 +1104,7 @@ async def get_stream_config(
         return StreamConfigInfo(
             stream_id=stream.stream_id,
             stream_name=stream.stream_name,
-            instructions=override.instructions if override else stream.chat_instructions,
+            instructions=override.instructions if override else None,
             has_override=override is not None,
         )
 

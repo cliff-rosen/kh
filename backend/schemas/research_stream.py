@@ -265,7 +265,7 @@ class ArticleAnalysisConfig(BaseModel):
     Contains:
     - stance_analysis_prompt: Custom prompt for stance/position analysis
 
-    Note: chat_instructions is stored directly on the stream, not here.
+    Note: chat_instructions are now stored in the chat_config table (admin only).
 
     Slugs available for stance_analysis:
     - {stream.name}, {stream.purpose}
@@ -375,9 +375,6 @@ class ResearchStream(BaseModel):
 
     # === CONTROL PANEL ===
     llm_config: Optional[PipelineLLMConfig] = Field(None, description="LLM configuration for pipeline stages")
-
-    # === CHAT ===
-    chat_instructions: Optional[str] = Field(None, description="Stream-specific instructions for the chat assistant")
 
     # === SCHEDULING ===
     schedule_config: Optional[ScheduleConfig] = Field(None, description="Scheduling configuration")
