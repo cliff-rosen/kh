@@ -104,9 +104,14 @@ class ChatStreamService:
             context_with_chat = dict(request.context)
             context_with_chat["conversation_id"] = chat_id
 
-            # Build prompts
-            system_prompt = await self._build_system_prompt(context_with_chat, chat_id)
-            messages, _ = await self._build_messages(request, chat_id)  # Trace captures messages internally
+            # Fetch conversation history once (used by both system prompt and message building)
+            db_messages = None
+            if chat_id:
+                db_messages = await self.chat_service.get_messages(chat_id, self.user_id)
+
+            # Build prompts (pass pre-fetched messages to avoid redundant DB calls)
+            system_prompt = await self._build_system_prompt(context_with_chat, chat_id, db_messages)
+            messages, _ = self._build_messages_from_history(request, db_messages)
 
             # Get tools for this page, tab, and subtab (global + page + tab + subtab)
             current_page = context_with_chat.get("current_page", "unknown")
@@ -297,28 +302,25 @@ class ChatStreamService:
 
         return processed
 
-    async def _build_payload_manifest(self, chat_id: Optional[int]) -> Optional[str]:
+    def _build_payload_manifest(self, db_messages: Optional[List] = None) -> Optional[str]:
         """
-        Build a manifest of all payloads from the conversation history (async).
+        Build a manifest of all payloads from the conversation history.
 
         The manifest provides brief summaries of all payloads that have been
         generated during this conversation, allowing the LLM to reference
         them by ID using the get_payload tool.
 
         Args:
-            chat_id: The conversation ID
+            db_messages: Pre-fetched messages from the conversation
 
         Returns:
             Formatted manifest string, or None if no payloads exist
         """
-        if not chat_id:
+        if not db_messages:
             return None
 
-        # Get all messages from this conversation
-        messages = await self.chat_service.get_messages(chat_id, self.user_id)
-
         manifest_entries = []
-        for msg in messages:
+        for msg in db_messages:
             if msg.role != 'assistant' or not msg.extras:
                 continue
 
@@ -408,15 +410,20 @@ class ChatStreamService:
     # Message Building
     # =========================================================================
 
-    async def _build_messages(self, request, chat_id: Optional[int] = None) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+    def _build_messages_from_history(
+        self,
+        request,
+        db_messages: Optional[List] = None
+    ) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
         """
-        Build message history for LLM (async).
-
-        Loads conversation history from database if chat_id is provided,
-        otherwise starts fresh.
+        Build message history for LLM from pre-fetched messages.
 
         Note: Context is provided in the system prompt via _build_page_context,
         so user messages are sent as-is without context wrapping.
+
+        Args:
+            request: The chat request with the current message
+            db_messages: Pre-fetched messages from the conversation (or None for new chat)
 
         Returns:
             tuple: (messages_for_llm, clean_history)
@@ -425,11 +432,10 @@ class ChatStreamService:
         """
         history = []
 
-        # Load history from database if we have a conversation
+        # Build history from pre-fetched messages
         # Exclude the last message - it's the current user message we just saved
         # in _setup_chat, and we'll add it below
-        if chat_id:
-            db_messages = await self.chat_service.get_messages(chat_id, self.user_id)
+        if db_messages:
             # Skip the last message (the one we just saved)
             prior_messages = db_messages[:-1] if db_messages else []
             for msg in prior_messages:
@@ -445,7 +451,12 @@ class ChatStreamService:
     # System Prompt Building
     # =========================================================================
 
-    async def _build_system_prompt(self, context: Dict[str, Any], chat_id: Optional[int] = None) -> str:
+    async def _build_system_prompt(
+        self,
+        context: Dict[str, Any],
+        chat_id: Optional[int] = None,
+        db_messages: Optional[List] = None
+    ) -> str:
         """
         Build system prompt with clean structure (async).
         1. IDENTITY - Who the assistant is (page-specific or default)
@@ -455,6 +466,11 @@ class ChatStreamService:
         5. HELP TABLE OF CONTENTS - Available help sections (role-filtered)
         6. CUSTOM INSTRUCTIONS - Stream-specific instructions (only if defined)
         7. GUIDELINES - Brief response guidance
+
+        Args:
+            context: Page context dict
+            chat_id: Optional conversation ID
+            db_messages: Optional pre-fetched messages (avoids redundant DB call)
         """
         from services.help_registry import get_help_toc_for_role
 
@@ -476,7 +492,7 @@ class ChatStreamService:
             sections.append(f"== CURRENT CONTEXT ==\n{page_context}")
 
         # 3. PAYLOAD MANIFEST (payloads from conversation history, if any)
-        payload_manifest = await self._build_payload_manifest(chat_id)
+        payload_manifest = self._build_payload_manifest(db_messages)
         if payload_manifest:
             sections.append(f"== CONVERSATION DATA ==\n{payload_manifest}")
 
