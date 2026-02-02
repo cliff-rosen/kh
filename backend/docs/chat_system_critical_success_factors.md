@@ -174,7 +174,66 @@ The LLM should never need a "convoluted path" to an answer. If users commonly ne
 - LLM apologizes that it can't do something users expect
 - LLM uses generic tools when domain-specific would be better
 
-### 3.4 Current Tool Inventory
+### 3.4 Tool Adequacy: Don't Force It
+
+**If the available tools aren't adequate for the task, say so. Don't attempt elaborate workarounds.**
+
+#### The Problem with Low-Level Tools
+
+Low-level tools (like web search, basic fetch, raw database queries) can *technically* be combined to accomplish many tasks. But "technically possible" doesn't mean "should attempt."
+
+**Example**: A user asks "Compare the number of CRISPR articles across all my reports from Q1 vs Q2."
+
+With only low-level tools, the LLM might need to:
+1. List all reports
+2. For each report, query article counts
+3. Filter by date range
+4. Categorize by quarter
+5. Aggregate and compare
+
+This is fragile, slow, error-prone, and likely to fail partway through. The right response is: *"I don't have a tool designed for cross-report comparisons. I can look at individual reports, but comparing aggregates across reports would require a reporting tool I don't currently have access to."*
+
+#### Rule: Recognize Tool-Task Mismatch
+
+| Task Complexity | Tool Level | Action |
+|-----------------|------------|--------|
+| Simple lookup | Basic tools available | Proceed |
+| Multi-step but straightforward | Tools exist for each step | Proceed with care |
+| Complex aggregation/comparison | Only low-level primitives | **Defer** - tell user tools aren't adequate |
+| Cross-entity analysis | No direct tool | **Defer** - explain the gap |
+
+#### Signs You Should Defer
+
+- Task requires more than 3-4 chained tool calls
+- Each step depends on parsing/interpreting previous results
+- Failure at any step makes the whole result unreliable
+- The "plan" feels like a fragile Rube Goldberg machine
+- You're not confident the result will be correct
+
+#### How to Defer Gracefully
+
+```
+"That's a great question, but I don't have the right tools to answer it reliably.
+I can [what you CAN do], but [what you CAN'T do] would require [missing capability].
+Would [simpler alternative] help, or is this something that needs a different approach?"
+```
+
+**Example responses:**
+
+| Request | Response |
+|---------|----------|
+| "Compare article counts across all streams" | "I can check individual streams, but I don't have a cross-stream comparison tool. Want me to look at specific streams you name?" |
+| "Show me trends over the last 6 months" | "I can pull data for specific reports, but I don't have a trend analysis tool. I'd need to manually compile multiple reports which may be error-prone." |
+| "Find all articles that were in Report A but not Report B" | "I don't have a report diff tool. I could try to compare article lists manually, but with large reports this would be unreliable." |
+
+#### Don't Make Assumptions About Tool Behavior
+
+When tool documentation is incomplete:
+- Don't guess at undocumented behavior (e.g., what fields a search covers)
+- Don't invent parameters or limits
+- Acknowledge what you don't know rather than making claims
+
+### 3.5 Current Tool Inventory
 
 | Tool | Purpose | Mode |
 |------|---------|------|

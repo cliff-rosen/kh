@@ -459,13 +459,14 @@ class ChatStreamService:
     ) -> str:
         """
         Build system prompt with clean structure (async).
-        1. IDENTITY - Who the assistant is (page-specific or default)
-        2. CONTEXT - Current page and loaded data
-        3. PAYLOAD MANIFEST - Available payloads from conversation history (if any)
-        4. CAPABILITIES - Available tools and payloads (only if any)
-        5. HELP TABLE OF CONTENTS - Available help sections (role-filtered)
-        6. CUSTOM INSTRUCTIONS - Stream-specific instructions (only if defined)
-        7. GUIDELINES - Brief response guidance
+
+        Order rationale:
+        1. PERSONA - Who the assistant is and how it behaves (customization first)
+        2. STREAM INSTRUCTIONS - Domain-specific context (narrows focus)
+        3. CONTEXT - Current page state and loaded data (facts)
+        4. CAPABILITIES - Available tools and actions (what it can do)
+        5. HELP TOC - Reference material (lookup resource)
+        6. FORMAT RULES - Technical formatting (least important)
 
         Args:
             context: Page context dict
@@ -481,27 +482,32 @@ class ChatStreamService:
 
         sections = []
 
-        # 1. IDENTITY
+        # 1. PERSONA (who + how, page-level)
         current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-        identity = await self._get_identity(current_page)
-        sections.append(f"{identity}\n\nCurrent date and time: {current_time}")
+        persona = await self._get_persona(current_page)
+        sections.append(f"{persona}\n\nCurrent date and time: {current_time}")
 
-        # 2. CONTEXT (page context + loaded data)
+        # 2. STREAM INSTRUCTIONS (domain-specific, stream-level)
+        stream_instructions = await self._load_stream_instructions(context)
+        if stream_instructions:
+            sections.append(f"== STREAM CONTEXT ==\n{stream_instructions}")
+
+        # 3. CONTEXT (page context + loaded data)
         page_context = await self._build_page_context(current_page, context)
         if page_context:
             sections.append(f"== CURRENT CONTEXT ==\n{page_context}")
 
-        # 3. PAYLOAD MANIFEST (payloads from conversation history, if any)
+        # 4. PAYLOAD MANIFEST (payloads from conversation history, if any)
         payload_manifest = self._build_payload_manifest(db_messages)
         if payload_manifest:
             sections.append(f"== CONVERSATION DATA ==\n{payload_manifest}")
 
-        # 4. CAPABILITIES (tools + payloads + client actions, only if any exist)
+        # 5. CAPABILITIES (tools + payloads + client actions)
         capabilities = self._build_capabilities_section(current_page, active_tab, active_subtab)
         if capabilities:
             sections.append(f"== CAPABILITIES ==\n{capabilities}")
 
-        # 5. HELP TABLE OF CONTENTS (role-filtered help sections)
+        # 6. HELP TABLE OF CONTENTS (role-filtered help sections)
         try:
             help_toc = get_help_toc_for_role(user_role)
             if help_toc:
@@ -512,14 +518,8 @@ class ChatStreamService:
         except Exception as e:
             logger.error(f"Failed to load help TOC: {e}")
 
-        # 6. CUSTOM INSTRUCTIONS (stream-specific, only if defined)
-        stream_instructions = await self._load_stream_instructions(context)
-        if stream_instructions:
-            sections.append(f"== CUSTOM INSTRUCTIONS ==\n{stream_instructions}")
-
-        # 7. GUIDELINES (always present, with page/global hierarchy)
-        guidelines = await self._get_guidelines(current_page)
-        sections.append(guidelines)
+        # 7. FORMAT RULES (fixed technical instructions)
+        sections.append(f"== FORMAT RULES ==\n{self.FORMAT_INSTRUCTIONS}")
 
         return "\n\n".join(sections)
 
@@ -560,43 +560,45 @@ class ChatStreamService:
 
         return "\n\n".join(parts)
 
-    # Default identity (used if page doesn't define its own)
-    DEFAULT_IDENTITY = "You are a helpful AI assistant for Knowledge Horizon, a biomedical research intelligence platform."
+    # Default persona (used if page doesn't define its own)
+    DEFAULT_PERSONA = """You are a helpful AI assistant for Knowledge Horizon, a biomedical research intelligence platform.
 
-    # Default behavioral guidelines (used if page doesn't define its own)
-    DEFAULT_GUIDELINES = """## Style
+## Style
 Be conversational and helpful. Keep responses concise and factual.
+
+## Handling Ambiguity
+- For marginally ambiguous queries: State your interpretation, then answer
+- For highly ambiguous queries: Ask for clarification with 2-3 specific options
+- When uncertain if user wants navigation help vs data analysis: Default to documentation/help, offer data analysis as alternative
 
 ## Suggestions
 Most responses should NOT include SUGGESTED_VALUES or SUGGESTED_ACTIONS.
-Only use them when they genuinely help the user take a next step - for example, offering a few clear choices after listing options."""
+Only use them when they genuinely help the user take a next step."""
 
     # Fixed format instructions (always appended, not configurable)
-    SUGGESTION_FORMAT_INSTRUCTIONS = """
-SUGGESTED VALUES (optional):
+    FORMAT_INSTRUCTIONS = """SUGGESTED VALUES (optional):
 To offer quick-select text options the user can click to send as their next message:
 SUGGESTED_VALUES:
 [{"label": "Display Text", "value": "text to send"}]
-Use this sparingly when a few specific choices would help (e.g., selecting from options you've listed).
+Use this sparingly when a few specific choices would help.
 
 SUGGESTED ACTIONS (optional, ONLY use actions listed in CLIENT ACTIONS above):
 To offer clickable buttons that trigger UI actions. You may ONLY use actions explicitly listed in the CLIENT ACTIONS section above. Do NOT invent new actions.
 SUGGESTED_ACTIONS:
-[{"label": "Button Text", "action": "action_from_list", "handler": "client"}]
+[{"label": "Button Text", "action": "action_from_list", "handler": "client"}]"""
 
-IMPORTANT: Most responses should NOT include suggested values or actions. Only use them when genuinely helpful."""
-
-    async def _get_identity(self, current_page: str) -> str:
+    async def _get_persona(self, current_page: str) -> str:
         """
-        Get identity with hierarchy:
-        1. DB page override
-        2. Code page default
-        3. Code global default
+        Get persona (who the assistant is + how it behaves) with hierarchy:
+        1. DB page override (persona field)
+        2. DB page legacy (identity + guidelines fields, for backwards compatibility)
+        3. Code page default
+        4. Code global default
         """
         from models import ChatConfig
-        from services.chat_page_config import get_identity as get_code_identity
+        from services.chat_page_config import get_persona as get_code_persona
 
-        identity = None
+        persona = None
 
         # 1. Check DB for page-level override
         try:
@@ -607,59 +609,20 @@ IMPORTANT: Most responses should NOT include suggested values or actions. Only u
                 )
             )
             page_config = result.scalars().first()
-            if page_config and page_config.identity:
-                identity = page_config.identity
+            if page_config and page_config.content:
+                persona = page_config.content
         except Exception as e:
-            logger.warning(f"Failed to check page identity override: {e}")
+            logger.warning(f"Failed to check page persona override: {e}")
 
         # 2. Fall back to code page default
-        if not identity:
-            identity = get_code_identity(current_page)
+        if not persona:
+            persona = get_code_persona(current_page)
 
         # 3. Fall back to code global default
-        if not identity:
-            identity = self.DEFAULT_IDENTITY
+        if not persona:
+            persona = self.DEFAULT_PERSONA
 
-        return identity
-
-    async def _get_guidelines(self, current_page: str) -> str:
-        """
-        Get behavioral guidelines with hierarchy:
-        1. DB page override
-        2. Code page default
-        3. Code global default
-
-        Always appends fixed format instructions for suggestions.
-        """
-        from models import ChatConfig
-        from services.chat_page_config import get_guidelines as get_code_guidelines
-
-        guidelines = None
-
-        # 1. Check DB for page-level override
-        try:
-            result = await self.db.execute(
-                select(ChatConfig).where(
-                    ChatConfig.scope == "page",
-                    ChatConfig.scope_key == current_page
-                )
-            )
-            page_config = result.scalars().first()
-            if page_config and page_config.guidelines:
-                guidelines = page_config.guidelines
-        except Exception as e:
-            logger.warning(f"Failed to check page guidelines override: {e}")
-
-        # 2. Fall back to code page default
-        if not guidelines:
-            guidelines = get_code_guidelines(current_page)
-
-        # 3. Fall back to code global default
-        if not guidelines:
-            guidelines = self.DEFAULT_GUIDELINES
-
-        # Combine behavioral guidelines with fixed format instructions
-        return f"== GUIDELINES ==\n{guidelines}\n{self.SUGGESTION_FORMAT_INSTRUCTIONS}"
+        return persona
 
     # =========================================================================
     # Context Loading
@@ -721,8 +684,8 @@ IMPORTANT: Most responses should NOT include suggested values or actions. Only u
                 )
             )
             config = result.scalars().first()
-            if config and config.instructions:
-                return config.instructions.strip()
+            if config and config.content:
+                return config.content.strip()
         except Exception as e:
             logger.warning(f"Failed to load stream instructions: {e}")
 

@@ -924,29 +924,28 @@ async def get_chat_config(
                 )
             )
 
-        # Get stream chat instructions from chat_config table
+        # Get stream chat config from chat_config table
         streams_data = await stream_service.get_all_streams_basic_info()
 
-        # Get instructions from chat_config
         config_result = await db.execute(
             select(ChatConfig).where(ChatConfig.scope == "stream")
         )
-        configs_by_stream = {cc.scope_key: cc.instructions for cc in config_result.scalars().all()}
+        configs_by_stream = {cc.scope_key: cc.content for cc in config_result.scalars().all()}
 
         stream_instructions = []
         for s in streams_data:
             stream_key = str(s["stream_id"])
-            instructions = configs_by_stream.get(stream_key)
-            has_instr = instructions is not None and len(instructions.strip()) > 0
+            content = configs_by_stream.get(stream_key)
+            has_content = content is not None and len(content.strip()) > 0
             preview = None
-            if has_instr and instructions:
-                preview = instructions[:200] + "..." if len(instructions) > 200 else instructions
+            if has_content and content:
+                preview = content[:200] + "..." if len(content) > 200 else content
 
             stream_instructions.append(
                 StreamInstructionsInfo(
                     stream_id=s["stream_id"],
                     stream_name=s["stream_name"],
-                    has_instructions=has_instr,
+                    has_instructions=has_content,
                     instructions_preview=preview,
                 )
             )
@@ -991,79 +990,61 @@ async def get_chat_config(
 # ==================== Unified Chat Config Management ====================
 
 
-class ChatConfigInfo(BaseModel):
-    """Chat config entry info."""
-
-    scope: str  # 'stream', 'page', 'global'
-    scope_key: str  # stream_id, page name, or 'default'
-    identity: Optional[str] = None
-    instructions: Optional[str] = None
-    has_override: bool = False
-    default_identity: Optional[str] = None  # For pages
-
-
 class ChatConfigUpdate(BaseModel):
     """Request body for updating chat config."""
 
-    identity: Optional[str] = None
-    instructions: Optional[str] = None
-    guidelines: Optional[str] = None
+    content: Optional[str] = None  # instructions (stream) or persona (page)
 
 
-class StreamConfigInfo(BaseModel):
-    """Stream config with stream metadata."""
+class StreamChatConfig(BaseModel):
+    """Stream chat config info."""
 
     stream_id: int
     stream_name: str
-    instructions: Optional[str] = None
+    content: Optional[str] = None  # Stream instructions
     has_override: bool = False
 
 
-class PageConfigIdentityInfo(BaseModel):
-    """Page config with identity and guidelines info."""
+class PageChatConfig(BaseModel):
+    """Page chat config info."""
 
     page: str
-    identity: Optional[str] = None
-    has_identity_override: bool = False
-    default_identity: Optional[str] = None
-    default_identity_is_global: bool = False  # True if using global default, False if page-specific
-    guidelines: Optional[str] = None
-    has_guidelines_override: bool = False
-    default_guidelines: Optional[str] = None
-    default_guidelines_is_global: bool = False  # True if using global default, False if page-specific
+    content: Optional[str] = None  # Page persona
+    has_override: bool = False
+    default_content: Optional[str] = None
+    default_is_global: bool = False  # True if using global default
 
 
 @router.get(
     "/chat-config/streams",
-    response_model=List[StreamConfigInfo],
+    response_model=List[StreamChatConfig],
     summary="List all stream chat configs",
 )
 async def list_stream_configs(
     current_user: User = Depends(require_platform_admin),
     stream_service: ResearchStreamService = Depends(get_research_stream_service),
     db: AsyncSession = Depends(get_async_db),
-) -> List[StreamConfigInfo]:
+) -> List[StreamChatConfig]:
     """Get all streams with their chat config (platform admin only)."""
     try:
         # Get all streams
         streams_data = await stream_service.get_all_streams_basic_info()
 
-        # Get instructions from chat_config table
+        # Get content from chat_config table
         result = await db.execute(
             select(ChatConfig).where(ChatConfig.scope == "stream")
         )
-        configs_by_stream = {cc.scope_key: cc.instructions for cc in result.scalars().all()}
+        configs_by_stream = {cc.scope_key: cc.content for cc in result.scalars().all()}
 
         configs = []
         for stream in streams_data:
             stream_key = str(stream["stream_id"])
-            instructions = configs_by_stream.get(stream_key)
 
             configs.append(
-                StreamConfigInfo(
+                StreamChatConfig(
                     stream_id=stream["stream_id"],
                     stream_name=stream["stream_name"],
-                    instructions=instructions,
+                    content=configs_by_stream.get(stream_key),
                     has_override=stream_key in configs_by_stream,
                 )
             )
@@ -1082,7 +1063,7 @@ async def list_stream_configs(
 
 @router.get(
     "/chat-config/streams/{stream_id}",
-    response_model=StreamConfigInfo,
+    response_model=StreamChatConfig,
     summary="Get stream chat config",
 )
 async def get_stream_config(
@@ -1090,7 +1071,7 @@ async def get_stream_config(
     current_user: User = Depends(require_platform_admin),
     stream_service: ResearchStreamService = Depends(get_research_stream_service),
     db: AsyncSession = Depends(get_async_db),
-) -> StreamConfigInfo:
+) -> StreamChatConfig:
     """Get chat config for a stream (platform admin only)."""
     try:
         stream = await stream_service.get_stream_by_id(stream_id)
@@ -1109,10 +1090,10 @@ async def get_stream_config(
         )
         override = result.scalars().first()
 
-        return StreamConfigInfo(
+        return StreamChatConfig(
             stream_id=stream.stream_id,
             stream_name=stream.stream_name,
-            instructions=override.instructions if override else None,
+            content=override.content if override else None,
             has_override=override is not None,
         )
 
@@ -1128,7 +1109,7 @@ async def get_stream_config(
 
 @router.put(
     "/chat-config/streams/{stream_id}",
-    response_model=StreamConfigInfo,
+    response_model=StreamChatConfig,
     summary="Update stream chat config",
 )
 async def update_stream_config(
@@ -1137,7 +1118,7 @@ async def update_stream_config(
     current_user: User = Depends(require_platform_admin),
     stream_service: ResearchStreamService = Depends(get_research_stream_service),
     db: AsyncSession = Depends(get_async_db),
-) -> StreamConfigInfo:
+) -> StreamChatConfig:
     """Update chat config for a stream (platform admin only)."""
     try:
         stream = await stream_service.get_stream_by_id(stream_id)
@@ -1159,14 +1140,14 @@ async def update_stream_config(
         existing = result.scalars().first()
 
         if existing:
-            existing.instructions = update.instructions
+            existing.content = update.content
             existing.updated_at = datetime.utcnow()
             existing.updated_by = current_user.user_id
         else:
             new_config = ChatConfig(
                 scope="stream",
                 scope_key=scope_key,
-                instructions=update.instructions,
+                content=update.content,
                 updated_by=current_user.user_id,
             )
             db.add(new_config)
@@ -1175,10 +1156,10 @@ async def update_stream_config(
 
         logger.info(f"User {current_user.email} updated chat config for stream {stream_id}")
 
-        return StreamConfigInfo(
+        return StreamChatConfig(
             stream_id=stream.stream_id,
             stream_name=stream.stream_name,
-            instructions=update.instructions,
+            content=update.content,
             has_override=True,
         )
 
@@ -1194,58 +1175,45 @@ async def update_stream_config(
 
 @router.get(
     "/chat-config/pages",
-    response_model=List[PageConfigIdentityInfo],
+    response_model=List[PageChatConfig],
     summary="List all page chat configs",
 )
 async def list_page_configs(
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_db),
-) -> List[PageConfigIdentityInfo]:
+) -> List[PageChatConfig]:
     """Get all pages with their chat config (platform admin only)."""
-    from services.chat_page_config.registry import _page_registry
+    from services.chat_page_config.registry import _page_registry, get_persona
     from services.chat_stream_service import ChatStreamService
 
-    # Get global defaults (used when page doesn't define its own)
-    global_default_identity = ChatStreamService.DEFAULT_IDENTITY
-    global_default_guidelines = ChatStreamService.DEFAULT_GUIDELINES
+    # Get global default persona
+    global_default = ChatStreamService.DEFAULT_PERSONA
 
     try:
         # Get all database overrides
         result = await db.execute(
             select(ChatConfig).where(ChatConfig.scope == "page")
         )
-        db_overrides = {cc.scope_key: cc for cc in result.scalars().all()}
+        db_overrides = {cc.scope_key: cc.content for cc in result.scalars().all()}
 
-        # Build response with both defaults and overrides
+        # Build response
         configs = []
-        for page, config in _page_registry.items():
-            db_config = db_overrides.get(page)
-            has_identity_override = db_config is not None and db_config.identity is not None
-            has_guidelines_override = db_config is not None and db_config.guidelines is not None
-
-            # Use page-specific default if defined, otherwise use global default
-            identity_is_global = config.identity is None
-            guidelines_is_global = config.guidelines is None
-            page_default_identity = config.identity or global_default_identity
-            page_default_guidelines = config.guidelines or global_default_guidelines
+        for page in _page_registry.keys():
+            db_content = db_overrides.get(page)
+            code_default = get_persona(page)
+            default_content = code_default or global_default
 
             configs.append(
-                PageConfigIdentityInfo(
+                PageChatConfig(
                     page=page,
-                    identity=db_config.identity if has_identity_override else page_default_identity,
-                    has_identity_override=has_identity_override,
-                    default_identity=page_default_identity,
-                    default_identity_is_global=identity_is_global,
-                    guidelines=db_config.guidelines if has_guidelines_override else page_default_guidelines,
-                    has_guidelines_override=has_guidelines_override,
-                    default_guidelines=page_default_guidelines,
-                    default_guidelines_is_global=guidelines_is_global,
+                    content=db_content if db_content else default_content,
+                    has_override=db_content is not None,
+                    default_content=default_content,
+                    default_is_global=code_default is None,
                 )
             )
 
-        # Sort by page name
         configs.sort(key=lambda x: x.page)
-
         logger.info(f"list_page_configs - count={len(configs)}")
         return configs
 
@@ -1261,25 +1229,22 @@ async def list_page_configs(
 
 @router.get(
     "/chat-config/pages/{page}",
-    response_model=PageConfigIdentityInfo,
+    response_model=PageChatConfig,
     summary="Get page chat config",
 )
 async def get_page_config(
     page: str,
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_db),
-) -> PageConfigIdentityInfo:
+) -> PageChatConfig:
     """Get chat config for a page (platform admin only)."""
-    from services.chat_page_config.registry import _page_registry
+    from services.chat_page_config.registry import _page_registry, get_persona
     from services.chat_stream_service import ChatStreamService
 
-    # Get global defaults (used when page doesn't define its own)
-    global_default_identity = ChatStreamService.DEFAULT_IDENTITY
-    global_default_guidelines = ChatStreamService.DEFAULT_GUIDELINES
+    global_default = ChatStreamService.DEFAULT_PERSONA
 
     try:
-        config = _page_registry.get(page)
-        if not config:
+        if not _page_registry.get(page):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Page '{page}' not found",
@@ -1293,25 +1258,17 @@ async def get_page_config(
             )
         )
         db_config = result.scalars().first()
-        has_identity_override = db_config is not None and db_config.identity is not None
-        has_guidelines_override = db_config is not None and db_config.guidelines is not None
+        db_content = db_config.content if db_config else None
 
-        # Use page-specific default if defined, otherwise use global default
-        identity_is_global = config.identity is None
-        guidelines_is_global = config.guidelines is None
-        page_default_identity = config.identity or global_default_identity
-        page_default_guidelines = config.guidelines or global_default_guidelines
+        code_default = get_persona(page)
+        default_content = code_default or global_default
 
-        return PageConfigIdentityInfo(
+        return PageChatConfig(
             page=page,
-            identity=db_config.identity if has_identity_override else page_default_identity,
-            has_identity_override=has_identity_override,
-            default_identity=page_default_identity,
-            default_identity_is_global=identity_is_global,
-            guidelines=db_config.guidelines if has_guidelines_override else page_default_guidelines,
-            has_guidelines_override=has_guidelines_override,
-            default_guidelines=page_default_guidelines,
-            default_guidelines_is_global=guidelines_is_global,
+            content=db_content if db_content else default_content,
+            has_override=db_content is not None,
+            default_content=default_content,
+            default_is_global=code_default is None,
         )
 
     except HTTPException:
@@ -1326,7 +1283,7 @@ async def get_page_config(
 
 @router.put(
     "/chat-config/pages/{page}",
-    response_model=PageConfigIdentityInfo,
+    response_model=PageChatConfig,
     summary="Update page chat config",
 )
 async def update_page_config(
@@ -1334,22 +1291,15 @@ async def update_page_config(
     update: ChatConfigUpdate,
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_db),
-) -> PageConfigIdentityInfo:
-    """Update chat config for a page (platform admin only).
-
-    Supports partial updates - only fields provided in the request are updated.
-    To clear a field, explicitly set it to null/empty string.
-    """
-    from services.chat_page_config.registry import _page_registry
+) -> PageChatConfig:
+    """Update chat config for a page (platform admin only)."""
+    from services.chat_page_config.registry import _page_registry, get_persona
     from services.chat_stream_service import ChatStreamService
 
-    # Get global defaults (used when page doesn't define its own)
-    global_default_identity = ChatStreamService.DEFAULT_IDENTITY
-    global_default_guidelines = ChatStreamService.DEFAULT_GUIDELINES
+    global_default = ChatStreamService.DEFAULT_PERSONA
 
     try:
-        config = _page_registry.get(page)
-        if not config:
+        if not _page_registry.get(page):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Page '{page}' not found",
@@ -1365,48 +1315,31 @@ async def update_page_config(
         existing = result.scalars().first()
 
         if existing:
-            # Update only provided fields
-            if update.identity is not None:
-                existing.identity = update.identity if update.identity else None
-            if update.guidelines is not None:
-                existing.guidelines = update.guidelines if update.guidelines else None
+            existing.content = update.content
             existing.updated_at = datetime.utcnow()
             existing.updated_by = current_user.user_id
         else:
             new_config = ChatConfig(
                 scope="page",
                 scope_key=page,
-                identity=update.identity if update.identity else None,
-                guidelines=update.guidelines if update.guidelines else None,
+                content=update.content,
                 updated_by=current_user.user_id,
             )
             db.add(new_config)
-            existing = new_config
 
         await db.commit()
-        await db.refresh(existing)
 
         logger.info(f"User {current_user.email} updated chat config for page '{page}'")
 
-        has_identity_override = existing.identity is not None
-        has_guidelines_override = existing.guidelines is not None
+        code_default = get_persona(page)
+        default_content = code_default or global_default
 
-        # Use page-specific default if defined, otherwise use global default
-        identity_is_global = config.identity is None
-        guidelines_is_global = config.guidelines is None
-        page_default_identity = config.identity or global_default_identity
-        page_default_guidelines = config.guidelines or global_default_guidelines
-
-        return PageConfigIdentityInfo(
+        return PageChatConfig(
             page=page,
-            identity=existing.identity if has_identity_override else page_default_identity,
-            has_identity_override=has_identity_override,
-            default_identity=page_default_identity,
-            default_identity_is_global=identity_is_global,
-            guidelines=existing.guidelines if has_guidelines_override else page_default_guidelines,
-            has_guidelines_override=has_guidelines_override,
-            default_guidelines=page_default_guidelines,
-            default_guidelines_is_global=guidelines_is_global,
+            content=update.content if update.content else default_content,
+            has_override=update.content is not None and len(update.content.strip()) > 0,
+            default_content=default_content,
+            default_is_global=code_default is None,
         )
 
     except HTTPException:

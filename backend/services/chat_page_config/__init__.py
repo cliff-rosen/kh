@@ -28,8 +28,7 @@ from .registry import (
     get_tool_names_for_page_tab,
     get_payload_names_for_page_tab,
     get_context_builder,
-    get_identity,
-    get_guidelines,
+    get_persona,
     get_client_actions,
 )
 
@@ -106,8 +105,7 @@ __all__ = [
     'get_tool_names_for_page_tab',
     'get_payload_names_for_page_tab',
     'get_context_builder',
-    'get_identity',
-    'get_guidelines',
+    'get_persona',
     'get_client_actions',
     # Payload resolution helpers
     'has_page_payloads',

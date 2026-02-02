@@ -123,7 +123,7 @@ REPORTS_CLIENT_ACTIONS = []
 register_page(
     page="reports",
     context_builder=build_context,
-    identity=REPORTS_IDENTITY,
+    persona=REPORTS_IDENTITY,
     client_actions=REPORTS_CLIENT_ACTIONS,
     # Payloads that tools on this page can return
     # These are for documentation - actual rendering depends on frontend handlers

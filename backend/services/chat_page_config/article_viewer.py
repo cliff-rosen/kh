@@ -145,7 +145,7 @@ ARTICLE_VIEWER_CLIENT_ACTIONS = []
 register_page(
     page="article_viewer",
     context_builder=build_context,
-    identity=ARTICLE_VIEWER_IDENTITY,
+    persona=ARTICLE_VIEWER_IDENTITY,
     client_actions=ARTICLE_VIEWER_CLIENT_ACTIONS,
     # Payloads relevant to article viewer
     payloads=[],

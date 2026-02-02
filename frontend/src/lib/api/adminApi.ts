@@ -294,7 +294,7 @@ export const adminApi = {
   /**
    * Get all stream chat configs (platform admin only)
    */
-  async getStreamConfigs(): Promise<StreamConfigInfo[]> {
+  async getStreamConfigs(): Promise<StreamChatConfig[]> {
     const response = await api.get('/api/admin/chat-config/streams');
     return response.data;
   },
@@ -302,7 +302,7 @@ export const adminApi = {
   /**
    * Get chat config for a specific stream (platform admin only)
    */
-  async getStreamConfig(streamId: number): Promise<StreamConfigInfo> {
+  async getStreamConfig(streamId: number): Promise<StreamChatConfig> {
     const response = await api.get(`/api/admin/chat-config/streams/${streamId}`);
     return response.data;
   },
@@ -310,17 +310,15 @@ export const adminApi = {
   /**
    * Update chat config for a stream (platform admin only)
    */
-  async updateStreamConfig(streamId: number, instructions: string | null): Promise<StreamConfigInfo> {
-    const response = await api.put(`/api/admin/chat-config/streams/${streamId}`, {
-      instructions
-    });
+  async updateStreamConfig(streamId: number, content: string | null): Promise<StreamChatConfig> {
+    const response = await api.put(`/api/admin/chat-config/streams/${streamId}`, { content });
     return response.data;
   },
 
   /**
    * Get all page chat configs (platform admin only)
    */
-  async getPageConfigs(): Promise<PageConfigIdentityInfo[]> {
+  async getPageConfigs(): Promise<PageChatConfig[]> {
     const response = await api.get('/api/admin/chat-config/pages');
     return response.data;
   },
@@ -328,7 +326,7 @@ export const adminApi = {
   /**
    * Get chat config for a specific page (platform admin only)
    */
-  async getPageConfig(page: string): Promise<PageConfigIdentityInfo> {
+  async getPageConfig(page: string): Promise<PageChatConfig> {
     const response = await api.get(`/api/admin/chat-config/pages/${encodeURIComponent(page)}`);
     return response.data;
   },
@@ -336,7 +334,7 @@ export const adminApi = {
   /**
    * Update chat config for a page (platform admin only)
    */
-  async updatePageConfig(page: string, data: { identity?: string | null; guidelines?: string | null }): Promise<PageConfigIdentityInfo> {
+  async updatePageConfig(page: string, data: ChatConfigUpdate): Promise<PageChatConfig> {
     const response = await api.put(`/api/admin/chat-config/pages/${encodeURIComponent(page)}`, data);
     return response.data;
   },
@@ -472,27 +470,21 @@ export interface HelpTOCPreview {
 }
 
 // Unified Chat Config types
-export interface StreamConfigInfo {
+export interface StreamChatConfig {
   stream_id: number;
   stream_name: string;
-  instructions: string | null;
+  content: string | null;  // Stream instructions
   has_override: boolean;
 }
 
-export interface PageConfigIdentityInfo {
+export interface PageChatConfig {
   page: string;
-  identity: string | null;
-  has_identity_override: boolean;
-  default_identity: string | null;
-  default_identity_is_global: boolean;
-  guidelines: string | null;
-  has_guidelines_override: boolean;
-  default_guidelines: string | null;
-  default_guidelines_is_global: boolean;
+  content: string | null;  // Page persona
+  has_override: boolean;
+  default_content: string | null;
+  default_is_global: boolean;
 }
 
 export interface ChatConfigUpdate {
-  identity?: string | null;
-  instructions?: string | null;
-  guidelines?: string | null;
+  content?: string | null;
 }

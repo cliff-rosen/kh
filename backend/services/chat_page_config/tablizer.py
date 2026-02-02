@@ -167,5 +167,5 @@ register_page(
     context_builder=build_context,
     payloads=["query_suggestion", "ai_column_suggestion"],
     tools=["get_pubmed_article"],  # For fetching full article details
-    identity=TABLIZER_IDENTITY
+    persona=TABLIZER_IDENTITY
 )

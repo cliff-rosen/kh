@@ -22,7 +22,7 @@ import {
     ArrowsPointingOutIcon,
     ArrowsPointingInIcon,
 } from '@heroicons/react/24/outline';
-import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpCategorySummary, type HelpCategoryDetail, type HelpTOCPreview, type StreamConfigInfo, type PageConfigIdentityInfo, type ToolInfo } from '../../lib/api/adminApi';
+import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpCategorySummary, type HelpCategoryDetail, type HelpTOCPreview, type StreamChatConfig, type PageChatConfig, type ToolInfo } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
 
 type ConfigTab = 'streams' | 'pages' | 'payloads' | 'tools' | 'help';
@@ -52,19 +52,17 @@ export function ChatConfigPanel() {
     const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
 
     // Stream config editing state
-    const [streamConfigs, setStreamConfigs] = useState<StreamConfigInfo[]>([]);
-    const [selectedStream, setSelectedStream] = useState<StreamConfigInfo | null>(null);
+    const [streamConfigs, setStreamConfigs] = useState<StreamChatConfig[]>([]);
+    const [selectedStream, setSelectedStream] = useState<StreamChatConfig | null>(null);
     const [streamInstructions, setStreamInstructions] = useState<string>('');
     const [isLoadingStreams, setIsLoadingStreams] = useState(false);
     const [isSavingStream, setIsSavingStream] = useState(false);
     const [streamError, setStreamError] = useState<string | null>(null);
 
     // Page config editing state
-    const [pageConfigs, setPageConfigs] = useState<PageConfigIdentityInfo[]>([]);
-    const [selectedPageConfig, setSelectedPageConfig] = useState<PageConfigIdentityInfo | null>(null);
-    const [editingIdentity, setEditingIdentity] = useState<string>('');
-    const [editingGuidelines, setEditingGuidelines] = useState<string>('');
-    const [pageEditTab, setPageEditTab] = useState<'identity' | 'guidelines'>('identity');
+    const [pageConfigs, setPageConfigs] = useState<PageChatConfig[]>([]);
+    const [selectedPageConfig, setSelectedPageConfig] = useState<PageChatConfig | null>(null);
+    const [editingContent, setEditingContent] = useState<string>('');
     const [isLoadingPages, setIsLoadingPages] = useState(false);
     const [isSavingPage, setIsSavingPage] = useState(false);
     const [pageError, setPageError] = useState<string | null>(null);
@@ -175,7 +173,7 @@ export function ChatConfigPanel() {
         }
     };
 
-    const openStreamConfig = (stream: StreamConfigInfo) => {
+    const openStreamConfig = (stream: StreamChatConfig) => {
         setSelectedStream(stream);
         setStreamInstructions(stream.instructions || '');
         setStreamError(null);
@@ -223,19 +221,16 @@ export function ChatConfigPanel() {
         }
     };
 
-    const openPageConfig = (page: PageConfigIdentityInfo) => {
+    const openPageConfig = (page: PageChatConfig) => {
         setSelectedPageConfig(page);
         // Only show the override value, not the effective value (default is shown separately)
-        setEditingIdentity(page.has_identity_override ? (page.identity || '') : '');
-        setEditingGuidelines(page.has_guidelines_override ? (page.guidelines || '') : '');
-        setPageEditTab('identity');
+        setEditingContent(page.has_override ? (page.content || '') : '');
         setPageError(null);
     };
 
     const closePageConfig = () => {
         setSelectedPageConfig(null);
-        setEditingIdentity('');
-        setEditingGuidelines('');
+        setEditingContent('');
         setPageError(null);
     };
 
@@ -246,20 +241,17 @@ export function ChatConfigPanel() {
         setPageError(null);
 
         try {
-            const trimmedIdentity = editingIdentity.trim();
-            const trimmedGuidelines = editingGuidelines.trim();
+            const trimmedContent = editingContent.trim();
             const updated = await adminApi.updatePageConfig(
                 selectedPageConfig.page,
                 {
-                    identity: trimmedIdentity.length > 0 ? trimmedIdentity : null,
-                    guidelines: trimmedGuidelines.length > 0 ? trimmedGuidelines : null,
+                    content: trimmedContent.length > 0 ? trimmedContent : null,
                 }
             );
 
             // Update state to reflect saved values (keep modal open)
             setSelectedPageConfig(updated);
-            setEditingIdentity(updated.has_identity_override ? (updated.identity || '') : '');
-            setEditingGuidelines(updated.has_guidelines_override ? (updated.guidelines || '') : '');
+            setEditingContent(updated.has_override ? (updated.content || '') : '');
             await loadPageConfigs();
         } catch (err) {
             setPageError(handleApiError(err));
@@ -269,7 +261,7 @@ export function ChatConfigPanel() {
     };
 
     const resetPageConfig = async () => {
-        if (!selectedPageConfig || (!selectedPageConfig.has_identity_override && !selectedPageConfig.has_guidelines_override)) return;
+        if (!selectedPageConfig || !selectedPageConfig.has_override) return;
 
         setIsSavingPage(true);
         setPageError(null);
@@ -1302,18 +1294,13 @@ export function ChatConfigPanel() {
                         <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                    Edit Page Configuration
+                                    Edit Page Persona
                                 </h2>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
                                     {selectedPageConfig.page}
-                                    {selectedPageConfig.has_identity_override && (
+                                    {selectedPageConfig.has_override && (
                                         <span className="ml-2 inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                                            Custom Identity
-                                        </span>
-                                    )}
-                                    {selectedPageConfig.has_guidelines_override && (
-                                        <span className="ml-2 inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                                            Custom Guidelines
+                                            Custom Persona
                                         </span>
                                     )}
                                 </p>
@@ -1326,38 +1313,6 @@ export function ChatConfigPanel() {
                             </button>
                         </div>
 
-                        {/* Tabs */}
-                        <div className="flex-shrink-0 px-6 pt-4 border-b border-gray-200 dark:border-gray-700">
-                            <nav className="flex gap-6">
-                                <button
-                                    onClick={() => setPageEditTab('identity')}
-                                    className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-                                        pageEditTab === 'identity'
-                                            ? 'border-purple-500 text-purple-600 dark:text-purple-400'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                                    }`}
-                                >
-                                    Identity
-                                    {selectedPageConfig.has_identity_override && (
-                                        <span className="ml-1.5 inline-flex w-2 h-2 rounded-full bg-purple-500" />
-                                    )}
-                                </button>
-                                <button
-                                    onClick={() => setPageEditTab('guidelines')}
-                                    className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-                                        pageEditTab === 'guidelines'
-                                            ? 'border-purple-500 text-purple-600 dark:text-purple-400'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                                    }`}
-                                >
-                                    Guidelines
-                                    {selectedPageConfig.has_guidelines_override && (
-                                        <span className="ml-1.5 inline-flex w-2 h-2 rounded-full bg-amber-500" />
-                                    )}
-                                </button>
-                            </nav>
-                        </div>
-
                         {/* Content */}
                         <div className="flex-1 min-h-0 flex flex-col p-6">
                             {pageError && (
@@ -1366,94 +1321,62 @@ export function ChatConfigPanel() {
                                 </div>
                             )}
 
-                            {pageEditTab === 'identity' ? (
-                                <>
-                                    <p className="flex-shrink-0 text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                        The identity defines the persona and role of the assistant on this page.
-                                        It appears at the start of the system prompt.
-                                    </p>
+                            <p className="flex-shrink-0 text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                The persona defines who the assistant is and how it behaves on this page.
+                                It appears at the start of the system prompt and sets the tone for all interactions.
+                            </p>
 
-                                    {/* Default section */}
-                                    <div className="flex-shrink-0 mb-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                                            Default Identity ({selectedPageConfig.default_identity_is_global ? 'global' : 'page-specific'})
-                                        </p>
-                                        <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400 max-h-32 overflow-y-auto">
-                                            {selectedPageConfig.default_identity}
-                                        </pre>
-                                    </div>
+                            {/* Default section */}
+                            <div className="flex-shrink-0 mb-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                                    Default Persona ({selectedPageConfig.default_is_global ? 'global' : 'page-specific'})
+                                </p>
+                                <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400 max-h-40 overflow-y-auto">
+                                    {selectedPageConfig.default_content}
+                                </pre>
+                            </div>
 
-                                    {/* Override section */}
-                                    <label className="flex-shrink-0 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Override {selectedPageConfig.has_identity_override && <span className="text-purple-600 dark:text-purple-400">(active)</span>}
-                                    </label>
-                                    <textarea
-                                        value={editingIdentity}
-                                        onChange={(e) => setEditingIdentity(e.target.value)}
-                                        placeholder="Leave empty to use the default, or enter a custom identity..."
-                                        className="flex-1 min-h-0 w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
-                                    />
-                                </>
-                            ) : (
-                                <>
-                                    <p className="flex-shrink-0 text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                        Guidelines define behavioral rules for the assistant: response style, when to make suggestions, and constraints.
-                                        They appear at the end of the system prompt.
-                                    </p>
+                            {/* Cheat sheet */}
+                            <div className="flex-shrink-0 mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2">
+                                    Suggested sections for persona:
+                                </p>
+                                <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+                                    <p><strong>## Role</strong> - Who the assistant is and what it specializes in</p>
+                                    <p><strong>## Style</strong> - Tone, length, formatting preferences</p>
+                                    <p><strong>## Handling Ambiguity</strong> - How to handle unclear queries</p>
+                                    <p><strong>## Constraints</strong> - What to avoid or never do</p>
+                                </div>
+                            </div>
 
-                                    {/* Default section */}
-                                    <div className="flex-shrink-0 mb-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                                            Default Guidelines ({selectedPageConfig.default_guidelines_is_global ? 'global' : 'page-specific'})
-                                        </p>
-                                        <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400 max-h-32 overflow-y-auto">
-                                            {selectedPageConfig.default_guidelines}
-                                        </pre>
-                                    </div>
-
-                                    {/* Cheat sheet */}
-                                    <div className="flex-shrink-0 mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                        <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2">
-                                            Suggested sections for overrides:
-                                        </p>
-                                        <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
-                                            <p><strong>## Style</strong> - Tone, length, formatting preferences</p>
-                                            <p><strong>## Suggestions</strong> - When to use SUGGESTED_VALUES / SUGGESTED_ACTIONS</p>
-                                            <p><strong>## Constraints</strong> - What to avoid or never do</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Override section */}
-                                    <label className="flex-shrink-0 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Override {selectedPageConfig.has_guidelines_override && <span className="text-amber-600 dark:text-amber-400">(active)</span>}
-                                    </label>
-                                    <textarea
-                                        value={editingGuidelines}
-                                        onChange={(e) => setEditingGuidelines(e.target.value)}
-                                        placeholder="Leave empty to use the default, or enter custom guidelines for this page..."
-                                        className="flex-1 min-h-0 w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
-                                    />
-                                </>
-                            )}
+                            {/* Override section */}
+                            <label className="flex-shrink-0 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Override {selectedPageConfig.has_override && <span className="text-purple-600 dark:text-purple-400">(active)</span>}
+                            </label>
+                            <textarea
+                                value={editingContent}
+                                onChange={(e) => setEditingContent(e.target.value)}
+                                placeholder="Leave empty to use the default, or enter a custom persona..."
+                                className="flex-1 min-h-0 w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
+                            />
                         </div>
 
                         {/* Footer */}
                         {(() => {
                             // Compute if there are unsaved changes
-                            const savedIdentity = selectedPageConfig.has_identity_override ? (selectedPageConfig.identity || '') : '';
-                            const savedGuidelines = selectedPageConfig.has_guidelines_override ? (selectedPageConfig.guidelines || '') : '';
-                            const hasChanges = editingIdentity !== savedIdentity || editingGuidelines !== savedGuidelines;
+                            const savedContent = selectedPageConfig.has_override ? (selectedPageConfig.content || '') : '';
+                            const hasChanges = editingContent !== savedContent;
 
                             return (
                                 <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                                     <div>
-                                        {(selectedPageConfig.has_identity_override || selectedPageConfig.has_guidelines_override) && (
+                                        {selectedPageConfig.has_override && (
                                             <button
                                                 onClick={resetPageConfig}
                                                 disabled={isSavingPage}
                                                 className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
                                             >
-                                                Reset All to Defaults
+                                                Reset to Default
                                             </button>
                                         )}
                                     </div>
@@ -1699,7 +1622,7 @@ function PageConfigCard({ page, isExpanded, onToggle, identity, onEditIdentity }
     page: PageConfigInfo;
     isExpanded: boolean;
     onToggle: () => void;
-    identity?: PageConfigIdentityInfo;
+    identity?: PageChatConfig;
     onEditIdentity?: () => void;
 }) {
     const tabCount = Object.keys(page.tabs).length;
@@ -1738,14 +1661,9 @@ function PageConfigCard({ page, isExpanded, onToggle, identity, onEditIdentity }
                             Context Builder
                         </span>
                     )}
-                    {identity?.has_identity_override && (
+                    {identity?.has_override && (
                         <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                            Custom Identity
-                        </span>
-                    )}
-                    {identity?.has_guidelines_override && (
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                            Custom Guidelines
+                            Custom Persona
                         </span>
                     )}
                     {onEditIdentity && (
