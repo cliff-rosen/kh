@@ -10,7 +10,8 @@ This service handles:
 import logging
 from typing import Dict, List, Optional, Any
 
-from agents.prompts.llm import call_llm, LLMResult
+from typing import Union
+from agents.prompts.llm import call_llm, LLMResult, LLMOptions
 from schemas.llm import ModelConfig
 from config.llm_models import get_task_config
 
@@ -294,3 +295,63 @@ async def analyze_article_stance(
         "key_factors": result.data.get("key_factors", []),
         "relevant_quotes": result.data.get("relevant_quotes", []),
     }
+
+
+async def analyze_stances_batch(
+    items: List[Dict[str, Any]],
+    stance_analysis_prompt: Optional[Dict[str, str]] = None,
+    model_config: Optional[ModelConfig] = None,
+    options: Optional[LLMOptions] = None,
+) -> List[LLMResult]:
+    """
+    Analyze stances for multiple articles in batch.
+
+    Args:
+        items: List of item dicts, each containing:
+            - stream_name: Research stream name
+            - stream_purpose: Stream's stated purpose
+            - article_title: Article title
+            - article_authors: Formatted authors string
+            - article_journal: Journal name
+            - article_year: Publication year (as string)
+            - article_abstract: Article abstract
+            - article_summary: AI-generated summary (optional)
+        stance_analysis_prompt: Custom prompt dict (None = use defaults)
+        model_config: Model configuration
+        options: LLMOptions with max_concurrent and on_progress
+
+    Returns:
+        List[LLMResult] in same order as input items
+    """
+    if not items:
+        return []
+
+    # Get prompt templates (custom or defaults)
+    system_template, user_template = get_stance_prompts(stance_analysis_prompt)
+
+    # Get model config from task config if not provided
+    if model_config is None:
+        task_config = get_task_config("document_analysis", "stance_analysis")
+        model_config = ModelConfig(
+            model_id=task_config["model"],
+            temperature=task_config.get("temperature", 0.2),
+            reasoning_effort=task_config.get("reasoning_effort"),
+        )
+
+    # Apply default options if not provided
+    if options is None:
+        options = LLMOptions(max_concurrent=5)
+
+    logger.info(f"analyze_stances_batch - items={len(items)}, model={model_config.model_id}")
+
+    # Call LLM with batch of items
+    results = await call_llm(
+        system_message=system_template,
+        user_message=user_template,
+        values=items,
+        model_config=model_config,
+        response_schema=STANCE_RESULT_SCHEMA,
+        options=options,
+    )
+
+    return results

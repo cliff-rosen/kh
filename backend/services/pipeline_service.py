@@ -847,17 +847,10 @@ class PipelineService:
         """
         Analyze stances for articles in a report.
 
-        Args:
-            report_id: The report ID
-            stream: The research stream (for context)
-            stance_prompt: Prompt dict from PromptTemplate.model_dump() with 'system_prompt' and 'user_prompt_template'
-            stage_config: Stage configuration (model + concurrency settings)
-            on_progress: Optional progress callback
-
         Returns:
             Tuple of (analyzed_count, error_count)
         """
-        from services.article_analysis_service import analyze_article_stance
+        from services.article_analysis_service import analyze_stances_batch
 
         # RETRIEVE: Get associations with articles
         associations = await self.association_service.get_visible_for_report(report_id)
@@ -870,64 +863,42 @@ class PipelineService:
         if not articles_to_analyze:
             return 0, 0
 
-        # Build model config from stage config
-        model_config = ModelConfig(
-            model_id=stage_config.model_id,
-            temperature=stage_config.temperature,
-            reasoning_effort=stage_config.reasoning_effort,
-            max_tokens=stage_config.max_tokens,
+        # BUILD ITEMS: Create item dicts for batch processing
+        items = []
+        for assoc in articles_to_analyze:
+            article = assoc.article
+            items.append({
+                "stream_name": stream.stream_name,
+                "stream_purpose": stream.purpose or "Not specified",
+                "article_title": article.title or "Untitled",
+                "article_authors": ", ".join(article.authors) if article.authors else "Unknown authors",
+                "article_journal": article.journal or "Unknown",
+                "article_year": str(article.year) if article.year else "Unknown",
+                "article_abstract": article.abstract,
+                "article_summary": assoc.ai_summary or "No AI summary available",
+            })
+
+        # GENERATE: Call batch analysis service
+        results = await analyze_stances_batch(
+            items=items,
+            stance_analysis_prompt=stance_prompt,
+            model_config=stage_config,
+            options=self._get_llm_options(stage_config, on_progress),
         )
 
-        # Process articles with concurrency control
+        # WRITE: Build association updates from results
         analyzed_count = 0
         error_count = 0
         stance_results = []
 
-        # Use semaphore for concurrency control
-        semaphore = asyncio.Semaphore(stage_config.max_concurrent)
-
-        async def analyze_one(assoc):
-            async with semaphore:
-                article = assoc.article
-                result = await analyze_article_stance(
-                    article_title=article.title or "Untitled",
-                    article_abstract=article.abstract,
-                    article_authors=article.authors if article.authors else None,
-                    article_journal=article.journal,
-                    article_year=article.year,
-                    stream_name=stream.stream_name,
-                    stream_purpose=stream.purpose,
-                    stance_analysis_prompt=stance_prompt,
-                    model_config=model_config,
-                    article_summary=assoc.ai_summary,
-                )
-                return assoc, result
-
-        # Create tasks
-        tasks = [analyze_one(assoc) for assoc in articles_to_analyze]
-
-        # Process with progress updates
-        completed = 0
-        total = len(tasks)
-        for coro in asyncio.as_completed(tasks):
-            assoc, result = await coro
-            completed += 1
-
-            if on_progress:
-                await on_progress(completed, total)
-
-            if result.get("stance") != "unclear" or result.get("confidence", 0) > 0:
-                stance_results.append((assoc, result))
+        for i, result in enumerate(results):
+            assoc = articles_to_analyze[i]
+            if result.ok and result.data:
+                stance_results.append((assoc, result.data))
                 analyzed_count += 1
             else:
-                # Check if it was an error
-                if "failed" in result.get("analysis", "").lower():
-                    error_count += 1
-                else:
-                    stance_results.append((assoc, result))
-                    analyzed_count += 1
+                error_count += 1
 
-        # WRITE: Bulk update stance analysis results
         if stance_results:
             await self.association_service.bulk_update_stance_analysis_from_pipeline(
                 stance_results
