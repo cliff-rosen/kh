@@ -1,4 +1,5 @@
 # Making Generative AI Work: Principled Orchestration
+by Cliff Rosen, Ironcliff Partners
 
 ## The Gap Between Potential and Reality
 
