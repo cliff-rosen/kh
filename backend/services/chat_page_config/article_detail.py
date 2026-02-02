@@ -87,13 +87,23 @@ def build_context(context: Dict[str, Any]) -> str:
         if year:
             parts.append(f"Year: {year}")
 
+        # AI Summary - this is the most useful condensed info, show it prominently
+        ai_summary = current_article.get("ai_summary")
+        if ai_summary:
+            parts.append("")
+            parts.append("=== AI Summary ===")
+            parts.append(ai_summary)
+
         # Relevance info
         relevance_score = current_article.get("relevance_score")
         relevance_rationale = current_article.get("relevance_rationale")
-        if relevance_score is not None:
-            parts.append(f"Relevance Score: {relevance_score}")
-        if relevance_rationale:
-            parts.append(f"Relevance Rationale: {relevance_rationale[:200]}...")
+        if relevance_score is not None or relevance_rationale:
+            parts.append("")
+            parts.append("=== Relevance ===")
+            if relevance_score is not None:
+                parts.append(f"Score: {relevance_score}")
+            if relevance_rationale:
+                parts.append(f"Rationale: {relevance_rationale}")
 
         # Stance analysis
         stance = current_article.get("stance_analysis")
@@ -103,18 +113,18 @@ def build_context(context: Dict[str, Any]) -> str:
             parts.append(f"Stance: {stance.get('stance', 'Unknown')}")
             parts.append(f"Confidence: {stance.get('confidence', 'N/A')}")
             if stance.get("analysis"):
-                parts.append(f"Analysis: {stance.get('analysis')[:300]}...")
+                parts.append(f"Analysis: {stance.get('analysis')}")
             if stance.get("key_factors"):
                 factors = stance.get("key_factors", [])
                 if factors:
-                    parts.append(f"Key Factors: {', '.join(factors[:5])}")
+                    parts.append(f"Key Factors: {', '.join(factors)}")
 
-        # Abstract (truncated for context)
+        # Abstract
         abstract = current_article.get("abstract")
         if abstract:
             parts.append("")
-            parts.append("=== Abstract (truncated) ===")
-            parts.append(abstract[:500] + "..." if len(abstract) > 500 else abstract)
+            parts.append("=== Abstract ===")
+            parts.append(abstract)
     else:
         parts.append("No article currently selected.")
 

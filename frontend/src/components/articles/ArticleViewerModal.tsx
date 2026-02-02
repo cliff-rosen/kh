@@ -137,6 +137,7 @@ export default function ArticleViewerModal({
             ...chatContext,
             current_page: 'article_detail',  // Override to use article_detail page config
             current_article: article ? {
+                // Pass full article data (everything except full text)
                 article_id: article.id,
                 pmid: article.pmid,
                 doi: article.doi,
@@ -145,9 +146,13 @@ export default function ArticleViewerModal({
                 journal: article.journal,
                 year: article.year || (article.publication_date ? article.publication_date.split('-')[0] : undefined),
                 publication_date: article.publication_date,
+                url: article.url,
                 abstract: article.abstract,
+                ai_summary: article.ai_summary,
+                ai_enrichments: article.ai_enrichments,
                 relevance_score: article.relevance_score,
                 relevance_rationale: article.relevance_rationale,
+                // Override stance with cached result if available
                 stance_analysis: stanceAnalysis ? {
                     stance: stanceAnalysis.stance,
                     confidence: stanceAnalysis.confidence,
