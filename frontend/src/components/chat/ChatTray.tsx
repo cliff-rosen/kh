@@ -207,7 +207,16 @@ export default function ChatTray({
     // Payload currently being displayed in the panel (user has clicked to view)
     const [activePayload, setActivePayload] = useState<{ type: string; data: any; messageIndex: number } | null>(null);
     // Track which message indices have had their payloads dismissed
-    const [dismissedPayloads, setDismissedPayloads] = useState<Set<number>>(new Set());
+    // Initialize with all existing payloads to prevent auto-opening old payloads on remount
+    const [dismissedPayloads, setDismissedPayloads] = useState<Set<number>>(() => {
+        const initialDismissed = new Set<number>();
+        messages.forEach((msg, idx) => {
+            if (msg.custom_payload?.type && msg.custom_payload.data) {
+                initialDismissed.add(idx);
+            }
+        });
+        return initialDismissed;
+    });
     const [toolsToShow, setToolsToShow] = useState<ToolHistoryEntry[] | null>(null);
     const [diagnosticsToShow, setDiagnosticsToShow] = useState<AgentTrace | null>(null);
 
