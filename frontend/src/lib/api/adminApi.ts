@@ -234,6 +234,22 @@ export const adminApi = {
   },
 
   /**
+   * Update a help section's content (platform admin only)
+   */
+  async updateHelpSection(sectionId: string, content: string): Promise<HelpSectionDetail> {
+    const response = await api.put(`/api/admin/help/sections/${sectionId}`, { content });
+    return response.data;
+  },
+
+  /**
+   * Delete a help section's override, reverting to YAML default (platform admin only)
+   */
+  async deleteHelpSectionOverride(sectionId: string): Promise<{ status: string; message: string }> {
+    const response = await api.delete(`/api/admin/help/sections/${sectionId}/override`);
+    return response.data;
+  },
+
+  /**
    * Preview TOC as seen by each role (platform admin only)
    */
   async getHelpTocPreview(): Promise<HelpTOCPreview[]> {
@@ -396,6 +412,7 @@ export interface HelpSectionSummary {
   summary: string;
   roles: string[];
   order: number;
+  has_override: boolean;
 }
 
 export interface HelpSectionDetail extends HelpSectionSummary {

@@ -713,11 +713,12 @@ class ChatConfig(Base):
     - 'stream': Stream-specific config (scope_key = stream_id as string)
     - 'page': Page-specific config (scope_key = page name)
     - 'global': Global defaults (scope_key = 'default')
+    - 'help': Help content overrides (scope_key = section_id, content stored in 'instructions' field)
     """
     __tablename__ = "chat_config"
 
-    scope = Column(String(20), primary_key=True)  # 'stream', 'page', 'global'
-    scope_key = Column(String(100), primary_key=True)  # stream_id, page name, or 'default'
+    scope = Column(String(20), primary_key=True)  # 'stream', 'page', 'global', 'help'
+    scope_key = Column(String(100), primary_key=True)  # stream_id, page name, 'default', or section_id
     identity = Column(Text, nullable=True)  # Custom identity/persona
     instructions = Column(Text, nullable=True)  # Custom instructions (for streams)
     guidelines = Column(Text, nullable=True)  # Behavioral guidelines (style, suggestions, constraints)

@@ -144,7 +144,22 @@ def get_all_section_ids() -> List[str]:
 
 
 def reload_help_content() -> None:
-    """Force reload of help content (useful for development)."""
+    """Force reload of help content from YAML files (clears cache)."""
     global _help_sections
     _help_sections = {}
     _load_help_content()
+
+
+def get_default_help_section(section_id: str) -> Optional[HelpSection]:
+    """
+    Get the default (YAML-based) help section without any database overrides.
+
+    Args:
+        section_id: The section ID to retrieve
+
+    Returns:
+        HelpSection from YAML files, or None if not found
+    """
+    if not _help_sections:
+        _load_help_content()
+    return _help_sections.get(section_id)
