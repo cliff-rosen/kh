@@ -798,6 +798,7 @@ class ToolInfo(BaseModel):
     is_global: bool
     payload_type: Optional[str] = None
     streaming: bool = False
+    input_schema: Optional[dict] = None
 
     class Config:
         from_attributes = True
@@ -893,6 +894,7 @@ async def get_chat_config(
                     is_global=tool.is_global,
                     payload_type=tool.payload_type,
                     streaming=tool.streaming,
+                    input_schema=tool.input_schema,
                 )
             )
 

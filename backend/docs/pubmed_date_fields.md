@@ -1,44 +1,61 @@
 # PubMed Date Fields Reference
 
-## Available Date Fields
+Reference for PubMed XML date fields and search behavior. For analysis of how these map to our data structures, see [Article Date Field Analysis](./article_date_field_analysis.md).
 
-| Field | Search Tag | Description |
-|-------|------------|-------------|
-| **DP** | `[dp]` | Publication Date |
-| **EDAT** | `[edat]` | Entrez Date (when added to PubMed) |
-| **CRDT** | `[crdt]` | Create Date (when record created) |
-| **EPDAT** | `[epdat]` | Electronic Publication Date |
-| **PPDAT** | `[ppdat]` | Print Publication Date |
+---
 
-## Field Semantics
+## XML Date Elements
 
-### Publication Date (DP) - Currently Used
-The article's publication date. Includes both electronic and print dates, with these rules:
-- If electronic date is **earlier** than print date: both are searchable
-- If electronic date is **later** than print date: only print date is searchable
-- Searching `2023[dp]` may return articles with 2024 print dates if they have 2023 electronic dates
+### Primary Date Fields
 
-**Precision varies:**
-- Year only: `2023`
-- Year + month: `2023 Jan` or `2013 Jan-Mar`
-- Full date: `2023 Jan 15`
+| XML Element | Location | Description |
+|-------------|----------|-------------|
+| **ArticleDate** | `Article/ArticleDate[@DateType="Electronic"]` | When article was published online (ahead of print) |
+| **PubDate** | `JournalIssue/PubDate` | Official journal issue date (print publication) |
+| **DateCompleted** | `MedlineCitation/DateCompleted` | When MEDLINE indexing was completed |
+| **DateRevised** | `MedlineCitation/DateRevised` | When the record was last revised |
 
-**When incomplete:** PubMed normalizes to first of period (Jan 1 for year-only, 1st for month-only).
+### History Dates (in PubmedData/History)
 
-### Entrez Date (EDAT)
-The date used for "Most Recent" sort order. Rules:
-- **Normal case:** Date the citation was added to PubMed
-- **12-month rule:** If article enters PubMed >12 months after publication, EDAT is set equal to Publication Date
-- This prevents old articles from appearing as "new" in feeds
+| PubStatus | Description |
+|-----------|-------------|
+| `entrez` | When citation was added to PubMed |
+| `pubmed` | When PubMed record was created |
+| `medline` | When MEDLINE record was created |
+| `received` | When journal received the manuscript |
+| `revised` | When authors revised the manuscript |
+| `accepted` | When journal accepted the manuscript |
 
-### Create Date (CRDT)
-The date the PubMed record was first created. For practical purposes:
-- CRDT and EDAT are usually identical
-- Differs from EDAT only when the 12-month rule applies
+### Example (PMID 41501212)
 
-## Date Precision in XML
+```xml
+<!-- Electronic publication date - when users can access it -->
+<ArticleDate DateType="Electronic">
+  <Year>2026</Year><Month>01</Month><Day>07</Day>
+</ArticleDate>
 
-PubMed XML returns dates with varying precision:
+<!-- Print publication date - official journal issue -->
+<JournalIssue CitedMedium="Internet">
+  <PubDate><Year>2026</Year><Month>Feb</Month></PubDate>
+</JournalIssue>
+
+<!-- History dates -->
+<PubMedPubDate PubStatus="entrez">
+  <Year>2026</Year><Month>1</Month><Day>7</Day>
+</PubMedPubDate>
+<PubMedPubDate PubStatus="received">
+  <Year>2025</Year><Month>9</Month><Day>12</Day>
+</PubMedPubDate>
+<PubMedPubDate PubStatus="accepted">
+  <Year>2025</Year><Month>12</Month><Day>15</Day>
+</PubMedPubDate>
+```
+
+---
+
+## Date Precision
+
+PubDate can have varying precision:
 
 ```xml
 <!-- Full date -->
@@ -48,7 +65,7 @@ PubMed XML returns dates with varying precision:
   <Day>15</Day>
 </PubDate>
 
-<!-- Month only -->
+<!-- Month only (common) -->
 <PubDate>
   <Year>2023</Year>
   <Month>Jan</Month>
@@ -59,36 +76,63 @@ PubMed XML returns dates with varying precision:
   <Year>2023</Year>
 </PubDate>
 
-<!-- Range (MedlineDate) -->
+<!-- Date range -->
 <PubDate>
   <MedlineDate>2023 Jan-Mar</MedlineDate>
 </PubDate>
 ```
 
+**Month formats**: Can be text ("Jan", "Feb") or numeric ("01", "1").
+
+---
+
+## Search Date Tags
+
+| Tag | Field | Behavior |
+|-----|-------|----------|
+| `[dp]` | Publication Date | Matches **both** ArticleDate and PubDate when ArticleDate is earlier |
+| `[edat]` | Entrez Date | When added to PubMed; used for "Most Recent" sort |
+| `[crdt]` | Create Date | When record was first created |
+| `[epdat]` | Electronic Publication | ArticleDate only |
+| `[ppdat]` | Print Publication | PubDate only |
+
+### Key Behavior: `[dp]` Dual Matching
+
+When ArticleDate is **earlier** than PubDate:
+- `[dp]` matches BOTH dates
+- Searching "Jan 2026" finds articles with ArticleDate=Jan even if PubDate=Feb
+
+When ArticleDate is **later** than PubDate:
+- `[dp]` matches only PubDate
+
+**This is why our search finds articles by their electronic date, but we need to display that date too.**
+
+---
+
 ## API Query Format
 
-E-utilities accepts dates as `YYYY/MM/DD` with month and day optional:
+### E-utilities Parameters
+
 ```
 mindate=2023/01/01&maxdate=2023/12/31&datetype=pdat
 ```
 
-Or inline in search term:
+Date types: `pdat` (publication), `edat` (entrez), `mdat` (modification)
+
+### Inline Search Syntax
+
 ```
 ("2023/01/01"[dp] : "2023/12/31"[dp])
 ```
 
-## Recommendation
+---
 
-**Use Publication Date (DP)** for report date ranges because:
-1. It reflects when the research was published, which is what users care about
-2. EDAT/CRDT reflect database operations, not scientific timeline
-3. The 12-month EDAT rule would exclude legitimately old articles from searches
+## Our Implementation
 
-**Caveat:** Publication date precision varies. Our normalization (defaulting missing month/day to 01) handles this consistently.
+### Date Clause Builder
 
-## Current Implementation
+In `pubmed_service.py`, `_get_date_clause()`:
 
-In `pubmed_service.py`, `_get_date_clause()` maps date types:
 ```python
 date_field_map = {
     "completion": "DCOM",
@@ -98,9 +142,18 @@ date_field_map = {
 }
 ```
 
+### Date Parsing
+
+We normalize all dates to YYYY-MM-DD format:
+- Missing month defaults to "01" (January)
+- Missing day defaults to "01"
+- Text months ("Jan") converted to numeric ("01")
+
+---
+
 ## Sources
 
-- [NLM Technical Bulletin: Create Date Field](https://www.nlm.nih.gov/pubs/techbull/nd08/nd08_pm_new_date_field.html)
-- [NLM Technical Bulletin: Entrez Date Modification](https://www.nlm.nih.gov/pubs/techbull/so08/so08_pm_edat.html)
-- [PubMed Help](https://pubmed.ncbi.nlm.nih.gov/help/)
+- [PubMed Help - Searching by Date](https://pubmed.ncbi.nlm.nih.gov/help/#dp)
 - [E-utilities In-Depth](https://www.ncbi.nlm.nih.gov/books/NBK25499/)
+- [NLM Technical Bulletin: Entrez Date](https://www.nlm.nih.gov/pubs/techbull/so08/so08_pm_edat.html)
+- [NLM Technical Bulletin: Create Date](https://www.nlm.nih.gov/pubs/techbull/nd08/nd08_pm_new_date_field.html)

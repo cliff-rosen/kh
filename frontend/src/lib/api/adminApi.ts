@@ -321,6 +321,19 @@ export interface PayloadTypeInfo {
   has_instructions: boolean;
 }
 
+export interface ToolInputSchema {
+  type: string;
+  properties?: Record<string, {
+    type: string;
+    description?: string;
+    enum?: string[];
+    default?: unknown;
+    minimum?: number;
+    maximum?: number;
+  }>;
+  required?: string[];
+}
+
 export interface ToolInfo {
   name: string;
   description: string;
@@ -328,6 +341,7 @@ export interface ToolInfo {
   is_global: boolean;
   payload_type?: string;
   streaming: boolean;
+  input_schema?: ToolInputSchema;
 }
 
 export interface SubTabConfigInfo {

@@ -20,7 +20,7 @@ import {
     ShieldCheckIcon,
     EyeIcon,
 } from '@heroicons/react/24/outline';
-import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpSectionSummary, type HelpSectionDetail, type HelpTOCPreview, type StreamConfigInfo, type PageConfigIdentityInfo } from '../../lib/api/adminApi';
+import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpSectionSummary, type HelpSectionDetail, type HelpTOCPreview, type StreamConfigInfo, type PageConfigIdentityInfo, type ToolInfo } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 
@@ -92,6 +92,13 @@ export function ChatConfigList() {
     const [isLoadingPages, setIsLoadingPages] = useState(false);
     const [isSavingPage, setIsSavingPage] = useState(false);
     const [pageError, setPageError] = useState<string | null>(null);
+
+    // Tools state
+    const [selectedToolName, setSelectedToolName] = useState<string | null>(null);
+    const selectedTool = useMemo<ToolInfo | null>(() => {
+        if (!config || !selectedToolName) return null;
+        return config.tools.find(t => t.name === selectedToolName) || null;
+    }, [config, selectedToolName]);
 
     // Help content state
     const [helpSections, setHelpSections] = useState<HelpSectionSummary[]>([]);
@@ -577,69 +584,169 @@ export function ChatConfigList() {
                 )}
 
                 {activeTab === 'tools' && (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead className="bg-gray-50 dark:bg-gray-900">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Name
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Category
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Scope
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Payload Type
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Streaming
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    <div className="flex gap-6 h-[calc(100vh-16rem)]">
+                        {/* Left column - Tools list */}
+                        <div className="w-1/3 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
+                            <div className="flex-shrink-0 px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Tools ({config.tools.length})
+                                </h3>
+                            </div>
+                            <div className="flex-1 overflow-y-auto">
                                 {config.tools.map((tool) => (
-                                    <tr key={tool.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="font-medium text-gray-900 dark:text-white">
+                                    <button
+                                        key={tool.name}
+                                        onClick={() => setSelectedToolName(tool.name)}
+                                        className={`w-full text-left px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                                            selectedToolName === tool.name ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-l-purple-500' : ''
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-medium text-gray-900 dark:text-white text-sm">
                                                 {tool.name}
-                                            </div>
-                                            <div className="text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
-                                                {tool.description}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                            </span>
+                                            <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
                                                 {tool.category}
                                             </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            {tool.is_global ? (
-                                                <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400">
-                                                    <GlobeAltIcon className="h-4 w-4" />
-                                                    Global
-                                                </span>
-                                            ) : (
-                                                <span className="text-gray-500 dark:text-gray-400">Page-specific</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            {tool.is_global && (
+                                                <GlobeAltIcon className="h-3 w-3 text-purple-500" />
                                             )}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                            {tool.payload_type ? (
-                                                <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">
-                                                    {tool.payload_type}
-                                                </code>
-                                            ) : (
-                                                <span className="text-gray-400">-</span>
+                                            {tool.streaming && (
+                                                <span className="text-xs text-blue-500">streaming</span>
                                             )}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <StatusIcon active={tool.streaming} />
-                                        </td>
-                                    </tr>
+                                        </div>
+                                    </button>
                                 ))}
-                            </tbody>
-                        </table>
+                            </div>
+                        </div>
+
+                        {/* Right column - Tool details */}
+                        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
+                            {selectedTool ? (
+                                <>
+                                    <div className="flex-shrink-0 px-6 py-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                                {selectedTool.name}
+                                            </h3>
+                                            <div className="flex items-center gap-2">
+                                                <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                                    {selectedTool.category}
+                                                </span>
+                                                {selectedTool.is_global && (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                                                        <GlobeAltIcon className="h-3 w-3" />
+                                                        Global
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                                        {/* Description */}
+                                        <div>
+                                            <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                                                Description
+                                            </h4>
+                                            <p className="text-gray-900 dark:text-white">
+                                                {selectedTool.description}
+                                            </p>
+                                        </div>
+
+                                        {/* Metadata */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                                                    Payload Type
+                                                </h4>
+                                                {selectedTool.payload_type ? (
+                                                    <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-sm">
+                                                        {selectedTool.payload_type}
+                                                    </code>
+                                                ) : (
+                                                    <span className="text-gray-400">None</span>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                                                    Streaming
+                                                </h4>
+                                                <StatusIcon active={selectedTool.streaming} />
+                                            </div>
+                                        </div>
+
+                                        {/* Input Schema */}
+                                        {selectedTool.input_schema && (
+                                            <div>
+                                                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                                                    Parameters
+                                                </h4>
+                                                <div className="space-y-3">
+                                                    {selectedTool.input_schema.properties && Object.entries(selectedTool.input_schema.properties).map(([paramName, paramDef]) => {
+                                                        const isRequired = selectedTool.input_schema?.required?.includes(paramName);
+                                                        return (
+                                                            <div key={paramName} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <code className="font-semibold text-purple-600 dark:text-purple-400">
+                                                                        {paramName}
+                                                                    </code>
+                                                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                                        {paramDef.type}
+                                                                    </span>
+                                                                    {isRequired && (
+                                                                        <span className="text-xs font-medium text-red-500">required</span>
+                                                                    )}
+                                                                    {paramDef.default !== undefined && (
+                                                                        <span className="text-xs text-gray-400">
+                                                                            default: {String(paramDef.default)}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {paramDef.description && (
+                                                                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                                                                        {paramDef.description}
+                                                                    </p>
+                                                                )}
+                                                                {paramDef.enum && (
+                                                                    <div className="mt-2 flex flex-wrap gap-1">
+                                                                        {paramDef.enum.map((val) => (
+                                                                            <code key={val} className="text-xs bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded">
+                                                                                {val}
+                                                                            </code>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                                {(paramDef.minimum !== undefined || paramDef.maximum !== undefined) && (
+                                                                    <div className="mt-1 text-xs text-gray-500">
+                                                                        {paramDef.minimum !== undefined && `min: ${paramDef.minimum}`}
+                                                                        {paramDef.minimum !== undefined && paramDef.maximum !== undefined && ' | '}
+                                                                        {paramDef.maximum !== undefined && `max: ${paramDef.maximum}`}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {(!selectedTool.input_schema.properties || Object.keys(selectedTool.input_schema.properties).length === 0) && (
+                                                        <p className="text-gray-500 dark:text-gray-400 text-sm italic">
+                                                            No parameters
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-gray-500">
+                                    <div className="text-center">
+                                        <WrenchScrewdriverIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                                        <p>Select a tool to view details</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 

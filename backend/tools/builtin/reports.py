@@ -308,6 +308,20 @@ async def execute_search_articles_in_reports(
 
         # Search articles in these reports
         search_term = f"%{query}%"
+
+        # Build search conditions - always include text fields
+        search_conditions = [
+            Article.title.ilike(search_term),
+            Article.abstract.ilike(search_term),
+            Article.journal.ilike(search_term),
+            Article.authors.ilike(search_term),
+            Article.pmid.ilike(search_term),  # Allow PMID search
+        ]
+
+        # If query looks like a DOI, also search DOI field
+        if "/" in query or query.lower().startswith("10."):
+            search_conditions.append(Article.doi.ilike(search_term))
+
         search_stmt = select(
             Article, ReportArticleAssociation, Report
         ).join(
@@ -318,12 +332,7 @@ async def execute_search_articles_in_reports(
             ReportArticleAssociation.report_id == Report.report_id
         ).where(
             ReportArticleAssociation.report_id.in_(report_ids),
-            or_(
-                Article.title.ilike(search_term),
-                Article.abstract.ilike(search_term),
-                Article.journal.ilike(search_term),
-                Article.authors.ilike(search_term)
-            )
+            or_(*search_conditions)
         ).order_by(
             sql_func.coalesce(ReportArticleAssociation.relevance_score, -1).desc()
         ).limit(max_results)
@@ -803,13 +812,13 @@ register_tool(ToolConfig(
 
 register_tool(ToolConfig(
     name="search_articles_in_reports",
-    description="Search for articles across all reports in the stream. Searches in title, abstract, journal, and authors. Use this to find specific articles or topics across the report history.",
+    description="Search for articles across all reports in the stream. Use this to find specific articles by any identifier the user might have: PMID, title words, author names, journal name, or keywords from the abstract. Also searches DOI if the query looks like one. This is the primary tool for helping users locate articles they're looking for.",
     input_schema={
         "type": "object",
         "properties": {
             "query": {
                 "type": "string",
-                "description": "Search query to find in article titles, abstracts, journals, or authors"
+                "description": "Search query - can be a PMID (e.g. '12345678'), author name, title words, journal name, or any text to match in the abstract. For DOIs, include the '10.' prefix."
             },
             "max_results": {
                 "type": "integer",
