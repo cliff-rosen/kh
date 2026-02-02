@@ -27,12 +27,18 @@ HELP_DIR = Path(__file__).parent.parent / "help"
 @dataclass
 class HelpSection:
     """A help documentation section."""
-    id: str
+    category: str     # Feature area: reports, streams, tools, etc.
+    topic: str        # Topic within category: overview, viewing, etc.
     title: str
     summary: str
     roles: List[str]  # Which roles can see this: member, org_admin, platform_admin
     content: str      # Full markdown content
     order: int = 0    # Display order in TOC
+
+    @property
+    def id(self) -> str:
+        """Composite ID: category/topic"""
+        return f"{self.category}/{self.topic}"
 
 
 # Global registry of help sections
@@ -60,8 +66,22 @@ def _load_help_content() -> None:
                 continue
 
             for idx, section_data in enumerate(data["sections"]):
+                # Support both new format (category + topic) and legacy format (id: "category/topic")
+                if "category" in section_data and "topic" in section_data:
+                    category = section_data["category"]
+                    topic = section_data["topic"]
+                elif "id" in section_data:
+                    # Legacy format: parse from compound ID
+                    parts = section_data["id"].split("/", 1)
+                    category = parts[0]
+                    topic = parts[1] if len(parts) > 1 else parts[0]
+                else:
+                    logger.warning(f"Section in {yaml_file} missing category/topic or id, skipping")
+                    continue
+
                 section = HelpSection(
-                    id=section_data["id"],
+                    category=category,
+                    topic=topic,
                     title=section_data["title"],
                     summary=section_data["summary"],
                     roles=section_data.get("roles", ["member", "org_admin", "platform_admin"]),
@@ -141,6 +161,43 @@ def get_all_section_ids() -> List[str]:
     if not _help_sections:
         _load_help_content()
     return list(_help_sections.keys())
+
+
+def get_all_categories() -> List[str]:
+    """Get all unique category names, sorted by display order."""
+    if not _help_sections:
+        _load_help_content()
+
+    categories = set(s.category for s in _help_sections.values())
+
+    # Sort by defined order
+    order = {
+        'general': 0,
+        'reports': 1,
+        'streams': 2,
+        'tools': 3,
+        'operations': 4,
+    }
+    return sorted(categories, key=lambda c: (order.get(c, 99), c))
+
+
+def get_sections_by_category(category: str) -> List[HelpSection]:
+    """Get all sections in a category, sorted by order."""
+    if not _help_sections:
+        _load_help_content()
+
+    sections = [s for s in _help_sections.values() if s.category == category]
+    sections.sort(key=lambda s: (s.order, s.topic))
+    return sections
+
+
+def get_section_by_category_topic(category: str, topic: str) -> Optional[HelpSection]:
+    """Get a specific section by category and topic."""
+    if not _help_sections:
+        _load_help_content()
+
+    section_id = f"{category}/{topic}"
+    return _help_sections.get(section_id)
 
 
 def reload_help_content() -> None:

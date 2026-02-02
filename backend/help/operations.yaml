@@ -1,5 +1,6 @@
 sections:
-  - id: operations/overview
+  - category: operations
+    topic: overview
     title: Operations Overview
     summary: Pipeline management, approvals, and scheduling
     roles: [platform_admin]
@@ -16,7 +17,8 @@ sections:
       **Access:**
       Operations is available to platform admins only.
 
-  - id: operations/pipeline-runs
+  - category: operations
+    topic: pipeline-runs
     title: Pipeline Runs
     summary: Monitor pending, running, and completed pipelines
     roles: [platform_admin]
@@ -43,7 +45,8 @@ sections:
       - Re-run failed pipelines
       - Cancel running pipelines
 
-  - id: operations/approvals
+  - category: operations
+    topic: approvals
     title: Report Approvals
     summary: Review and publish reports
     roles: [platform_admin]
@@ -70,7 +73,8 @@ sections:
       - **Reject** - Return for modifications
       - **Edit** - Make changes before approval
 
-  - id: operations/scheduler
+  - category: operations
+    topic: scheduler
     title: Report Scheduler
     summary: Configure automated report generation
     roles: [platform_admin]

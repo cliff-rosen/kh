@@ -726,6 +726,22 @@ class ChatConfig(Base):
     updated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
 
 
+class HelpContentOverride(Base):
+    """
+    Database overrides for help content.
+
+    Help content defaults come from YAML files in /backend/help/.
+    This table stores admin customizations that override those defaults.
+    Deleting a row reverts to the YAML default.
+    """
+    __tablename__ = "help_content_override"
+
+    section_id = Column(String(100), primary_key=True)  # e.g., "reports/viewing"
+    content = Column(Text, nullable=False)  # Markdown content
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+
+
 # Add relationships to User model
 User.research_streams = relationship("ResearchStream", back_populates="user", foreign_keys="ResearchStream.user_id")
 User.created_streams = relationship("ResearchStream", foreign_keys="ResearchStream.created_by")

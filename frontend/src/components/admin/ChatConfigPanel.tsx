@@ -20,7 +20,7 @@ import {
     ShieldCheckIcon,
     EyeIcon,
 } from '@heroicons/react/24/outline';
-import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpSectionSummary, type HelpSectionDetail, type HelpTOCPreview, type StreamConfigInfo, type PageConfigIdentityInfo, type ToolInfo } from '../../lib/api/adminApi';
+import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpCategorySummary, type HelpTopicContent, type HelpCategoryDetail, type HelpTOCPreview, type StreamConfigInfo, type PageConfigIdentityInfo, type ToolInfo } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
 
 type ConfigTab = 'streams' | 'pages' | 'payloads' | 'tools' | 'help';
@@ -33,38 +33,13 @@ const configTabs: { id: ConfigTab; label: string; icon: React.ComponentType<{ cl
     { id: 'help', label: 'Help', icon: BookOpenIcon },
 ];
 
-// Help content utilities
-interface SectionGroup {
-    area: string;
-    label: string;
-    sections: HelpSectionSummary[];
-}
-
-function getHelpArea(sectionId: string): string {
-    const parts = sectionId.split('/');
-    return parts.length > 1 ? parts[0] : 'general';
-}
-
-function getHelpAreaLabel(area: string): string {
-    const labels: Record<string, string> = {
-        'general': 'Getting Started',
-        'reports': 'Reports',
-        'streams': 'Streams',
-        'tools': 'Tools',
-        'operations': 'Operations',
-    };
-    return labels[area] || area.charAt(0).toUpperCase() + area.slice(1);
-}
-
-function getHelpAreaOrder(area: string): number {
-    const order: Record<string, number> = {
-        'general': 0,
-        'reports': 1,
-        'streams': 2,
-        'tools': 3,
-        'operations': 4,
-    };
-    return order[area] ?? 99;
+// Help content types for editing state
+interface EditingTopicContent {
+    category: string;
+    topic: string;
+    content: string;
+    originalContent: string;
+    has_override: boolean;
 }
 
 export function ChatConfigPanel() {
@@ -129,45 +104,29 @@ export function ChatConfigPanel() {
             }));
     }, [config]);
 
-    // Help content state
-    const [helpSections, setHelpSections] = useState<HelpSectionSummary[]>([]);
+    // Help content state - category-based
+    const [helpCategories, setHelpCategories] = useState<HelpCategorySummary[]>([]);
+    const [helpTotalTopics, setHelpTotalTopics] = useState(0);
+    const [helpTotalOverrides, setHelpTotalOverrides] = useState(0);
+    const [selectedHelpCategory, setSelectedHelpCategory] = useState<HelpCategoryDetail | null>(null);
+    const [editingTopics, setEditingTopics] = useState<EditingTopicContent[]>([]);
     const [tocPreviews, setTocPreviews] = useState<HelpTOCPreview[]>([]);
-    const [selectedHelpSection, setSelectedHelpSection] = useState<HelpSectionDetail | null>(null);
-    const [editingHelpContent, setEditingHelpContent] = useState<string>('');
     const [isLoadingHelp, setIsLoadingHelp] = useState(false);
-    const [isLoadingHelpSection, setIsLoadingHelpSection] = useState(false);
+    const [isLoadingHelpCategory, setIsLoadingHelpCategory] = useState(false);
     const [isSavingHelp, setIsSavingHelp] = useState(false);
     const [isReloadingHelp, setIsReloadingHelp] = useState(false);
     const [helpError, setHelpError] = useState<string | null>(null);
-    const [helpViewMode, setHelpViewMode] = useState<'sections' | 'toc-preview'>('sections');
-    const [collapsedHelpAreas, setCollapsedHelpAreas] = useState<Set<string>>(new Set());
+    const [helpViewMode, setHelpViewMode] = useState<'categories' | 'toc-preview'>('categories');
 
-    // Group help sections by area
-    const groupedHelpSections = useMemo((): SectionGroup[] => {
-        const groups: Record<string, HelpSectionSummary[]> = {};
+    // Check if any topics have been modified
+    const hasHelpChanges = useMemo(() => {
+        return editingTopics.some(t => t.content !== t.originalContent);
+    }, [editingTopics]);
 
-        for (const section of helpSections) {
-            const area = getHelpArea(section.id);
-            if (!groups[area]) {
-                groups[area] = [];
-            }
-            groups[area].push(section);
-        }
-
-        // Sort sections within each group by order
-        for (const area in groups) {
-            groups[area].sort((a, b) => a.order - b.order);
-        }
-
-        // Convert to array and sort by area order
-        return Object.entries(groups)
-            .map(([area, sects]) => ({
-                area,
-                label: getHelpAreaLabel(area),
-                sections: sects,
-            }))
-            .sort((a, b) => getHelpAreaOrder(a.area) - getHelpAreaOrder(b.area));
-    }, [helpSections]);
+    // Get modified topics for save
+    const modifiedTopics = useMemo(() => {
+        return editingTopics.filter(t => t.content !== t.originalContent);
+    }, [editingTopics]);
 
     useEffect(() => {
         loadConfig();
@@ -323,15 +282,17 @@ export function ChatConfigPanel() {
     };
 
     // Help content functions
-    const loadHelpContent = async () => {
+    const loadHelpCategories = async () => {
         setIsLoadingHelp(true);
         setHelpError(null);
         try {
-            const [sectionsRes, tocRes] = await Promise.all([
-                adminApi.getHelpSections(),
+            const [categoriesRes, tocRes] = await Promise.all([
+                adminApi.getHelpCategories(),
                 adminApi.getHelpTocPreview(),
             ]);
-            setHelpSections(sectionsRes.sections);
+            setHelpCategories(categoriesRes.categories);
+            setHelpTotalTopics(categoriesRes.total_topics);
+            setHelpTotalOverrides(categoriesRes.total_overrides);
             setTocPreviews(tocRes);
         } catch (err) {
             setHelpError(handleApiError(err));
@@ -344,7 +305,12 @@ export function ChatConfigPanel() {
         setIsReloadingHelp(true);
         try {
             await adminApi.reloadHelpContent();
-            await loadHelpContent();
+            await loadHelpCategories();
+            // Clear selection if category no longer exists
+            if (selectedHelpCategory) {
+                setSelectedHelpCategory(null);
+                setEditingTopics([]);
+            }
         } catch (err) {
             setHelpError(handleApiError(err));
         } finally {
@@ -352,38 +318,63 @@ export function ChatConfigPanel() {
         }
     };
 
-    const handleEditHelpSection = async (sectionId: string) => {
-        setIsLoadingHelpSection(true);
+    const selectHelpCategory = async (category: string) => {
+        setIsLoadingHelpCategory(true);
         setHelpError(null);
         try {
-            const detail = await adminApi.getHelpSection(sectionId);
-            setSelectedHelpSection(detail);
-            setEditingHelpContent(detail.content);
+            const categoryDetail = await adminApi.getHelpCategory(category);
+            setSelectedHelpCategory(categoryDetail);
+            // Initialize editing state with current content
+            setEditingTopics(categoryDetail.topics.map(t => ({
+                category: t.category,
+                topic: t.topic,
+                content: t.content,
+                originalContent: t.content,
+                has_override: t.has_override,
+            })));
         } catch (err) {
             setHelpError(handleApiError(err));
         } finally {
-            setIsLoadingHelpSection(false);
+            setIsLoadingHelpCategory(false);
         }
     };
 
-    const closeHelpSection = () => {
-        setSelectedHelpSection(null);
-        setEditingHelpContent('');
+    const updateTopicContent = (category: string, topic: string, content: string) => {
+        setEditingTopics(prev => prev.map(t =>
+            t.category === category && t.topic === topic ? { ...t, content } : t
+        ));
+    };
+
+    const closeHelpCategory = () => {
+        setSelectedHelpCategory(null);
+        setEditingTopics([]);
         setHelpError(null);
     };
 
-    const saveHelpSection = async () => {
-        if (!selectedHelpSection) return;
+    const saveHelpCategory = async () => {
+        if (!selectedHelpCategory || modifiedTopics.length === 0) return;
 
         setIsSavingHelp(true);
         setHelpError(null);
 
         try {
-            const updated = await adminApi.updateHelpSection(selectedHelpSection.id, editingHelpContent);
-            setSelectedHelpSection(updated);
-            // Refresh the sections list to show any changes
-            await loadHelpContent();
-            closeHelpSection();
+            const updates = modifiedTopics.map(t => ({
+                category: t.category,
+                topic: t.topic,
+                content: t.content,
+            }));
+            const updated = await adminApi.updateHelpCategory(selectedHelpCategory.category, updates);
+            setSelectedHelpCategory(updated);
+            // Reset editing state with new content
+            setEditingTopics(updated.topics.map(t => ({
+                category: t.category,
+                topic: t.topic,
+                content: t.content,
+                originalContent: t.content,
+                has_override: t.has_override,
+            })));
+            // Refresh the categories list to update override counts
+            await loadHelpCategories();
         } catch (err) {
             setHelpError(handleApiError(err));
         } finally {
@@ -391,34 +382,25 @@ export function ChatConfigPanel() {
         }
     };
 
-    const resetHelpSection = async () => {
-        if (!selectedHelpSection || !selectedHelpSection.has_override) return;
+    const resetHelpCategory = async () => {
+        if (!selectedHelpCategory) return;
+        const categoryHasOverrides = selectedHelpCategory.topics.some(t => t.has_override);
+        if (!categoryHasOverrides) return;
 
         setIsSavingHelp(true);
         setHelpError(null);
 
         try {
-            await adminApi.deleteHelpSectionOverride(selectedHelpSection.id);
-            // Refresh the sections list
-            await loadHelpContent();
-            closeHelpSection();
+            await adminApi.resetHelpCategory(selectedHelpCategory.category);
+            // Reload the category to get default content
+            await selectHelpCategory(selectedHelpCategory.category);
+            // Refresh the categories list to update override counts
+            await loadHelpCategories();
         } catch (err) {
             setHelpError(handleApiError(err));
         } finally {
             setIsSavingHelp(false);
         }
-    };
-
-    const toggleHelpArea = (area: string) => {
-        setCollapsedHelpAreas(prev => {
-            const next = new Set(prev);
-            if (next.has(area)) {
-                next.delete(area);
-            } else {
-                next.add(area);
-            }
-            return next;
-        });
     };
 
     const getRoleIcon = (role: string) => {
@@ -443,10 +425,10 @@ export function ChatConfigPanel() {
         }
     };
 
-    // Load help content when switching to help tab
+    // Load help categories when switching to help tab
     useEffect(() => {
-        if (activeTab === 'help' && helpSections.length === 0 && !isLoadingHelp) {
-            loadHelpContent();
+        if (activeTab === 'help' && helpCategories.length === 0 && !isLoadingHelp) {
+            loadHelpCategories();
         }
     }, [activeTab]);
 
@@ -961,9 +943,12 @@ export function ChatConfigPanel() {
                     <div className="space-y-4">
                         {/* Help header with reload button */}
                         <div className="flex items-center justify-between">
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                                Help documentation shown to users via chat. Content is organized by area and filtered by user role.
-                            </p>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                                Help documentation shown to users via chat.
+                                <span className="ml-2 text-gray-500">
+                                    {helpTotalTopics} topics, {helpTotalOverrides} custom overrides
+                                </span>
+                            </div>
                             <button
                                 onClick={handleReloadHelp}
                                 disabled={isReloadingHelp}
@@ -984,16 +969,16 @@ export function ChatConfigPanel() {
                         <div className="border-b border-gray-200 dark:border-gray-700">
                             <nav className="flex gap-4">
                                 <button
-                                    onClick={() => setHelpViewMode('sections')}
+                                    onClick={() => setHelpViewMode('categories')}
                                     className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                                        helpViewMode === 'sections'
+                                        helpViewMode === 'categories'
                                             ? 'border-purple-500 text-purple-600 dark:text-purple-400'
                                             : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                                     }`}
                                 >
                                     <div className="flex items-center gap-2">
                                         <BookOpenIcon className="h-4 w-4" />
-                                        All Sections ({helpSections.length})
+                                        Categories ({helpCategories.length})
                                     </div>
                                 </button>
                                 <button
@@ -1016,55 +1001,117 @@ export function ChatConfigPanel() {
                             <div className="flex items-center justify-center py-12">
                                 <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-400" />
                             </div>
-                        ) : helpViewMode === 'sections' ? (
-                            <div className="space-y-4">
-                                {groupedHelpSections.map((group) => (
-                                    <div key={group.area} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                                        <button
-                                            onClick={() => toggleHelpArea(group.area)}
-                                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                {collapsedHelpAreas.has(group.area) ? (
-                                                    <ChevronRightIcon className="h-5 w-5 text-gray-400" />
-                                                ) : (
-                                                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-                                                )}
-                                                <span className="font-medium text-gray-900 dark:text-white">
-                                                    {group.label}
-                                                </span>
-                                                <span className="text-sm text-gray-500 dark:text-gray-400">
-                                                    ({group.sections.length} sections)
-                                                </span>
+                        ) : helpViewMode === 'categories' ? (
+                            <div className="flex gap-6 h-[calc(100vh-20rem)]">
+                                {/* Left column - Categories list */}
+                                <div className="w-1/4 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
+                                    <div className="flex-shrink-0 px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            Help Categories
+                                        </h3>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto">
+                                        {helpCategories.map((cat) => (
+                                            <button
+                                                key={cat.category}
+                                                onClick={() => selectHelpCategory(cat.category)}
+                                                className={`w-full text-left px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                                                    selectedHelpCategory?.category === cat.category ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-l-purple-500' : ''
+                                                }`}
+                                            >
+                                                <div className="font-medium text-gray-900 dark:text-white">
+                                                    {cat.label}
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                                    <span>{cat.topic_count} topics</span>
+                                                    {cat.override_count > 0 && (
+                                                        <span className="inline-flex px-1.5 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                                            {cat.override_count} custom
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </button>
+                                        ))}
+                                        {helpCategories.length === 0 && (
+                                            <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400 text-sm">
+                                                No help categories found.
                                             </div>
-                                        </button>
-                                        {!collapsedHelpAreas.has(group.area) && (
-                                            <div className="border-t border-gray-200 dark:border-gray-700">
-                                                {group.sections.map((section) => (
-                                                    <div
-                                                        key={section.id}
-                                                        className="px-4 py-3 border-b last:border-b-0 border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Right column - Category detail and editing */}
+                                <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
+                                    {isLoadingHelpCategory ? (
+                                        <div className="flex-1 flex items-center justify-center">
+                                            <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-400" />
+                                        </div>
+                                    ) : selectedHelpCategory ? (
+                                        <>
+                                            {/* Header */}
+                                            <div className="flex-shrink-0 px-6 py-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                                                <div>
+                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                                        {selectedHelpCategory.label}
+                                                    </h3>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                        {selectedHelpCategory.topics.length} topics
+                                                        {selectedHelpCategory.topics.some(t => t.has_override) && (
+                                                            <span className="ml-2">
+                                                                ({selectedHelpCategory.topics.filter(t => t.has_override).length} with custom content)
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {selectedHelpCategory.topics.some(t => t.has_override) && (
+                                                        <button
+                                                            onClick={resetHelpCategory}
+                                                            disabled={isSavingHelp}
+                                                            className="px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors disabled:opacity-50"
+                                                        >
+                                                            Reset All to Defaults
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={saveHelpCategory}
+                                                        disabled={isSavingHelp || !hasHelpChanges}
+                                                        className="px-4 py-1.5 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors"
                                                     >
-                                                        <div className="flex items-start justify-between gap-4">
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="flex items-center gap-2 mb-1">
+                                                        {isSavingHelp ? 'Saving...' : `Save${modifiedTopics.length > 0 ? ` (${modifiedTopics.length})` : ''}`}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Topics list */}
+                                            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                                                {selectedHelpCategory.topics.map((topic) => {
+                                                    const editingTopic = editingTopics.find(t => t.category === topic.category && t.topic === topic.topic);
+                                                    const isModified = editingTopic && editingTopic.content !== editingTopic.originalContent;
+                                                    return (
+                                                        <div key={`${topic.category}/${topic.topic}`} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                                            {/* Topic header */}
+                                                            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900 flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
                                                                     <span className="font-medium text-gray-900 dark:text-white">
-                                                                        {section.title}
+                                                                        {topic.title}
                                                                     </span>
                                                                     <code className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
-                                                                        {section.id}
+                                                                        {topic.topic}
                                                                     </code>
-                                                                    {section.has_override && (
+                                                                    {topic.has_override && (
                                                                         <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
                                                                             Custom
                                                                         </span>
                                                                     )}
+                                                                    {isModified && (
+                                                                        <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                                                                            Modified
+                                                                        </span>
+                                                                    )}
                                                                 </div>
-                                                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                                                                    {section.summary}
-                                                                </p>
                                                                 <div className="flex items-center gap-2">
-                                                                    {section.roles.map((role) => (
+                                                                    {topic.roles.map((role) => (
                                                                         <span
                                                                             key={role}
                                                                             className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${getRoleBadgeColor(role)}`}
@@ -1075,26 +1122,33 @@ export function ChatConfigPanel() {
                                                                     ))}
                                                                 </div>
                                                             </div>
-                                                            <button
-                                                                onClick={() => handleEditHelpSection(section.id)}
-                                                                disabled={isLoadingHelpSection}
-                                                                className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md transition-colors"
-                                                            >
-                                                                <PencilSquareIcon className="h-4 w-4" />
-                                                                Edit
-                                                            </button>
+                                                            {/* Topic summary */}
+                                                            <div className="px-4 py-2 bg-gray-25 dark:bg-gray-850 text-sm text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                                                                {topic.summary}
+                                                            </div>
+                                                            {/* Content editor */}
+                                                            <div className="p-4">
+                                                                <textarea
+                                                                    value={editingTopic?.content || ''}
+                                                                    onChange={(e) => updateTopicContent(topic.category, topic.topic, e.target.value)}
+                                                                    placeholder="Enter help content in markdown..."
+                                                                    className="w-full h-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
+                                                                />
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
-                                        )}
-                                    </div>
-                                ))}
-                                {groupedHelpSections.length === 0 && (
-                                    <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                                        No help sections found. Click "Reload from Files" to load help content.
-                                    </div>
-                                )}
+                                        </>
+                                    ) : (
+                                        <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-gray-500">
+                                            <div className="text-center">
+                                                <BookOpenIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                                                <p>Select a category to view and edit help topics</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1202,98 +1256,6 @@ export function ChatConfigPanel() {
                             >
                                 {isSavingStream ? 'Saving...' : 'Save Changes'}
                             </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Help Section Edit Modal - Full size for text editing */}
-            {selectedHelpSection && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-[1400px] h-[calc(100vh-4rem)] flex flex-col">
-                        {/* Header */}
-                        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                            <div>
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                    Edit Help Section
-                                </h2>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                                        {selectedHelpSection.title}
-                                    </span>
-                                    <code className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
-                                        {selectedHelpSection.id}
-                                    </code>
-                                    {selectedHelpSection.has_override && (
-                                        <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                                            Custom Override
-                                        </span>
-                                    )}
-                                    {selectedHelpSection.roles.map((role) => (
-                                        <span
-                                            key={role}
-                                            className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${getRoleBadgeColor(role)}`}
-                                        >
-                                            {getRoleIcon(role)}
-                                            {role}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                            <button
-                                onClick={closeHelpSection}
-                                className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
-                            >
-                                <XMarkIcon className="h-6 w-6" />
-                            </button>
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-h-0 flex flex-col p-6">
-                            {helpError && (
-                                <div className="flex-shrink-0 mb-4 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
-                                    {helpError}
-                                </div>
-                            )}
-                            <p className="flex-shrink-0 text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                Edit the markdown content for this help section. Changes are saved to the YAML file on disk.
-                            </p>
-                            <textarea
-                                value={editingHelpContent}
-                                onChange={(e) => setEditingHelpContent(e.target.value)}
-                                placeholder="Enter help content in markdown..."
-                                className="flex-1 min-h-0 w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
-                            />
-                        </div>
-
-                        {/* Footer */}
-                        <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                            <div>
-                                {selectedHelpSection.has_override && (
-                                    <button
-                                        onClick={resetHelpSection}
-                                        disabled={isSavingHelp}
-                                        className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-                                    >
-                                        Reset to Default
-                                    </button>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={closeHelpSection}
-                                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={saveHelpSection}
-                                    disabled={isSavingHelp}
-                                    className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-                                >
-                                    {isSavingHelp ? 'Saving...' : 'Save Changes'}
-                                </button>
-                            </div>
                         </div>
                     </div>
                 </div>

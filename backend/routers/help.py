@@ -1,22 +1,30 @@
 """
 Help Content Router
 
-API endpoints for browsing help documentation (platform admin only).
-Help content comes from YAML files (defaults) with database overrides.
+API endpoints for browsing and editing help documentation (platform admin only).
+
+Help content is organized by CATEGORY (e.g., "reports", "streams", "tools").
+Each category contains multiple TOPICS (e.g., "overview", "viewing", "tablizer").
+
+Content defaults come from YAML files. Database overrides are stored in
+the `help_content_override` table and take precedence over YAML defaults.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
 from database import get_async_db
-from models import User, ChatConfig
+from models import User, HelpContentOverride
 from routers.auth import get_current_user
 from services.help_registry import (
     get_all_section_ids,
+    get_all_categories,
+    get_sections_by_category,
+    get_section_by_category_topic,
     get_help_section,
     get_help_toc_for_role,
     reload_help_content,
@@ -32,19 +40,10 @@ router = APIRouter(prefix="/api/admin/help", tags=["admin-help"])
 # Response Models
 # ============================================================================
 
-class HelpSectionSummary(BaseModel):
-    """Summary of a help section for listing."""
-    id: str
-    title: str
-    summary: str
-    roles: List[str]
-    order: int
-    has_override: bool = False
-
-
-class HelpSectionDetail(BaseModel):
-    """Full help section with content."""
-    id: str
+class HelpTopicContent(BaseModel):
+    """A single help topic with its content."""
+    category: str
+    topic: str
     title: str
     summary: str
     roles: List[str]
@@ -53,10 +52,38 @@ class HelpSectionDetail(BaseModel):
     has_override: bool = False
 
 
-class HelpSectionsResponse(BaseModel):
-    """Response for listing all help sections."""
-    sections: List[HelpSectionSummary]
-    total: int
+class HelpCategorySummary(BaseModel):
+    """Summary of a help category for listing."""
+    category: str
+    label: str
+    topic_count: int
+    override_count: int
+
+
+class HelpCategoryDetail(BaseModel):
+    """Full help category with all topics."""
+    category: str
+    label: str
+    topics: List[HelpTopicContent]
+
+
+class HelpCategoriesResponse(BaseModel):
+    """Response for listing all help categories."""
+    categories: List[HelpCategorySummary]
+    total_topics: int
+    total_overrides: int
+
+
+class HelpTopicUpdate(BaseModel):
+    """Update for a single topic."""
+    category: str
+    topic: str
+    content: str
+
+
+class HelpCategoryUpdate(BaseModel):
+    """Request body for bulk updating topics in a category."""
+    topics: List[HelpTopicUpdate]
 
 
 class HelpTOCPreview(BaseModel):
@@ -65,13 +92,8 @@ class HelpTOCPreview(BaseModel):
     toc: str
 
 
-class HelpSectionUpdate(BaseModel):
-    """Request body for updating a help section."""
-    content: str
-
-
 # ============================================================================
-# Helper to check platform admin
+# Helpers
 # ============================================================================
 
 def require_platform_admin(current_user: User = Depends(get_current_user)) -> User:
@@ -81,122 +103,162 @@ def require_platform_admin(current_user: User = Depends(get_current_user)) -> Us
     return current_user
 
 
-# ============================================================================
-# Database helpers
-# ============================================================================
-
-async def get_help_override(db: AsyncSession, section_id: str) -> Optional[str]:
-    """Get help content override from database."""
-    result = await db.execute(
-        select(ChatConfig).where(
-            ChatConfig.scope == "help",
-            ChatConfig.scope_key == section_id
-        )
-    )
-    config = result.scalars().first()
-    return config.instructions if config else None
+def get_category_label(category: str) -> str:
+    """Get human-readable label for a category."""
+    labels = {
+        'general': 'Getting Started',
+        'reports': 'Reports',
+        'streams': 'Streams',
+        'tools': 'Tools',
+        'operations': 'Operations',
+    }
+    return labels.get(category, category.replace('-', ' ').title())
 
 
-async def get_all_help_overrides(db: AsyncSession) -> dict[str, bool]:
-    """Get a dict of section_id -> has_override for all help sections."""
-    result = await db.execute(
-        select(ChatConfig.scope_key).where(ChatConfig.scope == "help")
-    )
-    return {row[0]: True for row in result.all()}
+async def get_all_overrides(db: AsyncSession) -> Dict[str, str]:
+    """Get all help content overrides as a dict of section_id -> content."""
+    result = await db.execute(select(HelpContentOverride))
+    return {row.section_id: row.content for row in result.scalars().all()}
 
 
-async def save_help_override(
+async def save_override(
     db: AsyncSession,
     section_id: str,
     content: str,
     user_id: int
 ) -> None:
-    """Save help content override to database."""
-    # Check if override already exists
+    """Save a help content override."""
     result = await db.execute(
-        select(ChatConfig).where(
-            ChatConfig.scope == "help",
-            ChatConfig.scope_key == section_id
-        )
+        select(HelpContentOverride).where(HelpContentOverride.section_id == section_id)
     )
-    config = result.scalars().first()
+    existing = result.scalars().first()
 
-    if config:
-        # Update existing
-        config.instructions = content
-        config.updated_by = user_id
+    if existing:
+        existing.content = content
+        existing.updated_by = user_id
     else:
-        # Create new
-        config = ChatConfig(
-            scope="help",
-            scope_key=section_id,
-            instructions=content,
+        override = HelpContentOverride(
+            section_id=section_id,
+            content=content,
             updated_by=user_id
         )
-        db.add(config)
+        db.add(override)
 
-    await db.commit()
+
+async def delete_override(db: AsyncSession, section_id: str) -> bool:
+    """Delete a help content override. Returns True if existed."""
+    result = await db.execute(
+        select(HelpContentOverride).where(HelpContentOverride.section_id == section_id)
+    )
+    existing = result.scalars().first()
+    if existing:
+        await db.delete(existing)
+        return True
+    return False
 
 
 # ============================================================================
 # Endpoints
 # ============================================================================
 
-@router.get("/sections", response_model=HelpSectionsResponse)
-async def list_help_sections(
+@router.get("/categories", response_model=HelpCategoriesResponse)
+async def list_help_categories(
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_db)
-) -> HelpSectionsResponse:
+) -> HelpCategoriesResponse:
     """
-    List all help sections (platform admin only).
-    Returns summaries without full content.
+    List all help categories with topic counts.
     """
-    section_ids = get_all_section_ids()
-    overrides = await get_all_help_overrides(db)
-    sections = []
+    categories = get_all_categories()
+    overrides = await get_all_overrides(db)
 
-    for section_id in section_ids:
-        # Get section with platform_admin role to see all
-        section = get_help_section(section_id, "platform_admin")
-        if section:
-            sections.append(HelpSectionSummary(
-                id=section.id,
-                title=section.title,
-                summary=section.summary,
-                roles=section.roles,
-                order=section.order,
-                has_override=section_id in overrides
-            ))
+    # Build category summaries
+    category_summaries = []
+    total_topics = 0
+    total_overrides = 0
 
-    # Sort by order, then by id
-    sections.sort(key=lambda s: (s.order, s.id))
+    for category in categories:
+        sections = get_sections_by_category(category)
+        topic_count = len(sections)
+        override_count = sum(1 for s in sections if s.id in overrides)
 
-    return HelpSectionsResponse(sections=sections, total=len(sections))
+        total_topics += topic_count
+        total_overrides += override_count
+
+        category_summaries.append(HelpCategorySummary(
+            category=category,
+            label=get_category_label(category),
+            topic_count=topic_count,
+            override_count=override_count
+        ))
+
+    return HelpCategoriesResponse(
+        categories=category_summaries,
+        total_topics=total_topics,
+        total_overrides=total_overrides
+    )
 
 
-@router.get("/sections/{section_id:path}", response_model=HelpSectionDetail)
-async def get_help_section_detail(
-    section_id: str,
+@router.get("/categories/{category}", response_model=HelpCategoryDetail)
+async def get_help_category(
+    category: str,
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_db)
-) -> HelpSectionDetail:
+) -> HelpCategoryDetail:
     """
-    Get full help section with content (platform admin only).
-    Returns database override if exists, otherwise YAML default.
+    Get all topics in a help category with full content.
     """
-    # Get the base section from YAML (for metadata)
-    section = get_help_section(section_id, "platform_admin")
+    sections = get_sections_by_category(category)
+    if not sections:
+        raise HTTPException(status_code=404, detail=f"Help category '{category}' not found")
 
+    overrides = await get_all_overrides(db)
+
+    # Build topic list
+    topics = []
+    for section in sections:
+        has_override = section.id in overrides
+        content = overrides[section.id] if has_override else section.content
+
+        topics.append(HelpTopicContent(
+            category=section.category,
+            topic=section.topic,
+            title=section.title,
+            summary=section.summary,
+            roles=section.roles,
+            order=section.order,
+            content=content,
+            has_override=has_override
+        ))
+
+    return HelpCategoryDetail(
+        category=category,
+        label=get_category_label(category),
+        topics=topics
+    )
+
+
+@router.get("/categories/{category}/topics/{topic}", response_model=HelpTopicContent)
+async def get_help_topic(
+    category: str,
+    topic: str,
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db)
+) -> HelpTopicContent:
+    """
+    Get a single help topic by category and topic name.
+    """
+    section = get_section_by_category_topic(category, topic)
     if not section:
-        raise HTTPException(status_code=404, detail=f"Help section '{section_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Help topic '{category}/{topic}' not found")
 
-    # Check for database override
-    override_content = await get_help_override(db, section_id)
-    has_override = override_content is not None
-    content = override_content if has_override else section.content
+    overrides = await get_all_overrides(db)
+    has_override = section.id in overrides
+    content = overrides[section.id] if has_override else section.content
 
-    return HelpSectionDetail(
-        id=section.id,
+    return HelpTopicContent(
+        category=section.category,
+        topic=section.topic,
         title=section.title,
         summary=section.summary,
         roles=section.roles,
@@ -206,13 +268,141 @@ async def get_help_section_detail(
     )
 
 
+@router.put("/categories/{category}", response_model=HelpCategoryDetail)
+async def update_help_category(
+    category: str,
+    update: HelpCategoryUpdate,
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db)
+) -> HelpCategoryDetail:
+    """
+    Bulk update topics in a help category.
+    Only topics included in the request are updated.
+    """
+    # Verify all topics exist and belong to this category
+    for topic_update in update.topics:
+        if topic_update.category != category:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Topic '{topic_update.category}/{topic_update.topic}' does not belong to category '{category}'"
+            )
+
+        section = get_section_by_category_topic(topic_update.category, topic_update.topic)
+        if not section:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Topic '{topic_update.category}/{topic_update.topic}' not found"
+            )
+
+    # Save all overrides
+    try:
+        for topic_update in update.topics:
+            section_id = f"{topic_update.category}/{topic_update.topic}"
+            default_section = get_default_help_section(section_id)
+
+            if default_section and topic_update.content == default_section.content:
+                # Content matches default - delete override if exists
+                await delete_override(db, section_id)
+            else:
+                # Content differs - save override
+                await save_override(db, section_id, topic_update.content, current_user.user_id)
+
+        await db.commit()
+    except Exception as e:
+        logger.error(f"Failed to update help category {category}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Return updated category
+    return await get_help_category(category, current_user, db)
+
+
+@router.put("/categories/{category}/topics/{topic}", response_model=HelpTopicContent)
+async def update_help_topic(
+    category: str,
+    topic: str,
+    content: str,
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db)
+) -> HelpTopicContent:
+    """
+    Update a single help topic.
+    """
+    section = get_section_by_category_topic(category, topic)
+    if not section:
+        raise HTTPException(status_code=404, detail=f"Help topic '{category}/{topic}' not found")
+
+    section_id = f"{category}/{topic}"
+
+    try:
+        default_section = get_default_help_section(section_id)
+        if default_section and content == default_section.content:
+            await delete_override(db, section_id)
+        else:
+            await save_override(db, section_id, content, current_user.user_id)
+        await db.commit()
+    except Exception as e:
+        logger.error(f"Failed to update help topic {section_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return await get_help_topic(category, topic, current_user, db)
+
+
+@router.delete("/categories/{category}/overrides")
+async def reset_help_category(
+    category: str,
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db)
+) -> dict:
+    """
+    Delete all overrides in a help category, reverting all topics to defaults.
+    """
+    sections = get_sections_by_category(category)
+
+    deleted_count = 0
+    for section in sections:
+        if await delete_override(db, section.id):
+            deleted_count += 1
+
+    await db.commit()
+
+    return {
+        "status": "ok",
+        "category": category,
+        "overrides_deleted": deleted_count
+    }
+
+
+@router.delete("/categories/{category}/topics/{topic}/override")
+async def reset_help_topic(
+    category: str,
+    topic: str,
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db)
+) -> dict:
+    """
+    Delete the override for a single topic, reverting to default.
+    """
+    section = get_section_by_category_topic(category, topic)
+    if not section:
+        raise HTTPException(status_code=404, detail=f"Help topic '{category}/{topic}' not found")
+
+    deleted = await delete_override(db, section.id)
+    await db.commit()
+
+    return {
+        "status": "ok",
+        "category": category,
+        "topic": topic,
+        "override_deleted": deleted
+    }
+
+
 @router.get("/toc-preview", response_model=List[HelpTOCPreview])
 async def preview_help_toc(
     current_user: User = Depends(require_platform_admin)
 ) -> List[HelpTOCPreview]:
     """
     Preview the help TOC as seen by each role (platform admin only).
-    Useful for verifying role-based filtering.
     """
     roles = ["member", "org_admin", "platform_admin"]
     previews = []
@@ -222,71 +412,6 @@ async def preview_help_toc(
         previews.append(HelpTOCPreview(role=role, toc=toc or "(empty)"))
 
     return previews
-
-
-@router.put("/sections/{section_id:path}", response_model=HelpSectionDetail)
-async def update_help_section_content(
-    section_id: str,
-    update: HelpSectionUpdate,
-    current_user: User = Depends(require_platform_admin),
-    db: AsyncSession = Depends(get_async_db)
-) -> HelpSectionDetail:
-    """
-    Update a help section's content (platform admin only).
-    Saves as a database override (YAML files remain unchanged).
-    """
-    # Verify section exists in YAML
-    section = get_default_help_section(section_id)
-    if not section:
-        raise HTTPException(status_code=404, detail=f"Help section '{section_id}' not found")
-
-    try:
-        # Save override to database
-        await save_help_override(db, section_id, update.content, current_user.user_id)
-
-        return HelpSectionDetail(
-            id=section.id,
-            title=section.title,
-            summary=section.summary,
-            roles=section.roles,
-            order=section.order,
-            content=update.content,
-            has_override=True
-        )
-    except Exception as e:
-        logger.error(f"Failed to update help section {section_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/sections/{section_id:path}/override")
-async def delete_help_section_override(
-    section_id: str,
-    current_user: User = Depends(require_platform_admin),
-    db: AsyncSession = Depends(get_async_db)
-) -> dict:
-    """
-    Delete a help section's database override, reverting to YAML default.
-    """
-    # Verify section exists
-    section = get_default_help_section(section_id)
-    if not section:
-        raise HTTPException(status_code=404, detail=f"Help section '{section_id}' not found")
-
-    # Delete override if exists
-    result = await db.execute(
-        select(ChatConfig).where(
-            ChatConfig.scope == "help",
-            ChatConfig.scope_key == section_id
-        )
-    )
-    config = result.scalars().first()
-
-    if config:
-        await db.delete(config)
-        await db.commit()
-        return {"status": "ok", "message": f"Override deleted for '{section_id}'"}
-    else:
-        return {"status": "ok", "message": f"No override existed for '{section_id}'"}
 
 
 @router.post("/reload")
@@ -299,8 +424,8 @@ async def reload_help(
     """
     try:
         reload_help_content()
-        section_count = len(get_all_section_ids())
-        return {"status": "ok", "sections_loaded": section_count}
+        topic_count = len(get_all_section_ids())
+        return {"status": "ok", "topics_loaded": topic_count}
     except Exception as e:
         logger.error(f"Failed to reload help content: {e}")
         raise HTTPException(status_code=500, detail=str(e))

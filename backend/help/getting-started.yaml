@@ -1,5 +1,6 @@
 sections:
-  - id: getting-started
+  - category: general
+    topic: getting-started
     title: Getting Started
     summary: Overview of Knowledge Horizon and how to navigate the app
     roles: [member, org_admin, platform_admin]
@@ -24,7 +25,8 @@ sections:
       - Understand report content
       - Find specific information
 
-  - id: navigation
+  - category: general
+    topic: navigation
     title: App Navigation
     summary: How to navigate between pages and features
     roles: [member, org_admin, platform_admin]

@@ -218,34 +218,58 @@ export const adminApi = {
   // ==================== Help Content Management ====================
 
   /**
-   * Get all help sections (platform admin only)
+   * Get all help categories with topic counts (platform admin only)
    */
-  async getHelpSections(): Promise<HelpSectionsResponse> {
-    const response = await api.get('/api/admin/help/sections');
+  async getHelpCategories(): Promise<HelpCategoriesResponse> {
+    const response = await api.get('/api/admin/help/categories');
     return response.data;
   },
 
   /**
-   * Get a specific help section with full content (platform admin only)
+   * Get all topics in a help category with full content (platform admin only)
    */
-  async getHelpSection(sectionId: string): Promise<HelpSectionDetail> {
-    const response = await api.get(`/api/admin/help/sections/${sectionId}`);
+  async getHelpCategory(category: string): Promise<HelpCategoryDetail> {
+    const response = await api.get(`/api/admin/help/categories/${category}`);
     return response.data;
   },
 
   /**
-   * Update a help section's content (platform admin only)
+   * Get a single help topic (platform admin only)
    */
-  async updateHelpSection(sectionId: string, content: string): Promise<HelpSectionDetail> {
-    const response = await api.put(`/api/admin/help/sections/${sectionId}`, { content });
+  async getHelpTopic(category: string, topic: string): Promise<HelpTopicContent> {
+    const response = await api.get(`/api/admin/help/categories/${category}/topics/${topic}`);
     return response.data;
   },
 
   /**
-   * Delete a help section's override, reverting to YAML default (platform admin only)
+   * Bulk update topics in a help category (platform admin only)
    */
-  async deleteHelpSectionOverride(sectionId: string): Promise<{ status: string; message: string }> {
-    const response = await api.delete(`/api/admin/help/sections/${sectionId}/override`);
+  async updateHelpCategory(category: string, topics: HelpTopicUpdate[]): Promise<HelpCategoryDetail> {
+    const response = await api.put(`/api/admin/help/categories/${category}`, { topics });
+    return response.data;
+  },
+
+  /**
+   * Update a single help topic (platform admin only)
+   */
+  async updateHelpTopic(category: string, topic: string, content: string): Promise<HelpTopicContent> {
+    const response = await api.put(`/api/admin/help/categories/${category}/topics/${topic}`, null, { params: { content } });
+    return response.data;
+  },
+
+  /**
+   * Reset all overrides in a help category to defaults (platform admin only)
+   */
+  async resetHelpCategory(category: string): Promise<{ status: string; category: string; overrides_deleted: number }> {
+    const response = await api.delete(`/api/admin/help/categories/${category}/overrides`);
+    return response.data;
+  },
+
+  /**
+   * Reset a single topic override to default (platform admin only)
+   */
+  async resetHelpTopic(category: string, topic: string): Promise<{ status: string; category: string; topic: string; override_deleted: boolean }> {
+    const response = await api.delete(`/api/admin/help/categories/${category}/topics/${topic}/override`);
     return response.data;
   },
 
@@ -260,7 +284,7 @@ export const adminApi = {
   /**
    * Reload help content from YAML files (platform admin only)
    */
-  async reloadHelpContent(): Promise<{ status: string; sections_loaded: number }> {
+  async reloadHelpContent(): Promise<{ status: string; topics_loaded: number }> {
     const response = await api.post('/api/admin/help/reload');
     return response.data;
   },
@@ -406,22 +430,40 @@ export interface ChatConfigResponse {
 }
 
 // Help content types
-export interface HelpSectionSummary {
-  id: string;
+export interface HelpTopicContent {
+  category: string;
+  topic: string;
   title: string;
   summary: string;
   roles: string[];
   order: number;
+  content: string;
   has_override: boolean;
 }
 
-export interface HelpSectionDetail extends HelpSectionSummary {
-  content: string;
+export interface HelpCategorySummary {
+  category: string;
+  label: string;
+  topic_count: number;
+  override_count: number;
 }
 
-export interface HelpSectionsResponse {
-  sections: HelpSectionSummary[];
-  total: number;
+export interface HelpCategoryDetail {
+  category: string;
+  label: string;
+  topics: HelpTopicContent[];
+}
+
+export interface HelpCategoriesResponse {
+  categories: HelpCategorySummary[];
+  total_topics: number;
+  total_overrides: number;
+}
+
+export interface HelpTopicUpdate {
+  category: string;
+  topic: string;
+  content: string;
 }
 
 export interface HelpTOCPreview {

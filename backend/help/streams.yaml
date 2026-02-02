@@ -1,5 +1,6 @@
 sections:
-  - id: streams/overview
+  - category: streams
+    topic: overview
     title: Understanding Streams
     summary: What research streams are and how they work
     roles: [member, org_admin, platform_admin]
@@ -24,7 +25,8 @@ sections:
       Go to the Streams page to see all streams you have access to.
       Click a stream to see its details, recent reports, and configuration.
 
-  - id: streams/creating
+  - category: streams
+    topic: creating
     title: Creating Streams
     summary: How to create a new research stream
     roles: [org_admin, platform_admin]
@@ -65,7 +67,8 @@ sections:
       **Schedule:**
       Set how often reports generate (daily, weekly, biweekly, monthly).
 
-  - id: streams/editing
+  - category: streams
+    topic: editing
     title: Editing Streams
     summary: How to modify stream configuration
     roles: [org_admin, platform_admin]
@@ -99,7 +102,8 @@ sections:
       - Concept extraction from documents
       - Category organization recommendations
 
-  - id: streams/running
+  - category: streams
+    topic: running
     title: Running Pipelines
     summary: How to manually run a stream pipeline
     roles: [org_admin, platform_admin]

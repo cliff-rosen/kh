@@ -1,5 +1,6 @@
 sections:
-  - id: tools/overview
+  - category: tools
+    topic: overview
     title: Tools Page Overview
     summary: Utilities for search testing, document analysis, and Tablizer
     roles: [org_admin, platform_admin]
@@ -17,7 +18,8 @@ sections:
       **Access:**
       Tools is available to organization admins and platform admins only.
 
-  - id: tools/pubmed-search
+  - category: tools
+    topic: pubmed-search
     title: PubMed Search Tool
     summary: Test PubMed queries and preview results
     roles: [org_admin, platform_admin]
@@ -42,7 +44,8 @@ sections:
       - Displays total count
       - Can export or copy results
 
-  - id: tools/id-checker
+  - category: tools
+    topic: id-checker
     title: PubMed ID Checker
     summary: Verify if specific PMIDs are captured by a query
     roles: [org_admin, platform_admin]
@@ -68,7 +71,8 @@ sections:
       - Adjust query to include relevant terms
       - Consider broadening date range
 
-  - id: tools/document-analysis
+  - category: tools
+    topic: document-analysis
     title: Document Analysis Tool
     summary: AI-powered document summarization and extraction
     roles: [org_admin, platform_admin]
@@ -92,7 +96,8 @@ sections:
       - Graph view of concept relationships
       - Export extracted data
 
-  - id: tools/tablizer-workbench
+  - category: tools
+    topic: tablizer-workbench
     title: Tablizer Workbench
     summary: Standalone table tool with AI column generation
     roles: [org_admin, platform_admin]

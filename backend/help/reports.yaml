@@ -1,5 +1,6 @@
 sections:
-  - id: reports/overview
+  - category: reports
+    topic: overview
     title: Understanding Reports
     summary: What reports contain and how they're organized
     roles: [member, org_admin, platform_admin]
@@ -23,7 +24,8 @@ sections:
 
       Reports are generated automatically based on the stream's schedule (daily, weekly, etc.).
 
-  - id: reports/views-member
+  - category: reports
+    topic: views-member
     title: Report View Modes
     summary: Different ways to view report articles (All Articles, By Category)
     roles: [member]
@@ -47,7 +49,8 @@ sections:
       - "All Articles" - Linear list view
       - "By Category" - Grouped by theme with category summaries
 
-  - id: reports/views-admin
+  - category: reports
+    topic: views-admin
     title: Report View Modes
     summary: Different ways to view report articles (All Articles, By Category, Tablizer)
     roles: [org_admin, platform_admin]
@@ -78,7 +81,8 @@ sections:
       - "By Category" - Grouped by theme with category summaries
       - "Tablizer" - Table view with AI columns
 
-  - id: reports/card-formats
+  - category: reports
+    topic: card-formats
     title: Card Display Formats
     summary: Compact, Abstract, and AI Summary display options
     roles: [member, org_admin, platform_admin]
@@ -106,7 +110,8 @@ sections:
       Use the format buttons (Compact / Abstract / AI Summary) in the report header.
       Your preference is saved and remembered for next time.
 
-  - id: reports/article-viewer
+  - category: reports
+    topic: article-viewer
     title: Reading Articles
     summary: How to open and navigate the article viewer, including stance analysis
     roles: [member, org_admin, platform_admin]
@@ -156,7 +161,8 @@ sections:
       - Find neutral articles for balanced perspectives
       - Understand the reasoning behind stance classifications
 
-  - id: reports/using-chat
+  - category: reports
+    topic: using-chat
     title: Using Chat with Reports
     summary: How to ask questions about report content
     roles: [member, org_admin, platform_admin]
@@ -186,7 +192,8 @@ sections:
       - Cannot access the full text of papers (only abstracts/summaries)
       - Cannot modify reports or settings (members)
 
-  - id: reports/tablizer
+  - category: reports
+    topic: tablizer
     title: Tablizer View (Table with AI Columns)
     summary: Advanced table view with custom AI-powered columns
     roles: [org_admin, platform_admin]
