@@ -1,4 +1,5 @@
 # Orchestration Document Outline (Revised)
+by Cliff Rosen, Ironcliff Partners
 
 ## Intro: The Gap Between Potential and Reality
 - Demos work, production doesn't
