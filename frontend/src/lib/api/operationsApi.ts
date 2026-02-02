@@ -317,7 +317,9 @@ export async function cancelEmail(entryId: number): Promise<void> {
     await api.delete(`/api/operations/email-queue/${entryId}`);
 }
 
-export async function processEmailQueue(): Promise<ProcessQueueResponse> {
-    const response = await api.post('/api/operations/email-queue/process');
+export async function processEmailQueue(forceAll: boolean = true): Promise<ProcessQueueResponse> {
+    const response = await api.post('/api/operations/email-queue/process', null, {
+        params: { force_all: forceAll }
+    });
     return response.data;
 }

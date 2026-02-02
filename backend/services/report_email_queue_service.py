@@ -389,7 +389,7 @@ class ReportEmailQueueService:
 
     # ==================== Queue Processing ====================
 
-    async def process_queue(self, target_date: Optional[date] = None) -> ProcessQueueResult:
+    async def process_queue(self, target_date: Optional[date] = None, force_all: bool = False) -> ProcessQueueResult:
         """
         Process all scheduled emails that are due.
 
@@ -399,6 +399,7 @@ class ReportEmailQueueService:
 
         Args:
             target_date: Date to process for (defaults to today)
+            force_all: If True, process ALL scheduled entries regardless of date
 
         Returns:
             ProcessQueueResult with counts and any errors
@@ -412,17 +413,34 @@ class ReportEmailQueueService:
         result = ProcessQueueResult()
 
         # Step 1: Find all scheduled entries due for processing
-        query = select(ReportEmailQueue).where(
-            and_(
-                ReportEmailQueue.scheduled_for <= target_date,
+        if force_all:
+            # Process all scheduled entries regardless of date
+            query = select(ReportEmailQueue).where(
                 ReportEmailQueue.status == ReportEmailQueueStatus.SCHEDULED,
             )
-        )
+            logger.info(f"Processing ALL scheduled emails (force_all=True)")
+        else:
+            query = select(ReportEmailQueue).where(
+                and_(
+                    ReportEmailQueue.scheduled_for <= target_date,
+                    ReportEmailQueue.status == ReportEmailQueueStatus.SCHEDULED,
+                )
+            )
         entries_result = await self.db.execute(query)
         entries = list(entries_result.scalars().all())
 
         if not entries:
-            logger.info(f"No scheduled emails to process for {target_date}")
+            # Log more info to help debug
+            count_result = await self.db.execute(
+                select(func.count(ReportEmailQueue.id)).where(
+                    ReportEmailQueue.status == ReportEmailQueueStatus.SCHEDULED
+                )
+            )
+            total_scheduled = count_result.scalar() or 0
+            logger.info(
+                f"No scheduled emails to process for target_date={target_date}. "
+                f"Total scheduled entries in DB: {total_scheduled}"
+            )
             return result
 
         logger.info(f"Processing {len(entries)} scheduled emails for {target_date}")

@@ -802,6 +802,7 @@ async def cancel_email(
     summary="Process scheduled emails now",
 )
 async def process_email_queue(
+    force_all: bool = False,
     current_user: User = Depends(auth_service.validate_token),
     queue_service: ReportEmailQueueService = Depends(get_report_email_queue_service),
 ):
@@ -811,11 +812,17 @@ async def process_email_queue(
     This runs the same logic as the 2am scheduled job.
     Finds all entries where scheduled_for <= today and status = scheduled,
     then sends them.
+
+    Args:
+        force_all: If True, process ALL scheduled entries regardless of scheduled date.
+                   Useful when you want to send immediately.
     """
-    logger.info(f"process_email_queue - user_id={current_user.user_id}")
+    from datetime import date
+    today = date.today()
+    logger.info(f"process_email_queue - user_id={current_user.user_id}, force_all={force_all}, server_date={today}")
 
     try:
-        result = await queue_service.process_queue()
+        result = await queue_service.process_queue(force_all=force_all)
         logger.info(
             f"process_email_queue complete - processed={result.total_processed}, "
             f"sent={result.sent_count}, failed={result.failed_count}"
