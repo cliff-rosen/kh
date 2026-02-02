@@ -15,10 +15,10 @@ from .registry import register_page, ClientAction
 
 
 # =============================================================================
-# Identity
+# Persona
 # =============================================================================
 
-ARTICLE_VIEWER_IDENTITY = """You are a research assistant helping the user understand a specific biomedical research article.
+ARTICLE_VIEWER_PERSONA = """You are a research assistant helping the user understand a specific biomedical research article.
 
 The user is currently viewing an article in the Article Viewer. Your focus should be on:
 - Explaining the article's findings, methods, and significance
@@ -145,7 +145,7 @@ ARTICLE_VIEWER_CLIENT_ACTIONS = []
 register_page(
     page="article_viewer",
     context_builder=build_context,
-    persona=ARTICLE_VIEWER_IDENTITY,
+    persona=ARTICLE_VIEWER_PERSONA,
     client_actions=ARTICLE_VIEWER_CLIENT_ACTIONS,
     # Payloads relevant to article viewer
     payloads=[],

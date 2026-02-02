@@ -865,6 +865,7 @@ async def get_chat_config(
     try:
         from schemas.payloads import get_all_payload_types
         from tools.registry import get_all_tools
+        import services.chat_page_config  # Import package to trigger page registrations
         from services.chat_page_config.registry import _page_registry
 
         # Get all payload types
@@ -1030,22 +1031,27 @@ async def list_stream_configs(
         # Get all streams
         streams_data = await stream_service.get_all_streams_basic_info()
 
-        # Get content from chat_config table
+        # Get content from chat_config table (only include non-empty content)
         result = await db.execute(
             select(ChatConfig).where(ChatConfig.scope == "stream")
         )
-        configs_by_stream = {cc.scope_key: cc.content for cc in result.scalars().all()}
+        configs_by_stream = {
+            cc.scope_key: cc.content
+            for cc in result.scalars().all()
+            if cc.content and cc.content.strip()
+        }
 
         configs = []
         for stream in streams_data:
             stream_key = str(stream["stream_id"])
+            content = configs_by_stream.get(stream_key)
 
             configs.append(
                 StreamChatConfig(
                     stream_id=stream["stream_id"],
                     stream_name=stream["stream_name"],
-                    content=configs_by_stream.get(stream_key),
-                    has_override=stream_key in configs_by_stream,
+                    content=content,
+                    has_override=content is not None,
                 )
             )
 
@@ -1090,11 +1096,12 @@ async def get_stream_config(
         )
         override = result.scalars().first()
 
+        content = override.content if override and override.content and override.content.strip() else None
         return StreamChatConfig(
             stream_id=stream.stream_id,
             stream_name=stream.stream_name,
-            content=override.content if override else None,
-            has_override=override is not None,
+            content=content,
+            has_override=content is not None,
         )
 
     except HTTPException:
@@ -1183,6 +1190,7 @@ async def list_page_configs(
     db: AsyncSession = Depends(get_async_db),
 ) -> List[PageChatConfig]:
     """Get all pages with their chat config (platform admin only)."""
+    import services.chat_page_config  # Import package to trigger page registrations
     from services.chat_page_config.registry import _page_registry, get_persona
     from services.chat_stream_service import ChatStreamService
 
@@ -1238,6 +1246,7 @@ async def get_page_config(
     db: AsyncSession = Depends(get_async_db),
 ) -> PageChatConfig:
     """Get chat config for a page (platform admin only)."""
+    import services.chat_page_config  # Import package to trigger page registrations
     from services.chat_page_config.registry import _page_registry, get_persona
     from services.chat_stream_service import ChatStreamService
 
@@ -1293,6 +1302,7 @@ async def update_page_config(
     db: AsyncSession = Depends(get_async_db),
 ) -> PageChatConfig:
     """Update chat config for a page (platform admin only)."""
+    import services.chat_page_config  # Import package to trigger page registrations
     from services.chat_page_config.registry import _page_registry, get_persona
     from services.chat_stream_service import ChatStreamService
 
@@ -1362,6 +1372,7 @@ async def delete_page_config(
     db: AsyncSession = Depends(get_async_db),
 ) -> Dict[str, str]:
     """Delete chat config override for a page, reverting to default (platform admin only)."""
+    import services.chat_page_config  # Import package to trigger page registrations
     from services.chat_page_config.registry import _page_registry
 
     try:

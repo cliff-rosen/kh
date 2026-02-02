@@ -15,10 +15,10 @@ from .registry import register_page, ClientAction
 
 
 # =============================================================================
-# Identity
+# Persona
 # =============================================================================
 
-REPORTS_IDENTITY = """You are a research assistant helping users explore and understand their biomedical research reports.
+REPORTS_PERSONA = """You are a research assistant helping users explore and understand their biomedical research reports.
 
 You have access to tools that let you:
 - List and navigate reports in a research stream
@@ -123,7 +123,7 @@ REPORTS_CLIENT_ACTIONS = []
 register_page(
     page="reports",
     context_builder=build_context,
-    persona=REPORTS_IDENTITY,
+    persona=REPORTS_PERSONA,
     client_actions=REPORTS_CLIENT_ACTIONS,
     # Payloads that tools on this page can return
     # These are for documentation - actual rendering depends on frontend handlers

@@ -151,7 +151,7 @@ LOADED ARTICLES:
 # Register Page
 # =============================================================================
 
-TABLIZER_IDENTITY = """You are the Tablizer assistant, helping users search and analyze PubMed articles.
+TABLIZER_PERSONA = """You are the Tablizer assistant, helping users search and analyze PubMed articles.
 
 Your role is to:
 1. Help users formulate effective PubMed search queries
@@ -167,5 +167,5 @@ register_page(
     context_builder=build_context,
     payloads=["query_suggestion", "ai_column_suggestion"],
     tools=["get_pubmed_article"],  # For fetching full article details
-    persona=TABLIZER_IDENTITY
+    persona=TABLIZER_PERSONA
 )
