@@ -100,6 +100,36 @@ export function ChatConfigPanel() {
         return config.tools.find(t => t.name === selectedToolName) || null;
     }, [config, selectedToolName]);
 
+    // Group tools by category
+    const toolsByCategory = useMemo(() => {
+        if (!config) return [];
+        const groups: Record<string, ToolInfo[]> = {};
+        for (const tool of config.tools) {
+            const category = tool.category || 'other';
+            if (!groups[category]) {
+                groups[category] = [];
+            }
+            groups[category].push(tool);
+        }
+        // Sort categories alphabetically, but put 'research' first as it's most common
+        const categoryOrder: Record<string, number> = {
+            'research': 0,
+            'reports': 1,
+            'analysis': 2,
+        };
+        return Object.entries(groups)
+            .sort(([a], [b]) => {
+                const orderA = categoryOrder[a] ?? 99;
+                const orderB = categoryOrder[b] ?? 99;
+                if (orderA !== orderB) return orderA - orderB;
+                return a.localeCompare(b);
+            })
+            .map(([category, tools]) => ({
+                category,
+                tools: tools.sort((a, b) => a.name.localeCompare(b.name))
+            }));
+    }, [config]);
+
     // Help content state
     const [helpSections, setHelpSections] = useState<HelpSectionSummary[]>([]);
     const [tocPreviews, setTocPreviews] = useState<HelpTOCPreview[]>([]);
@@ -593,31 +623,42 @@ export function ChatConfigPanel() {
                                 </h3>
                             </div>
                             <div className="flex-1 overflow-y-auto">
-                                {config.tools.map((tool) => (
-                                    <button
-                                        key={tool.name}
-                                        onClick={() => setSelectedToolName(tool.name)}
-                                        className={`w-full text-left px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                                            selectedToolName === tool.name ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-l-purple-500' : ''
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <span className="font-medium text-gray-900 dark:text-white text-sm">
-                                                {tool.name}
+                                {toolsByCategory.map(({ category, tools }) => (
+                                    <div key={category}>
+                                        {/* Category header */}
+                                        <div className="sticky top-0 px-4 py-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                                                {category}
                                             </span>
-                                            <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
-                                                {tool.category}
+                                            <span className="ml-2 text-xs text-gray-400">
+                                                ({tools.length})
                                             </span>
                                         </div>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            {tool.is_global && (
-                                                <GlobeAltIcon className="h-3 w-3 text-purple-500" />
-                                            )}
-                                            {tool.streaming && (
-                                                <span className="text-xs text-blue-500">streaming</span>
-                                            )}
-                                        </div>
-                                    </button>
+                                        {/* Tools in category */}
+                                        {tools.map((tool) => (
+                                            <button
+                                                key={tool.name}
+                                                onClick={() => setSelectedToolName(tool.name)}
+                                                className={`w-full text-left px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                                                    selectedToolName === tool.name ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-l-purple-500' : ''
+                                                }`}
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <span className="font-medium text-gray-900 dark:text-white text-sm">
+                                                        {tool.name}
+                                                    </span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        {tool.is_global && (
+                                                            <GlobeAltIcon className="h-3.5 w-3.5 text-purple-500" title="Global" />
+                                                        )}
+                                                        {tool.streaming && (
+                                                            <span className="text-xs text-blue-500" title="Streaming">S</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
                                 ))}
                             </div>
                         </div>
@@ -655,27 +696,24 @@ export function ChatConfigPanel() {
                                             </p>
                                         </div>
 
-                                        {/* Metadata */}
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-                                                    Payload Type
-                                                </h4>
-                                                {selectedTool.payload_type ? (
-                                                    <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-sm">
-                                                        {selectedTool.payload_type}
-                                                    </code>
-                                                ) : (
-                                                    <span className="text-gray-400">None</span>
+                                        {/* Metadata - compact inline badges */}
+                                        {(selectedTool.payload_type || selectedTool.streaming) && (
+                                            <div className="flex flex-wrap gap-2">
+                                                {selectedTool.payload_type && (
+                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-700">
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400">Payload:</span>
+                                                        <code className="text-sm text-gray-900 dark:text-white">
+                                                            {selectedTool.payload_type}
+                                                        </code>
+                                                    </div>
+                                                )}
+                                                {selectedTool.streaming && (
+                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20">
+                                                        <span className="text-xs text-blue-600 dark:text-blue-400">Streaming</span>
+                                                    </div>
                                                 )}
                                             </div>
-                                            <div>
-                                                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-                                                    Streaming
-                                                </h4>
-                                                <StatusIcon active={selectedTool.streaming} />
-                                            </div>
-                                        </div>
+                                        )}
 
                                         {/* Input Schema */}
                                         {selectedTool.input_schema && (
