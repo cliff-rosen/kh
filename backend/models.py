@@ -733,11 +733,16 @@ class HelpContentOverride(Base):
     Help content defaults come from YAML files in /backend/help/.
     This table stores admin customizations that override those defaults.
     Deleting a row reverts to the YAML default.
+
+    Two-level hierarchy:
+    - category: Feature area (reports, streams, tools, operations, general)
+    - topic: Specific topic within the category (overview, viewing, etc.)
     """
     __tablename__ = "help_content_override"
 
-    section_id = Column(String(100), primary_key=True)  # e.g., "reports/viewing"
-    content = Column(Text, nullable=False)  # Markdown content
+    category = Column(String(50), primary_key=True)  # e.g., "reports"
+    topic = Column(String(50), primary_key=True)     # e.g., "overview"
+    content = Column(Text, nullable=False)           # Markdown content
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
 

@@ -21,14 +21,13 @@ from database import get_async_db
 from models import User, HelpContentOverride
 from routers.auth import get_current_user
 from services.help_registry import (
-    get_all_section_ids,
+    get_all_topic_ids,
     get_all_categories,
-    get_sections_by_category,
-    get_section_by_category_topic,
-    get_help_section,
+    get_topics_by_category,
+    get_topic,
     get_help_toc_for_role,
     reload_help_content,
-    get_default_help_section,
+    get_default_topic,
 )
 
 logger = logging.getLogger(__name__)
@@ -116,20 +115,27 @@ def get_category_label(category: str) -> str:
 
 
 async def get_all_overrides(db: AsyncSession) -> Dict[str, str]:
-    """Get all help content overrides as a dict of section_id -> content."""
+    """Get all help content overrides as a dict of 'category/topic' -> content."""
     result = await db.execute(select(HelpContentOverride))
-    return {row.section_id: row.content for row in result.scalars().all()}
+    return {f"{row.category}/{row.topic}": row.content for row in result.scalars().all()}
 
 
 async def save_override(
     db: AsyncSession,
-    section_id: str,
+    category: str,
+    topic: str,
     content: str,
     user_id: int
 ) -> None:
     """Save a help content override."""
+    from sqlalchemy import and_
     result = await db.execute(
-        select(HelpContentOverride).where(HelpContentOverride.section_id == section_id)
+        select(HelpContentOverride).where(
+            and_(
+                HelpContentOverride.category == category,
+                HelpContentOverride.topic == topic
+            )
+        )
     )
     existing = result.scalars().first()
 
@@ -138,17 +144,24 @@ async def save_override(
         existing.updated_by = user_id
     else:
         override = HelpContentOverride(
-            section_id=section_id,
+            category=category,
+            topic=topic,
             content=content,
             updated_by=user_id
         )
         db.add(override)
 
 
-async def delete_override(db: AsyncSession, section_id: str) -> bool:
+async def delete_override(db: AsyncSession, category: str, topic: str) -> bool:
     """Delete a help content override. Returns True if existed."""
+    from sqlalchemy import and_
     result = await db.execute(
-        select(HelpContentOverride).where(HelpContentOverride.section_id == section_id)
+        select(HelpContentOverride).where(
+            and_(
+                HelpContentOverride.category == category,
+                HelpContentOverride.topic == topic
+            )
+        )
     )
     existing = result.scalars().first()
     if existing:
@@ -178,7 +191,7 @@ async def list_help_categories(
     total_overrides = 0
 
     for category in categories:
-        sections = get_sections_by_category(category)
+        sections = get_topics_by_category(category)
         topic_count = len(sections)
         override_count = sum(1 for s in sections if s.id in overrides)
 
@@ -208,7 +221,7 @@ async def get_help_category(
     """
     Get all topics in a help category with full content.
     """
-    sections = get_sections_by_category(category)
+    sections = get_topics_by_category(category)
     if not sections:
         raise HTTPException(status_code=404, detail=f"Help category '{category}' not found")
 
@@ -248,7 +261,7 @@ async def get_help_topic(
     """
     Get a single help topic by category and topic name.
     """
-    section = get_section_by_category_topic(category, topic)
+    section = get_topic(category, topic)
     if not section:
         raise HTTPException(status_code=404, detail=f"Help topic '{category}/{topic}' not found")
 
@@ -287,7 +300,7 @@ async def update_help_category(
                 detail=f"Topic '{topic_update.category}/{topic_update.topic}' does not belong to category '{category}'"
             )
 
-        section = get_section_by_category_topic(topic_update.category, topic_update.topic)
+        section = get_topic(topic_update.category, topic_update.topic)
         if not section:
             raise HTTPException(
                 status_code=404,
@@ -297,15 +310,14 @@ async def update_help_category(
     # Save all overrides
     try:
         for topic_update in update.topics:
-            section_id = f"{topic_update.category}/{topic_update.topic}"
-            default_section = get_default_help_section(section_id)
+            default_topic = get_topic(topic_update.category, topic_update.topic)
 
-            if default_section and topic_update.content == default_section.content:
+            if default_topic and topic_update.content == default_topic.content:
                 # Content matches default - delete override if exists
-                await delete_override(db, section_id)
+                await delete_override(db, topic_update.category, topic_update.topic)
             else:
                 # Content differs - save override
-                await save_override(db, section_id, topic_update.content, current_user.user_id)
+                await save_override(db, topic_update.category, topic_update.topic, topic_update.content, current_user.user_id)
 
         await db.commit()
     except Exception as e:
@@ -327,21 +339,18 @@ async def update_help_topic(
     """
     Update a single help topic.
     """
-    section = get_section_by_category_topic(category, topic)
-    if not section:
+    topic_data = get_topic(category, topic)
+    if not topic_data:
         raise HTTPException(status_code=404, detail=f"Help topic '{category}/{topic}' not found")
 
-    section_id = f"{category}/{topic}"
-
     try:
-        default_section = get_default_help_section(section_id)
-        if default_section and content == default_section.content:
-            await delete_override(db, section_id)
+        if topic_data and content == topic_data.content:
+            await delete_override(db, category, topic)
         else:
-            await save_override(db, section_id, content, current_user.user_id)
+            await save_override(db, category, topic, content, current_user.user_id)
         await db.commit()
     except Exception as e:
-        logger.error(f"Failed to update help topic {section_id}: {e}", exc_info=True)
+        logger.error(f"Failed to update help topic {category}/{topic}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
     return await get_help_topic(category, topic, current_user, db)
@@ -356,11 +365,11 @@ async def reset_help_category(
     """
     Delete all overrides in a help category, reverting all topics to defaults.
     """
-    sections = get_sections_by_category(category)
+    topics = get_topics_by_category(category)
 
     deleted_count = 0
-    for section in sections:
-        if await delete_override(db, section.id):
+    for topic_data in topics:
+        if await delete_override(db, topic_data.category, topic_data.topic):
             deleted_count += 1
 
     await db.commit()
@@ -382,11 +391,11 @@ async def reset_help_topic(
     """
     Delete the override for a single topic, reverting to default.
     """
-    section = get_section_by_category_topic(category, topic)
-    if not section:
+    topic_data = get_topic(category, topic)
+    if not topic_data:
         raise HTTPException(status_code=404, detail=f"Help topic '{category}/{topic}' not found")
 
-    deleted = await delete_override(db, section.id)
+    deleted = await delete_override(db, category, topic)
     await db.commit()
 
     return {
@@ -424,7 +433,7 @@ async def reload_help(
     """
     try:
         reload_help_content()
-        topic_count = len(get_all_section_ids())
+        topic_count = len(get_all_topic_ids())
         return {"status": "ok", "topics_loaded": topic_count}
     except Exception as e:
         logger.error(f"Failed to reload help content: {e}")

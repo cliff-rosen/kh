@@ -5,4 +5,3 @@ export { InvitationList } from './InvitationList';
 export { ActivityList } from './ActivityList';
 export { ConversationList } from './ConversationList';
 export { ChatConfigPanel } from './ChatConfigPanel';
-export { HelpContentBrowser } from './HelpContentBrowser';

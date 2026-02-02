@@ -102,7 +102,7 @@ def _load_help_content() -> None:
 def get_help_toc_for_role(role: str) -> str:
     """
     Get the help table of contents formatted for the system prompt.
-    Filters sections by user role.
+    Filters sections by user role, grouped by category.
 
     Args:
         role: User role (member, org_admin, platform_admin)
@@ -113,51 +113,43 @@ def get_help_toc_for_role(role: str) -> str:
     if not _help_sections:
         _load_help_content()
 
-    # Filter and sort sections for this role
+    # Filter sections for this role
     visible_sections = [
         s for s in _help_sections.values()
         if role in s.roles or role == "platform_admin"  # Platform admins see all
     ]
-    visible_sections.sort(key=lambda s: (s.order, s.id))
 
     if not visible_sections:
         return ""
 
-    # Format as a compact TOC
-    lines = []
+    # Group by category
+    by_category: Dict[str, List[HelpSection]] = {}
     for section in visible_sections:
-        lines.append(f"- {section.id}: {section.summary}")
+        if section.category not in by_category:
+            by_category[section.category] = []
+        by_category[section.category].append(section)
+
+    # Sort sections within each category
+    for cat in by_category:
+        by_category[cat].sort(key=lambda s: (s.order, s.topic))
+
+    # Category order
+    category_order = {'general': 0, 'reports': 1, 'streams': 2, 'tools': 3, 'operations': 4}
+
+    # Format as grouped TOC
+    lines = ["Use get_help(category, topic) to retrieve help content.", ""]
+
+    for category in sorted(by_category.keys(), key=lambda c: (category_order.get(c, 99), c)):
+        sections = by_category[category]
+        lines.append(f"**{category}**:")
+        for section in sections:
+            lines.append(f"  - {section.topic}: {section.summary}")
 
     return "\n".join(lines)
 
 
-def get_help_section(section_id: str, role: str) -> Optional[HelpSection]:
-    """
-    Get a help section by ID if the user's role has access.
-
-    Args:
-        section_id: The section ID to retrieve
-        role: User role for access check
-
-    Returns:
-        HelpSection if found and accessible, None otherwise
-    """
-    if not _help_sections:
-        _load_help_content()
-
-    section = _help_sections.get(section_id)
-    if not section:
-        return None
-
-    # Check role access (platform_admin sees all)
-    if role not in section.roles and role != "platform_admin":
-        return None
-
-    return section
-
-
-def get_all_section_ids() -> List[str]:
-    """Get all section IDs (for validation/testing)."""
+def get_all_topic_ids() -> List[str]:
+    """Get all topic IDs as 'category/topic' (for validation/testing)."""
     if not _help_sections:
         _load_help_content()
     return list(_help_sections.keys())
@@ -181,23 +173,48 @@ def get_all_categories() -> List[str]:
     return sorted(categories, key=lambda c: (order.get(c, 99), c))
 
 
-def get_sections_by_category(category: str) -> List[HelpSection]:
-    """Get all sections in a category, sorted by order."""
+def get_topics_by_category(category: str) -> List[HelpSection]:
+    """Get all topics in a category, sorted by order."""
     if not _help_sections:
         _load_help_content()
 
-    sections = [s for s in _help_sections.values() if s.category == category]
-    sections.sort(key=lambda s: (s.order, s.topic))
-    return sections
+    topics = [s for s in _help_sections.values() if s.category == category]
+    topics.sort(key=lambda t: (t.order, t.topic))
+    return topics
 
 
-def get_section_by_category_topic(category: str, topic: str) -> Optional[HelpSection]:
-    """Get a specific section by category and topic."""
+def get_topic(category: str, topic: str) -> Optional[HelpSection]:
+    """Get a specific topic by category and topic name."""
     if not _help_sections:
         _load_help_content()
 
-    section_id = f"{category}/{topic}"
-    return _help_sections.get(section_id)
+    topic_id = f"{category}/{topic}"
+    return _help_sections.get(topic_id)
+
+
+def get_topic_by_id(topic_id: str, role: str) -> Optional[HelpSection]:
+    """
+    Get a help topic by composite ID if the user's role has access.
+
+    Args:
+        topic_id: The topic ID (category/topic) to retrieve
+        role: User role for access check
+
+    Returns:
+        HelpSection if found and accessible, None otherwise
+    """
+    if not _help_sections:
+        _load_help_content()
+
+    topic_data = _help_sections.get(topic_id)
+    if not topic_data:
+        return None
+
+    # Check role access (platform_admin sees all)
+    if role not in topic_data.roles and role != "platform_admin":
+        return None
+
+    return topic_data
 
 
 def reload_help_content() -> None:
@@ -207,16 +224,18 @@ def reload_help_content() -> None:
     _load_help_content()
 
 
-def get_default_help_section(section_id: str) -> Optional[HelpSection]:
+def get_default_topic(category: str, topic: str) -> Optional[HelpSection]:
     """
-    Get the default (YAML-based) help section without any database overrides.
+    Get the default (YAML-based) help topic without any database overrides.
 
     Args:
-        section_id: The section ID to retrieve
+        category: The category name
+        topic: The topic name
 
     Returns:
         HelpSection from YAML files, or None if not found
     """
     if not _help_sections:
         _load_help_content()
-    return _help_sections.get(section_id)
+    topic_id = f"{category}/{topic}"
+    return _help_sections.get(topic_id)

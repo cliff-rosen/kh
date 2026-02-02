@@ -19,8 +19,10 @@ import {
     UserGroupIcon,
     ShieldCheckIcon,
     EyeIcon,
+    ArrowsPointingOutIcon,
+    ArrowsPointingInIcon,
 } from '@heroicons/react/24/outline';
-import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpCategorySummary, type HelpTopicContent, type HelpCategoryDetail, type HelpTOCPreview, type StreamConfigInfo, type PageConfigIdentityInfo, type ToolInfo } from '../../lib/api/adminApi';
+import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpCategorySummary, type HelpCategoryDetail, type HelpTOCPreview, type StreamConfigInfo, type PageConfigIdentityInfo, type ToolInfo } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
 
 type ConfigTab = 'streams' | 'pages' | 'payloads' | 'tools' | 'help';
@@ -117,6 +119,8 @@ export function ChatConfigPanel() {
     const [isReloadingHelp, setIsReloadingHelp] = useState(false);
     const [helpError, setHelpError] = useState<string | null>(null);
     const [helpViewMode, setHelpViewMode] = useState<'categories' | 'toc-preview'>('categories');
+    const [isHelpMaximized, setIsHelpMaximized] = useState(false);
+    const [collapsedTopics, setCollapsedTopics] = useState<Set<string>>(new Set());
 
     // Check if any topics have been modified
     const hasHelpChanges = useMemo(() => {
@@ -345,10 +349,32 @@ export function ChatConfigPanel() {
         ));
     };
 
+    const toggleTopicCollapse = (topicKey: string) => {
+        setCollapsedTopics(prev => {
+            const next = new Set(prev);
+            if (next.has(topicKey)) {
+                next.delete(topicKey);
+            } else {
+                next.add(topicKey);
+            }
+            return next;
+        });
+    };
+
     const closeHelpCategory = () => {
         setSelectedHelpCategory(null);
         setEditingTopics([]);
         setHelpError(null);
+        setIsHelpMaximized(false);
+        setCollapsedTopics(new Set());
+    };
+
+    const expandAllTopics = () => setCollapsedTopics(new Set());
+
+    const collapseAllTopics = () => {
+        if (!selectedHelpCategory) return;
+        const allKeys = new Set(selectedHelpCategory.topics.map(t => `${t.category}/${t.topic}`));
+        setCollapsedTopics(allKeys);
     };
 
     const saveHelpCategory = async () => {
@@ -1080,6 +1106,13 @@ export function ChatConfigPanel() {
                                                     >
                                                         {isSavingHelp ? 'Saving...' : `Save${modifiedTopics.length > 0 ? ` (${modifiedTopics.length})` : ''}`}
                                                     </button>
+                                                    <button
+                                                        onClick={() => setIsHelpMaximized(true)}
+                                                        className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                                        title="Maximize editor"
+                                                    >
+                                                        <ArrowsPointingOutIcon className="h-5 w-5" />
+                                                    </button>
                                                 </div>
                                             </div>
 
@@ -1132,7 +1165,7 @@ export function ChatConfigPanel() {
                                                                     value={editingTopic?.content || ''}
                                                                     onChange={(e) => updateTopicContent(topic.category, topic.topic, e.target.value)}
                                                                     placeholder="Enter help content in markdown..."
-                                                                    className="w-full h-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
+                                                                    className="w-full h-48 min-h-[8rem] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y font-mono text-sm"
                                                                 />
                                                             </div>
                                                         </div>
@@ -1442,6 +1475,153 @@ export function ChatConfigPanel() {
                                 </div>
                             );
                         })()}
+                    </div>
+                </div>
+            )}
+
+            {/* Help Content Maximized Editor Modal */}
+            {isHelpMaximized && selectedHelpCategory && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-[1400px] h-[calc(100vh-4rem)] flex flex-col">
+                        {/* Header */}
+                        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    Edit Help Content: {selectedHelpCategory.label}
+                                </h2>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    {selectedHelpCategory.topics.length} topics
+                                    {selectedHelpCategory.topics.some(t => t.has_override) && (
+                                        <span className="ml-2">
+                                            ({selectedHelpCategory.topics.filter(t => t.has_override).length} with custom content)
+                                        </span>
+                                    )}
+                                    {modifiedTopics.length > 0 && (
+                                        <span className="ml-2 text-amber-600 dark:text-amber-400">
+                                            • {modifiedTopics.length} unsaved changes
+                                        </span>
+                                    )}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={expandAllTopics}
+                                    className="px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                >
+                                    Expand All
+                                </button>
+                                <button
+                                    onClick={collapseAllTopics}
+                                    className="px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                >
+                                    Collapse All
+                                </button>
+                                <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+                                {selectedHelpCategory.topics.some(t => t.has_override) && (
+                                    <button
+                                        onClick={resetHelpCategory}
+                                        disabled={isSavingHelp}
+                                        className="px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors disabled:opacity-50"
+                                    >
+                                        Reset All to Defaults
+                                    </button>
+                                )}
+                                <button
+                                    onClick={saveHelpCategory}
+                                    disabled={isSavingHelp || !hasHelpChanges}
+                                    className="px-4 py-1.5 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors"
+                                >
+                                    {isSavingHelp ? 'Saving...' : `Save${modifiedTopics.length > 0 ? ` (${modifiedTopics.length})` : ''}`}
+                                </button>
+                                <button
+                                    onClick={() => setIsHelpMaximized(false)}
+                                    className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                    title="Minimize editor"
+                                >
+                                    <ArrowsPointingInIcon className="h-5 w-5" />
+                                </button>
+                                <button
+                                    onClick={closeHelpCategory}
+                                    className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                                >
+                                    <XMarkIcon className="h-6 w-6" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Content - Topics List */}
+                        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+                            {selectedHelpCategory.topics.map((topic) => {
+                                const topicKey = `${topic.category}/${topic.topic}`;
+                                const editingTopic = editingTopics.find(t => t.category === topic.category && t.topic === topic.topic);
+                                const isModified = editingTopic && editingTopic.content !== editingTopic.originalContent;
+                                const isCollapsed = collapsedTopics.has(topicKey);
+
+                                return (
+                                    <div key={topicKey} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                        {/* Topic header - clickable to collapse/expand */}
+                                        <button
+                                            onClick={() => toggleTopicCollapse(topicKey)}
+                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {isCollapsed ? (
+                                                    <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+                                                ) : (
+                                                    <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                                                )}
+                                                <span className="font-medium text-gray-900 dark:text-white">
+                                                    {topic.title}
+                                                </span>
+                                                <code className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+                                                    {topic.topic}
+                                                </code>
+                                                {topic.has_override && (
+                                                    <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                                        Custom
+                                                    </span>
+                                                )}
+                                                {isModified && (
+                                                    <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                                                        Modified
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {topic.roles.map((role) => (
+                                                    <span
+                                                        key={role}
+                                                        className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${getRoleBadgeColor(role)}`}
+                                                    >
+                                                        {getRoleIcon(role)}
+                                                        {role}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </button>
+
+                                        {/* Collapsible content */}
+                                        {!isCollapsed && (
+                                            <>
+                                                {/* Topic summary */}
+                                                <div className="px-4 py-2 bg-gray-25 dark:bg-gray-850 text-sm text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                                                    {topic.summary}
+                                                </div>
+                                                {/* Content editor */}
+                                                <div className="p-4">
+                                                    <textarea
+                                                        value={editingTopic?.content || ''}
+                                                        onChange={(e) => updateTopicContent(topic.category, topic.topic, e.target.value)}
+                                                        placeholder="Enter help content in markdown..."
+                                                        className="w-full h-64 min-h-[10rem] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y font-mono text-sm"
+                                                    />
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
             )}

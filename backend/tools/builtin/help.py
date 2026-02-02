@@ -3,6 +3,10 @@ Help Tool
 
 Provides access to app documentation for the chat system.
 Retrieves help content filtered by user role.
+
+Supports two query modes:
+1. By category only: Returns summaries of all topics in that category
+2. By category + topic: Returns the full content of a specific topic
 """
 
 import logging
@@ -11,38 +15,94 @@ from typing import Any, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tools.registry import ToolConfig, register_tool
-from services.help_registry import get_help_section
+from services.help_registry import (
+    get_topic,
+    get_topics_by_category,
+    get_all_categories,
+)
 
 logger = logging.getLogger(__name__)
 
 
-async def execute_get_help_section(
+async def execute_get_help(
     params: Dict[str, Any],
     db: AsyncSession,
     user_id: int,
     context: Dict[str, Any]
 ) -> str:
     """
-    Retrieve detailed help documentation for a specific topic.
+    Retrieve help documentation by category and optionally topic.
 
-    Uses the section_id from the help table of contents in the system prompt.
+    - If only category is provided: Returns list of topics with summaries
+    - If both category and topic: Returns full content for that topic
     """
-    section_id = params.get("section_id", "").strip()
-
-    if not section_id:
-        return "Error: No section_id provided. Check the HELP TABLE OF CONTENTS for available sections."
+    category = params.get("category", "").strip()
+    topic = params.get("topic", "").strip() if params.get("topic") else None
 
     # Get user role from context (default to member for safety)
     user_role = context.get("user_role", "member")
 
-    section = get_help_section(section_id, user_role)
+    # If no category provided, list available categories
+    if not category:
+        categories = get_all_categories()
+        if not categories:
+            return "No help categories available."
 
-    if not section:
-        return f"Error: Help section '{section_id}' not found or not accessible. Check the HELP TABLE OF CONTENTS for available sections."
+        lines = ["# Available Help Categories", ""]
+        for cat in categories:
+            sections = get_topics_by_category(cat)
+            # Filter by role
+            visible = [s for s in sections if user_role in s.roles or user_role == "platform_admin"]
+            if visible:
+                lines.append(f"- **{cat}** ({len(visible)} topics)")
 
-    return f"""# {section.title}
+        lines.append("")
+        lines.append("Use `get_help(category=\"...\")` to see topics in a category.")
+        return "\n".join(lines)
+
+    # Get topics in the category
+    sections = get_topics_by_category(category)
+
+    # Filter by role
+    visible_sections = [
+        s for s in sections
+        if user_role in s.roles or user_role == "platform_admin"
+    ]
+
+    if not visible_sections:
+        categories = get_all_categories()
+        return f"Help category '{category}' not found or not accessible. Available categories: {', '.join(categories)}"
+
+    # If topic specified, return full content
+    if topic:
+        section = get_topic(category, topic)
+
+        if not section:
+            topic_list = ", ".join(s.topic for s in visible_sections)
+            return f"Topic '{topic}' not found in category '{category}'. Available topics: {topic_list}"
+
+        # Check role access
+        if user_role not in section.roles and user_role != "platform_admin":
+            return f"Topic '{category}/{topic}' is not accessible with your current role."
+
+        return f"""# {section.title}
 
 {section.content}"""
+
+    # No topic specified - return category overview with topic summaries
+    lines = [f"# Help: {category.title()}", ""]
+
+    for section in visible_sections:
+        lines.append(f"## {section.title}")
+        lines.append(f"*Topic: `{section.topic}`*")
+        lines.append("")
+        lines.append(section.summary)
+        lines.append("")
+
+    lines.append("---")
+    lines.append(f"Use `get_help(category=\"{category}\", topic=\"...\")` to get full content for a specific topic.")
+
+    return "\n".join(lines)
 
 
 # =============================================================================
@@ -50,19 +110,30 @@ async def execute_get_help_section(
 # =============================================================================
 
 register_tool(ToolConfig(
-    name="get_help_section",
-    description="Retrieve detailed help documentation about how to use the app. Use this when users ask how to do something or need guidance on app features. Check the HELP TABLE OF CONTENTS in the system prompt for available section IDs.",
+    name="get_help",
+    description="""Retrieve help documentation about how to use the app.
+
+Query modes:
+- get_help() - List all help categories
+- get_help(category="reports") - List all topics in the reports category with summaries
+- get_help(category="reports", topic="overview") - Get full content for a specific topic
+
+Categories: general, reports, streams, tools, operations""",
     input_schema={
         "type": "object",
         "properties": {
-            "section_id": {
+            "category": {
                 "type": "string",
-                "description": "The section ID from the HELP TABLE OF CONTENTS (e.g., 'reports/viewing', 'getting-started')."
+                "description": "Help category: general, reports, streams, tools, or operations. Omit to list categories."
+            },
+            "topic": {
+                "type": "string",
+                "description": "Specific topic within the category (e.g., 'overview', 'viewing'). Omit to see all topics in category."
             }
         },
-        "required": ["section_id"]
+        "required": []
     },
-    executor=execute_get_help_section,
+    executor=execute_get_help,
     category="help",
     is_global=True  # Available on all pages
 ))
