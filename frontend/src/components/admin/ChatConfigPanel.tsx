@@ -68,7 +68,7 @@ function getHelpAreaOrder(area: string): number {
     return order[area] ?? 99;
 }
 
-export function ChatConfigList() {
+export function ChatConfigPanel() {
     const [config, setConfig] = useState<ChatConfigResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -275,7 +275,7 @@ export function ChatConfigList() {
     };
 
     const resetPageConfig = async () => {
-        if (!selectedPageConfig || !selectedPageConfig.has_override) return;
+        if (!selectedPageConfig || (!selectedPageConfig.has_identity_override && !selectedPageConfig.has_guidelines_override)) return;
 
         setIsSavingPage(true);
         setPageError(null);

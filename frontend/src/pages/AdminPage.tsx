@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon, ClockIcon, ChatBubbleLeftRightIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
-import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList, ConversationList, ChatConfigList } from '../components/admin';
+import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList, ConversationList, ChatConfigPanel } from '../components/admin';
 
 type AdminTab = 'organizations' | 'users' | 'invitations' | 'streams' | 'activity' | 'conversations' | 'chat-config';
 
@@ -118,7 +118,7 @@ export default function AdminPage() {
                 {activeTab === 'invitations' && <InvitationList />}
                 {activeTab === 'activity' && <ActivityList />}
                 {activeTab === 'conversations' && <ConversationList />}
-                {activeTab === 'chat-config' && <ChatConfigList />}
+                {activeTab === 'chat-config' && <ChatConfigPanel />}
             </div>
         </div>
     );
