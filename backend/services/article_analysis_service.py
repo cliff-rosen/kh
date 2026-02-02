@@ -196,118 +196,53 @@ def get_stance_prompts(
 
 
 # =============================================================================
+# Item Building Helper
+# =============================================================================
+
+
+def build_stance_item(stream: Any, article: Any, article_summary: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Build a single item dict for stance analysis.
+
+    Args:
+        stream: ResearchStream (or object with stream_name, purpose)
+        article: Article (or object with title, authors, journal, year/publication_year, abstract)
+        article_summary: Optional AI summary (e.g., from association.ai_summary)
+
+    Returns:
+        Item dict ready for analyze_article_stance
+    """
+    # Handle both 'year' and 'publication_year' field names
+    year = getattr(article, 'year', None) or getattr(article, 'publication_year', None)
+
+    return {
+        "stream_name": getattr(stream, 'stream_name', None) or "Unknown",
+        "stream_purpose": getattr(stream, 'purpose', None) or "Not specified",
+        "article_title": getattr(article, 'title', None) or "Untitled",
+        "article_authors": ", ".join(article.authors) if getattr(article, 'authors', None) else "Unknown authors",
+        "article_journal": getattr(article, 'journal', None) or "Unknown",
+        "article_year": str(year) if year else "Unknown",
+        "article_abstract": getattr(article, 'abstract', None) or "",
+        "article_summary": article_summary or "No AI summary available",
+    }
+
+
+# =============================================================================
 # Main Service Function
 # =============================================================================
 
 
 async def analyze_article_stance(
-    article_title: str,
-    article_abstract: Optional[str],
-    article_authors: Optional[List[str]],
-    article_journal: Optional[str],
-    article_year: Optional[int],
-    stream_name: str,
-    stream_purpose: Optional[str],
-    stance_analysis_prompt: Optional[Dict[str, str]] = None,
-    model_config: Optional[ModelConfig] = None,
-    article_summary: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    Analyze an article's stance using the call_llm pattern.
-
-    Args:
-        article_title: Article title
-        article_abstract: Article abstract
-        article_authors: List of authors
-        article_journal: Journal name
-        article_year: Publication year
-        stream_name: Research stream name
-        stream_purpose: Stream's stated purpose
-        stance_analysis_prompt: Custom prompt dict with 'system_prompt' and
-                               'user_prompt_template' keys (None = use defaults)
-        model_config: Optional model configuration override
-        article_summary: AI-generated summary of the article
-
-    Returns:
-        Dict with stance, confidence, analysis, key_factors, relevant_quotes
-    """
-    # Handle missing abstract
-    if not article_abstract:
-        return {
-            "stance": "unclear",
-            "confidence": 0.0,
-            "analysis": "No abstract available for analysis.",
-            "key_factors": [],
-            "relevant_quotes": [],
-        }
-
-    # Get prompt templates (custom or defaults)
-    system_template, user_template = get_stance_prompts(stance_analysis_prompt)
-
-    # Build values dict for template rendering
-    values = {
-        "stream_name": stream_name,
-        "stream_purpose": stream_purpose or "Not specified",
-        "article_title": article_title,
-        "article_authors": (
-            ", ".join(article_authors) if article_authors else "Unknown authors"
-        ),
-        "article_journal": article_journal or "Unknown",
-        "article_year": str(article_year) if article_year else "Unknown",
-        "article_abstract": article_abstract,
-        "article_summary": article_summary or "No AI summary available",
-    }
-
-    # Get model config from task config if not provided
-    if model_config is None:
-        task_config = get_task_config("document_analysis", "stance_analysis")
-        model_config = ModelConfig(
-            model_id=task_config["model"],
-            temperature=task_config.get("temperature", 0.2),
-            reasoning_effort=task_config.get("reasoning_effort"),
-        )
-
-    # Call LLM using unified pattern
-    result: LLMResult = await call_llm(
-        system_message=system_template,
-        user_message=user_template,
-        values=values,
-        model_config=model_config,
-        response_schema=STANCE_RESULT_SCHEMA,
-    )
-
-    # Handle result
-    if not result.ok:
-        logger.error(f"Stance analysis failed: {result.error}")
-        return {
-            "stance": "unclear",
-            "confidence": 0.0,
-            "analysis": f"Analysis failed: {result.error}",
-            "key_factors": [],
-            "relevant_quotes": [],
-        }
-
-    # Return structured response
-    return {
-        "stance": result.data.get("stance", "unclear"),
-        "confidence": result.data.get("confidence", 0.5),
-        "analysis": result.data.get("analysis", ""),
-        "key_factors": result.data.get("key_factors", []),
-        "relevant_quotes": result.data.get("relevant_quotes", []),
-    }
-
-
-async def analyze_stances_batch(
-    items: List[Dict[str, Any]],
+    items: Union[Dict[str, Any], List[Dict[str, Any]]],
     stance_analysis_prompt: Optional[Dict[str, str]] = None,
     model_config: Optional[ModelConfig] = None,
     options: Optional[LLMOptions] = None,
-) -> List[LLMResult]:
+) -> Union[LLMResult, List[LLMResult]]:
     """
-    Analyze stances for multiple articles in batch.
+    Analyze stance for article(s).
 
     Args:
-        items: List of item dicts, each containing:
+        items: Single item dict or list of item dicts. Each dict should contain:
             - stream_name: Research stream name
             - stream_purpose: Stream's stated purpose
             - article_title: Article title
@@ -321,10 +256,15 @@ async def analyze_stances_batch(
         options: LLMOptions with max_concurrent and on_progress
 
     Returns:
-        List[LLMResult] in same order as input items
+        Single item: LLMResult with .data containing stance analysis
+        List of items: List[LLMResult] in same order as input
     """
-    if not items:
-        return []
+    # Determine if single or batch
+    is_single = isinstance(items, dict)
+    items_list = [items] if is_single else items
+
+    if not items_list:
+        return LLMResult(input={}, data=None, error="No items provided") if is_single else []
 
     # Get prompt templates (custom or defaults)
     system_template, user_template = get_stance_prompts(stance_analysis_prompt)
@@ -342,13 +282,13 @@ async def analyze_stances_batch(
     if options is None:
         options = LLMOptions(max_concurrent=5)
 
-    logger.info(f"analyze_stances_batch - items={len(items)}, model={model_config.model_id}")
+    logger.info(f"analyze_article_stance - items={len(items_list)}, model={model_config.model_id}")
 
-    # Call LLM with batch of items
+    # Call LLM (handles both single and batch)
     results = await call_llm(
         system_message=system_template,
         user_message=user_template,
-        values=items,
+        values=items_list[0] if is_single else items_list,
         model_config=model_config,
         response_schema=STANCE_RESULT_SCHEMA,
         options=options,

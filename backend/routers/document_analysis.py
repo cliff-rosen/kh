@@ -12,7 +12,7 @@ from models import User
 from services import auth_service
 from services.document_analysis_service import get_document_analysis_service
 from services.research_stream_service import ResearchStreamService, get_research_stream_service
-from services.article_analysis_service import analyze_article_stance as analyze_stance
+from services.article_analysis_service import analyze_article_stance as analyze_stance, build_stance_item
 from schemas.document_analysis import (
     DocumentAnalysisRequest,
     DocumentAnalysisResult,
@@ -152,18 +152,27 @@ async def analyze_article_stance_endpoint(
         if stream.llm_config and stream.llm_config.get("stance_analysis"):
             model_config = stream.llm_config["stance_analysis"]
 
+        # Build item for analysis (request.article has publication_year instead of year)
+        item = build_stance_item(stream, request.article)
+
         # Call article_analysis_service directly (uses call_llm pattern)
-        result = await analyze_stance(
-            article_title=request.article.title,
-            article_abstract=request.article.abstract,
-            article_authors=request.article.authors,
-            article_journal=request.article.journal,
-            article_year=request.article.publication_year,
-            stream_name=stream.stream_name,
-            stream_purpose=stream.purpose,
+        llm_result = await analyze_stance(
+            items=item,
             stance_analysis_prompt=stance_analysis_prompt,
-            model_config=model_config
+            model_config=model_config,
         )
+
+        # Convert LLMResult to response dict
+        if llm_result.ok and llm_result.data:
+            result = llm_result.data
+        else:
+            result = {
+                "stance": "unclear",
+                "confidence": 0.0,
+                "analysis": f"Analysis failed: {llm_result.error}",
+                "key_factors": [],
+                "relevant_quotes": [],
+            }
 
         logger.info(f"Stance analysis complete: {result.get('stance')} (confidence: {result.get('confidence')})")
         return result

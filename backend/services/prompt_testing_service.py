@@ -22,6 +22,7 @@ from services.article_categorization_service import ArticleCategorizationService
 from services.article_analysis_service import (
     get_stance_prompts,
     analyze_article_stance,
+    build_stance_item,
     STANCE_SLUG_MAPPINGS,
 )
 
@@ -492,21 +493,42 @@ class PromptTestingService:
         for key, value in sample_data.items():
             rendered_user = rendered_user.replace(f"{{{key}}}", str(value))
 
-        # Call stance analysis
-        result = await analyze_article_stance(
-            article_title=sample_data.get("article_title", ""),
-            article_abstract=sample_data.get("article_abstract"),
-            article_authors=sample_data.get("article_authors", "").split(", ") if sample_data.get("article_authors") else None,
-            article_journal=sample_data.get("article_journal"),
-            article_year=int(sample_data["article_year"]) if sample_data.get("article_year") and sample_data["article_year"].isdigit() else None,
+        # Build item using helper - wrap sample_data in SimpleNamespace for attribute access
+        from types import SimpleNamespace
+
+        # Parse year from string if needed
+        year = sample_data.get("article_year")
+        if isinstance(year, str) and year.isdigit():
+            year = int(year)
+        elif not isinstance(year, int):
+            year = None
+
+        # Parse authors from string if needed
+        authors = sample_data.get("article_authors")
+        if isinstance(authors, str):
+            authors = [a.strip() for a in authors.split(",")] if authors else None
+
+        stream_obj = SimpleNamespace(
             stream_name=sample_data.get("stream_name", ""),
-            stream_purpose=sample_data.get("stream_purpose"),
+            purpose=sample_data.get("stream_purpose"),
+        )
+        article_obj = SimpleNamespace(
+            title=sample_data.get("article_title"),
+            authors=authors,
+            journal=sample_data.get("article_journal"),
+            year=year,
+            abstract=sample_data.get("article_abstract"),
+        )
+        item = build_stance_item(stream_obj, article_obj, sample_data.get("article_summary"))
+
+        # Call stance analysis
+        llm_result = await analyze_article_stance(
+            items=item,
             stance_analysis_prompt={
                 "system_prompt": system_prompt,
                 "user_prompt_template": user_prompt
             },
             model_config=llm_config,
-            article_summary=sample_data.get("article_summary"),
         )
 
         # Format response
@@ -514,11 +536,11 @@ class PromptTestingService:
         parsed_stance = None
         error = None
 
-        if result.get("stance") == "unclear" and "failed" in result.get("analysis", "").lower():
-            error = result.get("analysis")
-        else:
-            parsed_stance = result.get("stance")
-            llm_response = json.dumps(result, indent=2)
+        if not llm_result.ok:
+            error = llm_result.error
+        elif llm_result.data:
+            parsed_stance = llm_result.data.get("stance")
+            llm_response = json.dumps(llm_result.data, indent=2)
 
         return {
             "rendered_system_prompt": rendered_system,

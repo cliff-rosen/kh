@@ -2960,7 +2960,7 @@ class ReportService:
         Returns:
             StanceAnalysisPreviewResult with previews for each article
         """
-        from services.article_analysis_service import analyze_article_stance
+        from services.article_analysis_service import analyze_article_stance, build_stance_item
         from schemas.llm import ModelConfig as LLMModelConfig
         import asyncio
 
@@ -3016,35 +3016,29 @@ class ReportService:
             "user_prompt_template": user_prompt_template,
         }
 
-        # Generate stance analysis for all articles in parallel
-        async def analyze_single_article(assoc):
-            try:
-                result = await analyze_article_stance(
-                    article_title=assoc.article.title or "",
-                    article_abstract=assoc.article.abstract,
-                    article_authors=assoc.article.authors,
-                    article_journal=assoc.article.journal,
-                    article_year=assoc.article.year,
-                    stream_name=stream.stream_name if stream else "Unknown",
-                    stream_purpose=stream.purpose if stream else None,
-                    stance_analysis_prompt=stance_analysis_prompt,
-                    model_config=model_config,
-                    article_summary=assoc.ai_summary,
-                )
-                return (assoc, result, None)
-            except Exception as e:
-                logger.error(f"Stance analysis failed for article {assoc.article_id}: {e}")
-                return (assoc, None, str(e))
+        # Build items for batch analysis
+        from agents.prompts.llm import LLMOptions
+        items = [
+            build_stance_item(stream, assoc.article, assoc.ai_summary)
+            for assoc in articles_with_abstracts
+        ]
 
-        # Run all analyses in parallel with concurrency limit
-        semaphore = asyncio.Semaphore(5)  # Limit concurrent requests
+        # Run batch analysis
+        llm_results = await analyze_article_stance(
+            items=items,
+            stance_analysis_prompt=stance_analysis_prompt,
+            model_config=model_config,
+            options=LLMOptions(max_concurrent=5),
+        )
 
-        async def analyze_with_semaphore(assoc):
-            async with semaphore:
-                return await analyze_single_article(assoc)
-
-        tasks = [analyze_with_semaphore(assoc) for assoc in articles_with_abstracts]
-        results = await asyncio.gather(*tasks)
+        # Map results back to associations
+        results = []
+        for i, llm_result in enumerate(llm_results):
+            assoc = articles_with_abstracts[i]
+            if llm_result.ok and llm_result.data:
+                results.append((assoc, llm_result.data, None))
+            else:
+                results.append((assoc, None, llm_result.error))
 
         # Build preview list
         previews = []

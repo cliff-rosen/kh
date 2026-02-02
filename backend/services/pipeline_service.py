@@ -850,7 +850,7 @@ class PipelineService:
         Returns:
             Tuple of (analyzed_count, error_count)
         """
-        from services.article_analysis_service import analyze_stances_batch
+        from services.article_analysis_service import analyze_article_stance, build_stance_item
 
         # RETRIEVE: Get associations with articles
         associations = await self.association_service.get_visible_for_report(report_id)
@@ -863,23 +863,14 @@ class PipelineService:
         if not articles_to_analyze:
             return 0, 0
 
-        # BUILD ITEMS: Create item dicts for batch processing
-        items = []
-        for assoc in articles_to_analyze:
-            article = assoc.article
-            items.append({
-                "stream_name": stream.stream_name,
-                "stream_purpose": stream.purpose or "Not specified",
-                "article_title": article.title or "Untitled",
-                "article_authors": ", ".join(article.authors) if article.authors else "Unknown authors",
-                "article_journal": article.journal or "Unknown",
-                "article_year": str(article.year) if article.year else "Unknown",
-                "article_abstract": article.abstract,
-                "article_summary": assoc.ai_summary or "No AI summary available",
-            })
+        # BUILD ITEMS: Use shared helper
+        items = [
+            build_stance_item(stream, assoc.article, assoc.ai_summary)
+            for assoc in articles_to_analyze
+        ]
 
-        # GENERATE: Call batch analysis service
-        results = await analyze_stances_batch(
+        # GENERATE: Call analysis service
+        results = await analyze_article_stance(
             items=items,
             stance_analysis_prompt=stance_prompt,
             model_config=stage_config,
