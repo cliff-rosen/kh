@@ -727,8 +727,8 @@ export function ChatConfigPanel() {
                                             </div>
                                         </div>
 
-                                        {/* Description - Always visible */}
-                                        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                                        {/* Description - Fixed minimum height to keep Parameters stable */}
+                                        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 min-h-[120px]">
                                             <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
                                                 Description
                                             </div>
