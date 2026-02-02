@@ -6,4 +6,3 @@ export { ActivityList } from './ActivityList';
 export { ConversationList } from './ConversationList';
 export { ChatConfigList } from './ChatConfigList';
 export { HelpContentBrowser } from './HelpContentBrowser';
-export { EmailQueueList } from './EmailQueueList';

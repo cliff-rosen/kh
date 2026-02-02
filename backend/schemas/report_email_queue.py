@@ -69,3 +69,12 @@ class BulkScheduleResponse(BaseModel):
     scheduled_count: int
     skipped_count: int = Field(default=0, description="Users skipped (no email, already scheduled, etc.)")
     queue_entries: List[ReportEmailQueue]
+
+
+class ProcessQueueResponse(BaseModel):
+    """Response from processing the email queue"""
+    total_processed: int
+    sent_count: int
+    failed_count: int
+    skipped_count: int
+    errors: List[str] = []

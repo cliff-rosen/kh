@@ -225,3 +225,99 @@ export async function* executeRunDirect(
         }
     }
 }
+
+
+// ==================== Email Queue API ====================
+
+export type ReportEmailQueueStatus = 'scheduled' | 'ready' | 'processing' | 'sent' | 'failed';
+
+export interface EmailQueueEntry {
+    id: number;
+    report_id: number;
+    user_id: number;
+    email: string;
+    status: ReportEmailQueueStatus;
+    scheduled_for: string;
+    created_at: string;
+    updated_at: string;
+    sent_at?: string;
+    error_message?: string;
+    report_name?: string;
+    user_full_name?: string;
+    stream_name?: string;
+}
+
+export interface EmailQueueListResponse {
+    entries: EmailQueueEntry[];
+    total: number;
+}
+
+export interface ApprovedReportInfo {
+    report_id: number;
+    report_name: string;
+    stream_name?: string;
+    created_at: string;
+}
+
+export interface SubscriberInfo {
+    user_id: number;
+    email: string;
+    full_name?: string;
+    org_name?: string;
+}
+
+export interface BulkScheduleRequest {
+    report_id: number;
+    user_ids: number[];
+    scheduled_for: string;
+}
+
+export interface BulkScheduleResponse {
+    scheduled_count: number;
+    skipped_count: number;
+    queue_entries: EmailQueueEntry[];
+}
+
+export interface ProcessQueueResponse {
+    total_processed: number;
+    sent_count: number;
+    failed_count: number;
+    skipped_count: number;
+    errors: string[];
+}
+
+export async function getEmailQueue(params?: {
+    status_filter?: ReportEmailQueueStatus;
+    scheduled_from?: string;
+    scheduled_to?: string;
+    report_id?: number;
+    limit?: number;
+    offset?: number;
+}): Promise<EmailQueueListResponse> {
+    const response = await api.get('/api/operations/email-queue', { params });
+    return response.data;
+}
+
+export async function getApprovedReportsForEmail(): Promise<ApprovedReportInfo[]> {
+    const response = await api.get('/api/operations/email-queue/approved-reports');
+    return response.data;
+}
+
+export async function getReportSubscribers(reportId: number): Promise<SubscriberInfo[]> {
+    const response = await api.get(`/api/operations/email-queue/subscribers/${reportId}`);
+    return response.data;
+}
+
+export async function scheduleEmails(data: BulkScheduleRequest): Promise<BulkScheduleResponse> {
+    const response = await api.post('/api/operations/email-queue/schedule', data);
+    return response.data;
+}
+
+export async function cancelEmail(entryId: number): Promise<void> {
+    await api.delete(`/api/operations/email-queue/${entryId}`);
+}
+
+export async function processEmailQueue(): Promise<ProcessQueueResponse> {
+    const response = await api.post('/api/operations/email-queue/process');
+    return response.data;
+}

@@ -1,5 +1,5 @@
 /**
- * Operations Page - Report queue, approvals, and scheduler management
+ * Operations Page - Report queue, approvals, scheduler, and email management
  *
  * Routes handled:
  * - /operations              → Report Queue (pipeline monitoring)
@@ -7,6 +7,7 @@
  * - /operations/executions/:id → Execution Detail (read-only view of pipeline results)
  * - /operations/reports/:id/curate → Report Curation (editing, approval)
  * - /operations/scheduler    → Scheduler Management
+ * - /operations/email-queue  → Email Queue (scheduled report email delivery)
  */
 
 import { Routes, Route, NavLink, Navigate, Outlet } from 'react-router-dom';
@@ -14,8 +15,9 @@ import {
     DocumentTextIcon,
     ClockIcon,
     ClipboardDocumentCheckIcon,
+    EnvelopeIcon,
 } from '@heroicons/react/24/outline';
-import { ReportQueue, ExecutionDetail, SchedulerManagement, ReportApprovalQueue, ReportCuration } from '../components/operations';
+import { ReportQueue, ExecutionDetail, SchedulerManagement, ReportApprovalQueue, ReportCuration, EmailQueueList } from '../components/operations';
 
 function OperationsLayout() {
     return (
@@ -63,6 +65,19 @@ function OperationsLayout() {
                         <ClockIcon className="h-4 w-4" />
                         Scheduler
                     </NavLink>
+                    <NavLink
+                        to="/operations/email-queue"
+                        className={({ isActive }) =>
+                            `flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                                isActive
+                                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:border-gray-300'
+                            }`
+                        }
+                    >
+                        <EnvelopeIcon className="h-4 w-4" />
+                        Email Queue
+                    </NavLink>
                 </nav>
             </div>
 
@@ -86,6 +101,7 @@ export default function OperationsPage() {
                 <Route path="approvals" element={<ReportApprovalQueue />} />
                 <Route path="executions/:executionId" element={<ExecutionDetail />} />
                 <Route path="scheduler" element={<SchedulerManagement />} />
+                <Route path="email-queue" element={<EmailQueueList />} />
             </Route>
             <Route path="*" element={<Navigate to="/operations" replace />} />
         </Routes>

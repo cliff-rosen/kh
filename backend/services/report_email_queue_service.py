@@ -29,8 +29,19 @@ from schemas.report_email_queue import (
     BulkScheduleResponse,
 )
 from database import get_async_db
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ProcessQueueResult:
+    """Result of processing the email queue."""
+    total_processed: int = 0
+    sent_count: int = 0
+    failed_count: int = 0
+    skipped_count: int = 0  # Already processed or not ready
+    errors: List[str] = field(default_factory=list)
 
 
 class ReportEmailQueueService:
@@ -375,6 +386,162 @@ class ReportEmailQueueService:
             return list(result.scalars().all())
 
         return []
+
+    # ==================== Queue Processing ====================
+
+    async def process_queue(self, target_date: Optional[date] = None) -> ProcessQueueResult:
+        """
+        Process all scheduled emails that are due.
+
+        This is the core logic used by both:
+        - Manual "Run Now" execution
+        - Scheduled 2am cron job
+
+        Args:
+            target_date: Date to process for (defaults to today)
+
+        Returns:
+            ProcessQueueResult with counts and any errors
+        """
+        from services.report_service import ReportService, get_report_service
+        from services.email_service import get_email_service
+
+        if target_date is None:
+            target_date = date.today()
+
+        result = ProcessQueueResult()
+
+        # Step 1: Find all scheduled entries due for processing
+        query = select(ReportEmailQueue).where(
+            and_(
+                ReportEmailQueue.scheduled_for <= target_date,
+                ReportEmailQueue.status == ReportEmailQueueStatus.SCHEDULED,
+            )
+        )
+        entries_result = await self.db.execute(query)
+        entries = list(entries_result.scalars().all())
+
+        if not entries:
+            logger.info(f"No scheduled emails to process for {target_date}")
+            return result
+
+        logger.info(f"Processing {len(entries)} scheduled emails for {target_date}")
+
+        # Step 2: Mark all as ready
+        for entry in entries:
+            entry.status = ReportEmailQueueStatus.READY
+        await self.db.commit()
+
+        # Step 3: Process each entry
+        # Get services
+        email_service = get_email_service()
+
+        # Group entries by report_id to avoid regenerating email HTML multiple times
+        entries_by_report: dict[int, List[ReportEmailQueue]] = {}
+        for entry in entries:
+            if entry.report_id not in entries_by_report:
+                entries_by_report[entry.report_id] = []
+            entries_by_report[entry.report_id].append(entry)
+
+        # Process each report's emails
+        for report_id, report_entries in entries_by_report.items():
+            # Generate email HTML once per report
+            try:
+                # Create a temporary report service with the current db session
+                report_service = ReportService(self.db)
+
+                # We need a user to generate the email - use the first entry's user
+                # Note: generate_report_email_html checks access, so we need a user with access
+                # For admin-triggered sends, we'll create a synthetic admin user check
+                first_entry = report_entries[0]
+
+                # Get a user who has access to this report (the recipient should have access)
+                user_result = await self.db.execute(
+                    select(User).where(User.user_id == first_entry.user_id)
+                )
+                user = user_result.scalars().first()
+
+                if not user:
+                    error_msg = f"User {first_entry.user_id} not found for report {report_id}"
+                    logger.error(error_msg)
+                    for entry in report_entries:
+                        entry.status = ReportEmailQueueStatus.FAILED
+                        entry.error_message = error_msg
+                        result.failed_count += 1
+                        result.errors.append(error_msg)
+                    await self.db.commit()
+                    continue
+
+                # Generate email HTML
+                email_result = await report_service.generate_report_email_html(user, report_id)
+
+                if not email_result or not email_result.html:
+                    error_msg = f"Failed to generate email HTML for report {report_id}"
+                    logger.error(error_msg)
+                    for entry in report_entries:
+                        entry.status = ReportEmailQueueStatus.FAILED
+                        entry.error_message = error_msg
+                        result.failed_count += 1
+                        result.errors.append(error_msg)
+                    await self.db.commit()
+                    continue
+
+                # Send to each recipient
+                for entry in report_entries:
+                    result.total_processed += 1
+
+                    # Mark as processing
+                    entry.status = ReportEmailQueueStatus.PROCESSING
+                    await self.db.commit()
+
+                    try:
+                        # Send the email
+                        success = await email_service.send_report_email(
+                            to_email=entry.email,
+                            report_name=email_result.report_name,
+                            html_content=email_result.html,
+                            subject=email_result.subject,
+                            from_name=email_result.from_name,
+                            images=email_result.images,
+                        )
+
+                        if success:
+                            entry.status = ReportEmailQueueStatus.SENT
+                            entry.sent_at = datetime.utcnow()
+                            result.sent_count += 1
+                            logger.info(f"Email sent successfully to {entry.email} for report {report_id}")
+                        else:
+                            entry.status = ReportEmailQueueStatus.FAILED
+                            entry.error_message = "Email service returned failure"
+                            result.failed_count += 1
+                            result.errors.append(f"Failed to send to {entry.email}")
+                            logger.error(f"Email service failed for {entry.email}")
+
+                    except Exception as e:
+                        entry.status = ReportEmailQueueStatus.FAILED
+                        entry.error_message = str(e)[:500]  # Truncate long errors
+                        result.failed_count += 1
+                        result.errors.append(f"Error sending to {entry.email}: {str(e)}")
+                        logger.error(f"Exception sending email to {entry.email}: {e}", exc_info=True)
+
+                    await self.db.commit()
+
+            except Exception as e:
+                error_msg = f"Error processing report {report_id}: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+                for entry in report_entries:
+                    if entry.status in [ReportEmailQueueStatus.READY, ReportEmailQueueStatus.PROCESSING]:
+                        entry.status = ReportEmailQueueStatus.FAILED
+                        entry.error_message = str(e)[:500]
+                        result.failed_count += 1
+                        result.errors.append(error_msg)
+                await self.db.commit()
+
+        logger.info(
+            f"Queue processing complete: {result.total_processed} processed, "
+            f"{result.sent_count} sent, {result.failed_count} failed"
+        )
+        return result
 
 
 # Dependency injection provider

@@ -8,9 +8,21 @@ import {
   ClockIcon,
   ArrowPathIcon,
   PaperAirplaneIcon,
-  TrashIcon
+  TrashIcon,
+  PlayIcon
 } from '@heroicons/react/24/outline';
-import { adminApi, type EmailQueueEntry, type ReportEmailQueueStatus, type ApprovedReportInfo, type SubscriberInfo } from '../../lib/api/adminApi';
+import {
+  getEmailQueue,
+  getApprovedReportsForEmail,
+  getReportSubscribers,
+  scheduleEmails,
+  cancelEmail,
+  processEmailQueue,
+  type EmailQueueEntry,
+  type ReportEmailQueueStatus,
+  type ApprovedReportInfo,
+  type SubscriberInfo
+} from '../../lib/api/operationsApi';
 
 const STATUS_COLORS: Record<ReportEmailQueueStatus, string> = {
   scheduled: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
@@ -50,6 +62,9 @@ export function EmailQueueList() {
   const [isLoadingSubscribers, setIsLoadingSubscribers] = useState(false);
   const [subscriberError, setSubscriberError] = useState<string | null>(null);
 
+  // Process queue state
+  const [isProcessing, setIsProcessing] = useState(false);
+
   // Helper to extract error message from axios errors
   const getErrorMessage = (err: unknown, fallback: string): string => {
     const axiosError = err as { response?: { data?: { detail?: string } } };
@@ -67,7 +82,7 @@ export function EmailQueueList() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await adminApi.getEmailQueue({
+      const response = await getEmailQueue({
         status_filter: statusFilter || undefined,
         limit,
         offset,
@@ -84,7 +99,7 @@ export function EmailQueueList() {
   // Load approved reports for modal
   const loadReports = async () => {
     try {
-      const data = await adminApi.getApprovedReportsForEmail();
+      const data = await getApprovedReportsForEmail();
       setReports(data);
     } catch (err) {
       console.error('Failed to load reports:', err);
@@ -96,7 +111,7 @@ export function EmailQueueList() {
     setIsLoadingSubscribers(true);
     setSubscriberError(null);
     try {
-      const data = await adminApi.getReportSubscribers(reportId);
+      const data = await getReportSubscribers(reportId);
       setSubscribers(data);
       setSelectedUserIds([]); // Reset selection
     } catch (err) {
@@ -156,7 +171,7 @@ export function EmailQueueList() {
     setIsScheduling(true);
     setError(null);
     try {
-      const result = await adminApi.scheduleEmails({
+      const result = await scheduleEmails({
         report_id: selectedReportId,
         user_ids: selectedUserIds,
         scheduled_for: scheduledFor,
@@ -182,10 +197,38 @@ export function EmailQueueList() {
 
     setError(null);
     try {
-      await adminApi.cancelEmail(entryId);
+      await cancelEmail(entryId);
       loadEntries(); // Refresh
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to cancel email'));
+    }
+  };
+
+  // Handle process queue (run now)
+  const handleProcessQueue = async () => {
+    if (!confirm('This will send all scheduled emails that are due. Continue?')) {
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+    try {
+      const result = await processEmailQueue();
+      loadEntries(); // Refresh
+
+      // Show result
+      let message = `Processed ${result.total_processed} emails: ${result.sent_count} sent, ${result.failed_count} failed.`;
+      if (result.errors.length > 0) {
+        message += `\n\nErrors:\n${result.errors.slice(0, 5).join('\n')}`;
+        if (result.errors.length > 5) {
+          message += `\n...and ${result.errors.length - 5} more`;
+        }
+      }
+      alert(message);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to process email queue'));
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -207,13 +250,32 @@ export function EmailQueueList() {
             Manage scheduled report email delivery
           </p>
         </div>
-        <button
-          onClick={openScheduleModal}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-        >
-          <PaperAirplaneIcon className="h-5 w-5" />
-          Schedule Emails
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleProcessQueue}
+            disabled={isProcessing}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isProcessing ? (
+              <>
+                <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <PlayIcon className="h-5 w-5" />
+                Process Queue
+              </>
+            )}
+          </button>
+          <button
+            onClick={openScheduleModal}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+          >
+            <PaperAirplaneIcon className="h-5 w-5" />
+            Schedule Emails
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

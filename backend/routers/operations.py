@@ -27,6 +27,10 @@ from services.research_stream_service import (
     get_research_stream_service,
 )
 from services.pipeline_service import PipelineService
+from services.report_email_queue_service import (
+    ReportEmailQueueService,
+    get_report_email_queue_service,
+)
 from config.settings import settings
 
 # Import domain types from schemas
@@ -35,6 +39,13 @@ from schemas.research_stream import (
     StreamOption,
     ExecutionDetail,
     ScheduledStreamSummary,
+)
+from schemas.report_email_queue import (
+    ReportEmailQueueStatus,
+    ReportEmailQueueWithDetails,
+    BulkScheduleRequest,
+    BulkScheduleResponse,
+    ProcessQueueResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -565,4 +576,263 @@ async def cancel_run(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to cancel run: {str(e)}"
+        )
+
+
+# ==================== Email Queue Management ====================
+
+
+class EmailQueueListResponse(BaseModel):
+    """Response for email queue list."""
+    entries: List[ReportEmailQueueWithDetails]
+    total: int
+
+
+class SubscriberInfo(BaseModel):
+    """User info for subscriber picker."""
+    user_id: int
+    email: str
+    full_name: Optional[str] = None
+    org_name: Optional[str] = None
+
+
+class ApprovedReportInfo(BaseModel):
+    """Report info for report picker."""
+    report_id: int
+    report_name: str
+    stream_name: Optional[str] = None
+    created_at: datetime
+
+
+@router.get(
+    "/email-queue",
+    response_model=EmailQueueListResponse,
+    summary="List email queue entries",
+)
+async def list_email_queue(
+    status_filter: Optional[ReportEmailQueueStatus] = None,
+    scheduled_from: Optional[datetime] = None,
+    scheduled_to: Optional[datetime] = None,
+    report_id: Optional[int] = None,
+    limit: int = 100,
+    offset: int = 0,
+    current_user: User = Depends(auth_service.validate_token),
+    queue_service: ReportEmailQueueService = Depends(get_report_email_queue_service),
+):
+    """Get email queue entries with optional filters."""
+    logger.info(f"list_email_queue - user_id={current_user.user_id}, status={status_filter}")
+
+    try:
+        entries, total = await queue_service.get_queue_entries(
+            status_filter=status_filter,
+            scheduled_from=scheduled_from.date() if scheduled_from else None,
+            scheduled_to=scheduled_to.date() if scheduled_to else None,
+            report_id=report_id,
+            limit=limit,
+            offset=offset,
+        )
+        logger.info(f"list_email_queue complete - total={total}, returned={len(entries)}")
+        return EmailQueueListResponse(entries=entries, total=total)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"list_email_queue failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list email queue: {str(e)}",
+        )
+
+
+@router.get(
+    "/email-queue/approved-reports",
+    response_model=List[ApprovedReportInfo],
+    summary="Get approved reports for scheduling",
+)
+async def get_approved_reports_for_email(
+    current_user: User = Depends(auth_service.validate_token),
+    queue_service: ReportEmailQueueService = Depends(get_report_email_queue_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
+):
+    """Get approved reports for the email scheduling dropdown."""
+    logger.info(f"get_approved_reports_for_email - user_id={current_user.user_id}")
+
+    try:
+        reports = await queue_service.get_approved_reports(limit=50)
+
+        # Get stream names
+        stream_ids = [r.research_stream_id for r in reports if r.research_stream_id]
+        streams = {}
+        if stream_ids:
+            stream_list = await stream_service.get_streams_by_ids(stream_ids)
+            streams = {s.stream_id: s.stream_name for s in stream_list}
+
+        result = [
+            ApprovedReportInfo(
+                report_id=r.report_id,
+                report_name=r.report_name,
+                stream_name=streams.get(r.research_stream_id) if r.research_stream_id else None,
+                created_at=r.created_at,
+            )
+            for r in reports
+        ]
+
+        logger.info(f"get_approved_reports_for_email complete - count={len(result)}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_approved_reports_for_email failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get approved reports: {str(e)}",
+        )
+
+
+@router.get(
+    "/email-queue/subscribers/{report_id}",
+    response_model=List[SubscriberInfo],
+    summary="Get subscribers for a report's stream",
+)
+async def get_report_subscribers(
+    report_id: int,
+    current_user: User = Depends(auth_service.validate_token),
+    queue_service: ReportEmailQueueService = Depends(get_report_email_queue_service),
+):
+    """Get all subscribers for the given report's stream."""
+    logger.info(f"get_report_subscribers - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        subscribers = await queue_service.get_stream_subscribers(report_id)
+
+        result = [
+            SubscriberInfo(
+                user_id=u.user_id,
+                email=u.email,
+                full_name=u.full_name,
+                org_name=u.organization.name if u.organization else None,
+            )
+            for u in subscribers
+        ]
+
+        logger.info(f"get_report_subscribers complete - count={len(result)}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_report_subscribers failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get subscribers: {str(e)}",
+        )
+
+
+@router.post(
+    "/email-queue/schedule",
+    response_model=BulkScheduleResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Schedule emails for users",
+)
+async def schedule_emails(
+    request: BulkScheduleRequest,
+    current_user: User = Depends(auth_service.validate_token),
+    queue_service: ReportEmailQueueService = Depends(get_report_email_queue_service),
+):
+    """Schedule report emails for multiple users."""
+    logger.info(
+        f"schedule_emails - user_id={current_user.user_id}, report_id={request.report_id}, "
+        f"user_count={len(request.user_ids)}, scheduled_for={request.scheduled_for}"
+    )
+
+    try:
+        result = await queue_service.schedule_emails(request)
+        logger.info(
+            f"schedule_emails complete - scheduled={result.scheduled_count}, "
+            f"skipped={result.skipped_count}"
+        )
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"schedule_emails failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to schedule emails: {str(e)}",
+        )
+
+
+@router.delete(
+    "/email-queue/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Cancel a scheduled email",
+)
+async def cancel_email(
+    entry_id: int,
+    current_user: User = Depends(auth_service.validate_token),
+    queue_service: ReportEmailQueueService = Depends(get_report_email_queue_service),
+):
+    """Cancel a scheduled email. Only works for scheduled/ready status."""
+    logger.info(f"cancel_email - user_id={current_user.user_id}, entry_id={entry_id}")
+
+    try:
+        success = await queue_service.cancel_entry(entry_id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot cancel: entry not found or already processed",
+            )
+        logger.info(f"cancel_email complete - entry_id={entry_id}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"cancel_email failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to cancel email: {str(e)}",
+        )
+
+
+@router.post(
+    "/email-queue/process",
+    response_model=ProcessQueueResponse,
+    summary="Process scheduled emails now",
+)
+async def process_email_queue(
+    current_user: User = Depends(auth_service.validate_token),
+    queue_service: ReportEmailQueueService = Depends(get_report_email_queue_service),
+):
+    """
+    Manually trigger processing of all scheduled emails that are due.
+
+    This runs the same logic as the 2am scheduled job.
+    Finds all entries where scheduled_for <= today and status = scheduled,
+    then sends them.
+    """
+    logger.info(f"process_email_queue - user_id={current_user.user_id}")
+
+    try:
+        result = await queue_service.process_queue()
+        logger.info(
+            f"process_email_queue complete - processed={result.total_processed}, "
+            f"sent={result.sent_count}, failed={result.failed_count}"
+        )
+        return ProcessQueueResponse(
+            total_processed=result.total_processed,
+            sent_count=result.sent_count,
+            failed_count=result.failed_count,
+            skipped_count=result.skipped_count,
+            errors=result.errors,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"process_email_queue failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process email queue: {str(e)}",
         )
