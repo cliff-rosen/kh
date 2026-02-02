@@ -1380,9 +1380,10 @@ export function ChatConfigPanel() {
 
                                         {/* Categories and topics */}
                                         {tocConfig && topicSummaries && Object.entries(topicSummaries.categories).map(([category, topics]) => {
-                                            // Note: Role-based filtering would require role info in TopicSummaryInfo
-                                            // For now, platform admins see all topics (which is the editing context)
-                                            const visibleTopics = topics;
+                                            // Filter topics by selected role
+                                            const visibleTopics = topics.filter(t =>
+                                                selectedPreviewRole === 'platform_admin' || t.roles.includes(selectedPreviewRole)
+                                            );
 
                                             if (visibleTopics.length === 0) return null;
 

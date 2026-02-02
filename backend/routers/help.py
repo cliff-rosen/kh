@@ -117,6 +117,7 @@ class TopicSummaryInfo(BaseModel):
     default_summary: str  # From YAML
     current_summary: str  # May be overridden
     has_override: bool
+    roles: List[str]  # Which roles can see this topic
 
 
 class TopicSummariesResponse(BaseModel):
@@ -541,7 +542,8 @@ async def get_topic_summaries(
                 title=topic.title,
                 default_summary=topic.summary,
                 current_summary=current,
-                has_override=has_override
+                has_override=has_override,
+                roles=topic.roles
             ))
 
         categories_dict[category] = summaries

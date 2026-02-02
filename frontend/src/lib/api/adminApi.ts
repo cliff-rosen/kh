@@ -529,6 +529,7 @@ export interface TopicSummaryInfo {
   default_summary: string;  // From YAML
   current_summary: string;  // May be overridden
   has_override: boolean;
+  roles: string[];  // Which roles can see this topic
 }
 
 export interface TopicSummariesResponse {
