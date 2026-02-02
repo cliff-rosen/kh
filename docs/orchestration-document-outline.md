@@ -1,15 +1,5 @@
 # Orchestration Document Outline (Revised)
 
-**Audience:** Jeff Heaton (AI researcher, ML practitioner, actuarial background), Tim Rozar (RGA executive, FSA, innovation-focused)
-
-**Purpose:** Demonstrate deep understanding + practical ability to extract real business value from LLMs
-
-**Length:** 2-3 pages
-
-**Structure:** Three parts (plus brief intro)
-
----
-
 ## Intro: The Gap Between Potential and Reality
 - Demos work, production doesn't
 - This traces to specific architectural limitations—understanding them points to the solution
