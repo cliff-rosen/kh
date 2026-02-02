@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     CubeIcon,
     WrenchScrewdriverIcon,
@@ -11,18 +11,62 @@ import {
     XCircleIcon,
     BeakerIcon,
     Squares2X2Icon,
+    PencilSquareIcon,
+    XMarkIcon,
+    BookOpenIcon,
+    ArrowPathIcon,
+    UserIcon,
+    UserGroupIcon,
+    ShieldCheckIcon,
+    EyeIcon,
 } from '@heroicons/react/24/outline';
-import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo } from '../../lib/api/adminApi';
+import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type StreamInstructionsInfo, type HelpSectionSummary, type HelpSectionDetail, type HelpTOCPreview, type PageIdentityInfo } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
+import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 
-type ConfigTab = 'pages' | 'payloads' | 'tools' | 'streams';
+type ConfigTab = 'pages' | 'payloads' | 'tools' | 'streams' | 'help';
 
 const configTabs: { id: ConfigTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'pages', label: 'Page Configs', icon: DocumentTextIcon },
     { id: 'payloads', label: 'Payload Types', icon: CubeIcon },
     { id: 'tools', label: 'Tools', icon: WrenchScrewdriverIcon },
     { id: 'streams', label: 'Stream Instructions', icon: BeakerIcon },
+    { id: 'help', label: 'Help Content', icon: BookOpenIcon },
 ];
+
+// Help content utilities
+interface SectionGroup {
+    area: string;
+    label: string;
+    sections: HelpSectionSummary[];
+}
+
+function getHelpArea(sectionId: string): string {
+    const parts = sectionId.split('/');
+    return parts.length > 1 ? parts[0] : 'general';
+}
+
+function getHelpAreaLabel(area: string): string {
+    const labels: Record<string, string> = {
+        'general': 'Getting Started',
+        'reports': 'Reports',
+        'streams': 'Streams',
+        'tools': 'Tools',
+        'operations': 'Operations',
+    };
+    return labels[area] || area.charAt(0).toUpperCase() + area.slice(1);
+}
+
+function getHelpAreaOrder(area: string): number {
+    const order: Record<string, number> = {
+        'general': 0,
+        'reports': 1,
+        'streams': 2,
+        'tools': 3,
+        'operations': 4,
+    };
+    return order[area] ?? 99;
+}
 
 export function ChatConfigList() {
     const [config, setConfig] = useState<ChatConfigResponse | null>(null);
@@ -30,6 +74,59 @@ export function ChatConfigList() {
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<ConfigTab>('pages');
     const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
+
+    // Stream instructions editing state
+    const [selectedStream, setSelectedStream] = useState<StreamInstructionsInfo | null>(null);
+    const [streamInstructions, setStreamInstructions] = useState<string>('');
+    const [isLoadingStream, setIsLoadingStream] = useState(false);
+    const [isSavingStream, setIsSavingStream] = useState(false);
+    const [streamError, setStreamError] = useState<string | null>(null);
+
+    // Help content state
+    const [helpSections, setHelpSections] = useState<HelpSectionSummary[]>([]);
+    const [tocPreviews, setTocPreviews] = useState<HelpTOCPreview[]>([]);
+    const [selectedHelpSection, setSelectedHelpSection] = useState<HelpSectionDetail | null>(null);
+    const [isLoadingHelp, setIsLoadingHelp] = useState(false);
+    const [isLoadingHelpSection, setIsLoadingHelpSection] = useState(false);
+    const [isReloadingHelp, setIsReloadingHelp] = useState(false);
+    const [helpError, setHelpError] = useState<string | null>(null);
+    const [helpViewMode, setHelpViewMode] = useState<'sections' | 'toc-preview'>('sections');
+    const [collapsedHelpAreas, setCollapsedHelpAreas] = useState<Set<string>>(new Set());
+
+    // Page identity state
+    const [pageIdentities, setPageIdentities] = useState<PageIdentityInfo[]>([]);
+    const [selectedPageIdentity, setSelectedPageIdentity] = useState<PageIdentityInfo | null>(null);
+    const [editingIdentity, setEditingIdentity] = useState<string>('');
+    const [isLoadingIdentities, setIsLoadingIdentities] = useState(false);
+    const [isSavingIdentity, setIsSavingIdentity] = useState(false);
+    const [identityError, setIdentityError] = useState<string | null>(null);
+
+    // Group help sections by area
+    const groupedHelpSections = useMemo((): SectionGroup[] => {
+        const groups: Record<string, HelpSectionSummary[]> = {};
+
+        for (const section of helpSections) {
+            const area = getHelpArea(section.id);
+            if (!groups[area]) {
+                groups[area] = [];
+            }
+            groups[area].push(section);
+        }
+
+        // Sort sections within each group by order
+        for (const area in groups) {
+            groups[area].sort((a, b) => a.order - b.order);
+        }
+
+        // Convert to array and sort by area order
+        return Object.entries(groups)
+            .map(([area, sects]) => ({
+                area,
+                label: getHelpAreaLabel(area),
+                sections: sects,
+            }))
+            .sort((a, b) => getHelpAreaOrder(a.area) - getHelpAreaOrder(b.area));
+    }, [helpSections]);
 
     useEffect(() => {
         loadConfig();
@@ -59,6 +156,204 @@ export function ChatConfigList() {
             return next;
         });
     };
+
+    const openStreamInstructions = async (stream: StreamInstructionsInfo) => {
+        setSelectedStream(stream);
+        setStreamError(null);
+        setIsLoadingStream(true);
+
+        try {
+            const data = await adminApi.getStreamChatInstructions(stream.stream_id);
+            setStreamInstructions(data.chat_instructions || '');
+        } catch (err) {
+            setStreamError(handleApiError(err));
+        } finally {
+            setIsLoadingStream(false);
+        }
+    };
+
+    const closeStreamInstructions = () => {
+        setSelectedStream(null);
+        setStreamInstructions('');
+        setStreamError(null);
+    };
+
+    const saveStreamInstructions = async () => {
+        if (!selectedStream) return;
+
+        setIsSavingStream(true);
+        setStreamError(null);
+
+        try {
+            const trimmed = streamInstructions.trim();
+            await adminApi.updateStreamChatInstructions(
+                selectedStream.stream_id,
+                trimmed.length > 0 ? trimmed : null
+            );
+
+            // Reload the config to update the table
+            await loadConfig();
+            closeStreamInstructions();
+        } catch (err) {
+            setStreamError(handleApiError(err));
+        } finally {
+            setIsSavingStream(false);
+        }
+    };
+
+    // Help content functions
+    const loadHelpContent = async () => {
+        setIsLoadingHelp(true);
+        setHelpError(null);
+        try {
+            const [sectionsRes, tocRes] = await Promise.all([
+                adminApi.getHelpSections(),
+                adminApi.getHelpTocPreview(),
+            ]);
+            setHelpSections(sectionsRes.sections);
+            setTocPreviews(tocRes);
+        } catch (err) {
+            setHelpError(handleApiError(err));
+        } finally {
+            setIsLoadingHelp(false);
+        }
+    };
+
+    const handleReloadHelp = async () => {
+        setIsReloadingHelp(true);
+        try {
+            await adminApi.reloadHelpContent();
+            await loadHelpContent();
+        } catch (err) {
+            setHelpError(handleApiError(err));
+        } finally {
+            setIsReloadingHelp(false);
+        }
+    };
+
+    const handleViewHelpSection = async (sectionId: string) => {
+        setIsLoadingHelpSection(true);
+        try {
+            const detail = await adminApi.getHelpSection(sectionId);
+            setSelectedHelpSection(detail);
+        } catch (err) {
+            setHelpError(handleApiError(err));
+        } finally {
+            setIsLoadingHelpSection(false);
+        }
+    };
+
+    const toggleHelpArea = (area: string) => {
+        setCollapsedHelpAreas(prev => {
+            const next = new Set(prev);
+            if (next.has(area)) {
+                next.delete(area);
+            } else {
+                next.add(area);
+            }
+            return next;
+        });
+    };
+
+    const getRoleIcon = (role: string) => {
+        switch (role) {
+            case 'platform_admin':
+                return <ShieldCheckIcon className="h-4 w-4" />;
+            case 'org_admin':
+                return <UserGroupIcon className="h-4 w-4" />;
+            default:
+                return <UserIcon className="h-4 w-4" />;
+        }
+    };
+
+    const getRoleBadgeColor = (role: string) => {
+        switch (role) {
+            case 'platform_admin':
+                return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300';
+            case 'org_admin':
+                return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+            default:
+                return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+        }
+    };
+
+    // Load help content when switching to help tab
+    useEffect(() => {
+        if (activeTab === 'help' && helpSections.length === 0 && !isLoadingHelp) {
+            loadHelpContent();
+        }
+    }, [activeTab]);
+
+    // Page identity functions
+    const loadPageIdentities = async () => {
+        setIsLoadingIdentities(true);
+        setIdentityError(null);
+        try {
+            const identities = await adminApi.getPageIdentities();
+            setPageIdentities(identities);
+        } catch (err) {
+            setIdentityError(handleApiError(err));
+        } finally {
+            setIsLoadingIdentities(false);
+        }
+    };
+
+    const openPageIdentity = (identity: PageIdentityInfo) => {
+        setSelectedPageIdentity(identity);
+        setEditingIdentity(identity.identity || '');
+        setIdentityError(null);
+    };
+
+    const closePageIdentity = () => {
+        setSelectedPageIdentity(null);
+        setEditingIdentity('');
+        setIdentityError(null);
+    };
+
+    const savePageIdentity = async () => {
+        if (!selectedPageIdentity) return;
+
+        setIsSavingIdentity(true);
+        setIdentityError(null);
+
+        try {
+            const trimmed = editingIdentity.trim();
+            await adminApi.updatePageIdentity(
+                selectedPageIdentity.page,
+                trimmed.length > 0 ? trimmed : null
+            );
+            await loadPageIdentities();
+            closePageIdentity();
+        } catch (err) {
+            setIdentityError(handleApiError(err));
+        } finally {
+            setIsSavingIdentity(false);
+        }
+    };
+
+    const resetPageIdentity = async () => {
+        if (!selectedPageIdentity || !selectedPageIdentity.has_override) return;
+
+        setIsSavingIdentity(true);
+        setIdentityError(null);
+
+        try {
+            await adminApi.deletePageIdentity(selectedPageIdentity.page);
+            await loadPageIdentities();
+            closePageIdentity();
+        } catch (err) {
+            setIdentityError(handleApiError(err));
+        } finally {
+            setIsSavingIdentity(false);
+        }
+    };
+
+    // Load page identities when switching to pages tab
+    useEffect(() => {
+        if (activeTab === 'pages' && pageIdentities.length === 0 && !isLoadingIdentities) {
+            loadPageIdentities();
+        }
+    }, [activeTab]);
 
     if (isLoading) {
         return (
@@ -145,14 +440,19 @@ export function ChatConfigList() {
             <div>
                 {activeTab === 'pages' && (
                     <div className="space-y-3">
-                        {config.pages.map((page) => (
-                            <PageConfigCard
-                                key={page.page}
-                                page={page}
-                                isExpanded={expandedPages.has(page.page)}
-                                onToggle={() => togglePage(page.page)}
-                            />
-                        ))}
+                        {config.pages.map((page) => {
+                            const identityInfo = pageIdentities.find(i => i.page === page.page);
+                            return (
+                                <PageConfigCard
+                                    key={page.page}
+                                    page={page}
+                                    isExpanded={expandedPages.has(page.page)}
+                                    onToggle={() => togglePage(page.page)}
+                                    identity={identityInfo}
+                                    onEditIdentity={() => identityInfo && openPageIdentity(identityInfo)}
+                                />
+                            );
+                        })}
                         {config.pages.length === 0 && (
                             <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                                 No page configurations registered.
@@ -320,6 +620,9 @@ export function ChatConfigList() {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                             Preview
                                         </th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            Actions
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -347,11 +650,20 @@ export function ChatConfigList() {
                                                     <span className="text-gray-400 text-sm">No instructions configured</span>
                                                 )}
                                             </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                <button
+                                                    onClick={() => openStreamInstructions(stream)}
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md transition-colors"
+                                                >
+                                                    <PencilSquareIcon className="h-4 w-4" />
+                                                    Edit
+                                                </button>
+                                            </td>
                                         </tr>
                                     ))}
                                     {config.stream_instructions.length === 0 && (
                                         <tr>
-                                            <td colSpan={3} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                            <td colSpan={4} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                                                 No research streams found.
                                             </td>
                                         </tr>
@@ -363,6 +675,160 @@ export function ChatConfigList() {
                             Stream instructions are included in the system prompt when chatting about reports from that stream.
                             They guide the assistant on domain-specific terminology, classification rules, and analysis criteria.
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'help' && (
+                    <div className="space-y-4">
+                        {/* Help header with reload button */}
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Help documentation shown to users via chat. Content is organized by area and filtered by user role.
+                            </p>
+                            <button
+                                onClick={handleReloadHelp}
+                                disabled={isReloadingHelp}
+                                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
+                            >
+                                <ArrowPathIcon className={`h-4 w-4 ${isReloadingHelp ? 'animate-spin' : ''}`} />
+                                Reload from Files
+                            </button>
+                        </div>
+
+                        {helpError && (
+                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-300">
+                                {helpError}
+                            </div>
+                        )}
+
+                        {/* Help view mode tabs */}
+                        <div className="border-b border-gray-200 dark:border-gray-700">
+                            <nav className="flex gap-4">
+                                <button
+                                    onClick={() => setHelpViewMode('sections')}
+                                    className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                                        helpViewMode === 'sections'
+                                            ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <BookOpenIcon className="h-4 w-4" />
+                                        All Sections ({helpSections.length})
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => setHelpViewMode('toc-preview')}
+                                    className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
+                                        helpViewMode === 'toc-preview'
+                                            ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <EyeIcon className="h-4 w-4" />
+                                        TOC by Role
+                                    </div>
+                                </button>
+                            </nav>
+                        </div>
+
+                        {isLoadingHelp ? (
+                            <div className="flex items-center justify-center py-12">
+                                <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-400" />
+                            </div>
+                        ) : helpViewMode === 'sections' ? (
+                            <div className="space-y-4">
+                                {groupedHelpSections.map((group) => (
+                                    <div key={group.area} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                                        <button
+                                            onClick={() => toggleHelpArea(group.area)}
+                                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {collapsedHelpAreas.has(group.area) ? (
+                                                    <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                                                ) : (
+                                                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                                                )}
+                                                <span className="font-medium text-gray-900 dark:text-white">
+                                                    {group.label}
+                                                </span>
+                                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                    ({group.sections.length} sections)
+                                                </span>
+                                            </div>
+                                        </button>
+                                        {!collapsedHelpAreas.has(group.area) && (
+                                            <div className="border-t border-gray-200 dark:border-gray-700">
+                                                {group.sections.map((section) => (
+                                                    <div
+                                                        key={section.id}
+                                                        className="px-4 py-3 border-b last:border-b-0 border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                                                    >
+                                                        <div className="flex items-start justify-between gap-4">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className="font-medium text-gray-900 dark:text-white">
+                                                                        {section.title}
+                                                                    </span>
+                                                                    <code className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+                                                                        {section.id}
+                                                                    </code>
+                                                                </div>
+                                                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                                                    {section.summary}
+                                                                </p>
+                                                                <div className="flex items-center gap-2">
+                                                                    {section.roles.map((role) => (
+                                                                        <span
+                                                                            key={role}
+                                                                            className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${getRoleBadgeColor(role)}`}
+                                                                        >
+                                                                            {getRoleIcon(role)}
+                                                                            {role}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => handleViewHelpSection(section.id)}
+                                                                disabled={isLoadingHelpSection}
+                                                                className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md transition-colors"
+                                                            >
+                                                                <EyeIcon className="h-4 w-4" />
+                                                                View
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                                {groupedHelpSections.length === 0 && (
+                                    <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                                        No help sections found. Click "Reload from Files" to load help content.
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {tocPreviews.map((preview) => (
+                                    <div key={preview.role} className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            {getRoleIcon(preview.role)}
+                                            <span className={`font-medium ${getRoleBadgeColor(preview.role)} px-2 py-0.5 rounded-full text-sm`}>
+                                                {preview.role}
+                                            </span>
+                                        </div>
+                                        <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 p-3 rounded max-h-64 overflow-y-auto">
+                                            {preview.toc || '(No sections visible to this role)'}
+                                        </pre>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -390,6 +856,226 @@ export function ChatConfigList() {
                     </p>
                 </div>
             </div>
+
+            {/* Stream Instructions Edit Modal */}
+            {selectedStream && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+                        {/* Header */}
+                        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    Edit Chat Instructions
+                                </h2>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    {selectedStream.stream_name}
+                                </p>
+                            </div>
+                            <button
+                                onClick={closeStreamInstructions}
+                                className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                            >
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {isLoadingStream ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                                </div>
+                            ) : streamError ? (
+                                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
+                                    {streamError}
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        These instructions are added to the system prompt when chatting about reports from this stream.
+                                        Use them to guide the assistant on domain-specific terminology, classification rules, and analysis criteria.
+                                    </p>
+                                    <textarea
+                                        value={streamInstructions}
+                                        onChange={(e) => setStreamInstructions(e.target.value)}
+                                        placeholder="Enter custom instructions for this stream..."
+                                        rows={12}
+                                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y font-mono text-sm"
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
+                            <button
+                                onClick={closeStreamInstructions}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={saveStreamInstructions}
+                                disabled={isSavingStream || isLoadingStream}
+                                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                            >
+                                {isSavingStream ? 'Saving...' : 'Save Changes'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Help Section View Modal */}
+            {selectedHelpSection && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-4xl h-[calc(100vh-8rem)] flex flex-col">
+                        {/* Header */}
+                        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    {selectedHelpSection.title}
+                                </h2>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <code className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+                                        {selectedHelpSection.id}
+                                    </code>
+                                    {selectedHelpSection.roles.map((role) => (
+                                        <span
+                                            key={role}
+                                            className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${getRoleBadgeColor(role)}`}
+                                        >
+                                            {getRoleIcon(role)}
+                                            {role}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setSelectedHelpSection(null)}
+                                className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                            >
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                                <MarkdownRenderer content={selectedHelpSection.content} />
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end">
+                            <button
+                                onClick={() => setSelectedHelpSection(null)}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Page Identity Edit Modal */}
+            {selectedPageIdentity && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+                        {/* Header */}
+                        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    Edit Page Identity
+                                </h2>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    {selectedPageIdentity.page}
+                                    {selectedPageIdentity.has_override && (
+                                        <span className="ml-2 inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                            Custom Override
+                                        </span>
+                                    )}
+                                </p>
+                            </div>
+                            <button
+                                onClick={closePageIdentity}
+                                className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                            >
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                            {identityError && (
+                                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
+                                    {identityError}
+                                </div>
+                            )}
+
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                The identity defines the persona and role of the assistant on this page.
+                                It's the first section of the system prompt.
+                            </p>
+
+                            {selectedPageIdentity.default_identity && (
+                                <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                                        Default Identity (from code):
+                                    </p>
+                                    <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400">
+                                        {selectedPageIdentity.default_identity}
+                                    </pre>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {selectedPageIdentity.has_override ? 'Custom Identity:' : 'Override Identity:'}
+                                </label>
+                                <textarea
+                                    value={editingIdentity}
+                                    onChange={(e) => setEditingIdentity(e.target.value)}
+                                    placeholder={selectedPageIdentity.default_identity || "Enter custom identity..."}
+                                    rows={8}
+                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y font-mono text-sm"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                            <div>
+                                {selectedPageIdentity.has_override && (
+                                    <button
+                                        onClick={resetPageIdentity}
+                                        disabled={isSavingIdentity}
+                                        className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                                    >
+                                        Reset to Default
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={closePageIdentity}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={savePageIdentity}
+                                    disabled={isSavingIdentity}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                                >
+                                    {isSavingIdentity ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -460,10 +1146,12 @@ function SubTabConfigDisplay({ subtabName, config }: { subtabName: string; confi
     );
 }
 
-function PageConfigCard({ page, isExpanded, onToggle }: {
+function PageConfigCard({ page, isExpanded, onToggle, identity, onEditIdentity }: {
     page: PageConfigInfo;
     isExpanded: boolean;
     onToggle: () => void;
+    identity?: PageIdentityInfo;
+    onEditIdentity?: () => void;
 }) {
     const tabCount = Object.keys(page.tabs).length;
     const subtabCount = Object.values(page.tabs).reduce(
@@ -473,17 +1161,17 @@ function PageConfigCard({ page, isExpanded, onToggle }: {
 
     return (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-            <button
-                onClick={onToggle}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50"
-            >
-                <div className="flex items-center gap-3">
+            <div className="px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <button
+                    onClick={onToggle}
+                    className="flex items-center gap-3 flex-1 text-left"
+                >
                     {isExpanded ? (
                         <ChevronDownIcon className="h-5 w-5 text-gray-400" />
                     ) : (
                         <ChevronRightIcon className="h-5 w-5 text-gray-400" />
                     )}
-                    <div className="text-left">
+                    <div>
                         <div className="font-medium text-gray-900 dark:text-white">
                             {page.page}
                         </div>
@@ -494,15 +1182,29 @@ function PageConfigCard({ page, isExpanded, onToggle }: {
                             {page.tools.length} page tools
                         </div>
                     </div>
-                </div>
+                </button>
                 <div className="flex items-center gap-2">
                     {page.has_context_builder && (
                         <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                             Context Builder
                         </span>
                     )}
+                    {identity?.has_override && (
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                            Custom Identity
+                        </span>
+                    )}
+                    {onEditIdentity && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onEditIdentity(); }}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
+                        >
+                            <PencilSquareIcon className="h-3.5 w-3.5" />
+                            Identity
+                        </button>
+                    )}
                 </div>
-            </button>
+            </div>
 
             {isExpanded && (
                 <div className="px-4 pb-4 pt-2 border-t border-gray-200 dark:border-gray-700 space-y-4">

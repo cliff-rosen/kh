@@ -247,6 +247,62 @@ export const adminApi = {
   async reloadHelpContent(): Promise<{ status: string; sections_loaded: number }> {
     const response = await api.post('/api/admin/help/reload');
     return response.data;
+  },
+
+  // ==================== Stream Chat Instructions ====================
+
+  /**
+   * Get full chat instructions for a stream (platform admin only)
+   */
+  async getStreamChatInstructions(streamId: number): Promise<StreamChatInstructionsResponse> {
+    const response = await api.get(`/api/admin/streams/${streamId}/chat-instructions`);
+    return response.data;
+  },
+
+  /**
+   * Update chat instructions for a stream (platform admin only)
+   */
+  async updateStreamChatInstructions(streamId: number, chatInstructions: string | null): Promise<StreamChatInstructionsResponse> {
+    const response = await api.put(`/api/admin/streams/${streamId}/chat-instructions`, {
+      chat_instructions: chatInstructions
+    });
+    return response.data;
+  },
+
+  // ==================== Page Identity Management ====================
+
+  /**
+   * Get all page identities with their overrides (platform admin only)
+   */
+  async getPageIdentities(): Promise<PageIdentityInfo[]> {
+    const response = await api.get('/api/admin/page-identities');
+    return response.data;
+  },
+
+  /**
+   * Get identity for a specific page (platform admin only)
+   */
+  async getPageIdentity(page: string): Promise<PageIdentityInfo> {
+    const response = await api.get(`/api/admin/page-identities/${encodeURIComponent(page)}`);
+    return response.data;
+  },
+
+  /**
+   * Update identity for a page (platform admin only)
+   */
+  async updatePageIdentity(page: string, identity: string | null): Promise<PageIdentityResponse> {
+    const response = await api.put(`/api/admin/page-identities/${encodeURIComponent(page)}`, {
+      identity
+    });
+    return response.data;
+  },
+
+  /**
+   * Delete identity override for a page (platform admin only)
+   */
+  async deletePageIdentity(page: string): Promise<{ status: string; page: string }> {
+    const response = await api.delete(`/api/admin/page-identities/${encodeURIComponent(page)}`);
+    return response.data;
   }
 };
 
@@ -336,4 +392,24 @@ export interface HelpSectionsResponse {
 export interface HelpTOCPreview {
   role: string;
   toc: string;
+}
+
+// Stream chat instructions types
+export interface StreamChatInstructionsResponse {
+  stream_id: number;
+  stream_name: string;
+  chat_instructions: string | null;
+}
+
+// Page identity types
+export interface PageIdentityInfo {
+  page: string;
+  identity: string | null;
+  has_override: boolean;
+  default_identity: string | null;
+}
+
+export interface PageIdentityResponse {
+  page: string;
+  identity: string | null;
 }

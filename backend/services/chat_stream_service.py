@@ -458,6 +458,8 @@ class ChatStreamService:
         """
         from services.chat_page_config import get_identity
         from services.help_registry import get_help_toc_for_role
+        from models import PageIdentity
+        from sqlalchemy import select
 
         current_page = context.get("current_page", "unknown")
         active_tab = context.get("active_tab")
@@ -466,9 +468,25 @@ class ChatStreamService:
 
         sections = []
 
-        # 1. IDENTITY (page-specific or default, with current date/time)
+        # 1. IDENTITY (check database override first, then code default)
         current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-        page_identity = get_identity(current_page)
+        page_identity = None
+
+        # Check for database override
+        try:
+            result = await self.db.execute(
+                select(PageIdentity).where(PageIdentity.page == current_page)
+            )
+            identity_override = result.scalars().first()
+            if identity_override and identity_override.identity:
+                page_identity = identity_override.identity
+        except Exception as e:
+            logger.warning(f"Failed to check page identity override: {e}")
+
+        # Fall back to code-defined identity
+        if not page_identity:
+            page_identity = get_identity(current_page)
+
         if page_identity:
             sections.append(f"{page_identity}\n\nCurrent date and time: {current_time}")
         else:

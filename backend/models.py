@@ -711,6 +711,16 @@ class ReportSchedule(Base):
     user = relationship("User", back_populates="report_schedule")
 
 
+class PageIdentity(Base):
+    """Custom identity/persona overrides for chat pages"""
+    __tablename__ = "page_identities"
+
+    page = Column(String(100), primary_key=True)
+    identity = Column(Text, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+
+
 # Add relationships to User model
 User.research_streams = relationship("ResearchStream", back_populates="user", foreign_keys="ResearchStream.user_id")
 User.created_streams = relationship("ResearchStream", foreign_keys="ResearchStream.created_by")
