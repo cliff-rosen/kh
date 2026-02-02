@@ -224,8 +224,9 @@ export function ChatConfigList() {
 
     const openPageConfig = (page: PageConfigIdentityInfo) => {
         setSelectedPageConfig(page);
-        setEditingIdentity(page.identity || '');
-        setEditingGuidelines(page.guidelines || '');
+        // Only show the override value, not the effective value (default is shown separately)
+        setEditingIdentity(page.has_identity_override ? (page.identity || '') : '');
+        setEditingGuidelines(page.has_guidelines_override ? (page.guidelines || '') : '');
         setPageEditTab('identity');
         setPageError(null);
     };
@@ -246,7 +247,7 @@ export function ChatConfigList() {
         try {
             const trimmedIdentity = editingIdentity.trim();
             const trimmedGuidelines = editingGuidelines.trim();
-            await adminApi.updatePageConfig(
+            const updated = await adminApi.updatePageConfig(
                 selectedPageConfig.page,
                 {
                     identity: trimmedIdentity.length > 0 ? trimmedIdentity : null,
@@ -254,8 +255,11 @@ export function ChatConfigList() {
                 }
             );
 
+            // Update state to reflect saved values (keep modal open)
+            setSelectedPageConfig(updated);
+            setEditingIdentity(updated.has_identity_override ? (updated.identity || '') : '');
+            setEditingGuidelines(updated.has_guidelines_override ? (updated.guidelines || '') : '');
             await loadPageConfigs();
-            closePageConfig();
         } catch (err) {
             setPageError(handleApiError(err));
         } finally {
@@ -1168,34 +1172,43 @@ export function ChatConfigList() {
                         </div>
 
                         {/* Footer */}
-                        <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                            <div>
-                                {(selectedPageConfig.has_identity_override || selectedPageConfig.has_guidelines_override) && (
-                                    <button
-                                        onClick={resetPageConfig}
-                                        disabled={isSavingPage}
-                                        className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
-                                    >
-                                        Reset All to Defaults
-                                    </button>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={closePageConfig}
-                                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={savePageConfig}
-                                    disabled={isSavingPage}
-                                    className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-                                >
-                                    {isSavingPage ? 'Saving...' : 'Save Changes'}
-                                </button>
-                            </div>
-                        </div>
+                        {(() => {
+                            // Compute if there are unsaved changes
+                            const savedIdentity = selectedPageConfig.has_identity_override ? (selectedPageConfig.identity || '') : '';
+                            const savedGuidelines = selectedPageConfig.has_guidelines_override ? (selectedPageConfig.guidelines || '') : '';
+                            const hasChanges = editingIdentity !== savedIdentity || editingGuidelines !== savedGuidelines;
+
+                            return (
+                                <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                                    <div>
+                                        {(selectedPageConfig.has_identity_override || selectedPageConfig.has_guidelines_override) && (
+                                            <button
+                                                onClick={resetPageConfig}
+                                                disabled={isSavingPage}
+                                                className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                                            >
+                                                Reset All to Defaults
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={savePageConfig}
+                                            disabled={isSavingPage || !hasChanges}
+                                            className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                                        >
+                                            {isSavingPage ? 'Saving...' : 'Save'}
+                                        </button>
+                                        <button
+                                            onClick={closePageConfig}
+                                            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                        >
+                                            {hasChanges ? 'Cancel' : 'Close'}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
             )}

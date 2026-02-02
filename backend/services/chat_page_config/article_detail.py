@@ -148,10 +148,6 @@ register_page(
     identity=ARTICLE_DETAIL_IDENTITY,
     client_actions=ARTICLE_DETAIL_CLIENT_ACTIONS,
     # Payloads relevant to article detail view
-    payloads=[
-        "article_details",
-        "article_notes",
-        "stance_analysis",
-    ],
+    payloads=[],
     # Note: Tools are global (is_global=True) so not listed here
 )
