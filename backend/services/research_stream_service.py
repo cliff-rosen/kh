@@ -645,6 +645,24 @@ class ResearchStreamService:
             raise ValueError(f"Research stream {stream_id} not found")
         return stream
 
+    async def get_streams_by_ids(self, stream_ids: List[int]) -> List[ResearchStream]:
+        """
+        Get multiple research streams by their IDs (async).
+
+        Args:
+            stream_ids: List of stream IDs to look up
+
+        Returns:
+            List of ResearchStream model instances (may be shorter than input if some not found)
+        """
+        if not stream_ids:
+            return []
+
+        result = await self.db.execute(
+            select(ResearchStream).where(ResearchStream.stream_id.in_(stream_ids))
+        )
+        return list(result.scalars().all())
+
     async def get_enrichment_config(self, stream_id: int) -> Optional[Dict[str, Any]]:
         """
         Get enrichment config for a stream (async).

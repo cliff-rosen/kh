@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon, ClockIcon, ChatBubbleLeftRightIcon, Cog6ToothIcon, BookOpenIcon } from '@heroicons/react/24/outline';
+import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon, ClockIcon, ChatBubbleLeftRightIcon, Cog6ToothIcon, BookOpenIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
-import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList, ConversationList, ChatConfigList, HelpContentBrowser } from '../components/admin';
+import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList, ConversationList, ChatConfigList, HelpContentBrowser, EmailQueueList } from '../components/admin';
 
-type AdminTab = 'organizations' | 'users' | 'invitations' | 'streams' | 'activity' | 'conversations' | 'chat-config' | 'help-content';
+type AdminTab = 'organizations' | 'users' | 'invitations' | 'streams' | 'email-queue' | 'activity' | 'conversations' | 'chat-config' | 'help-content';
 
 interface TabGroup {
     label: string;
@@ -28,6 +28,7 @@ const tabGroups: TabGroup[] = [
         label: 'Content',
         tabs: [
             { id: 'streams', label: 'Global Streams', icon: GlobeAltIcon },
+            { id: 'email-queue', label: 'Email Queue', icon: PaperAirplaneIcon },
         ],
     },
     {
@@ -115,6 +116,7 @@ export default function AdminPage() {
             <div>
                 {activeTab === 'organizations' && <OrganizationList />}
                 {activeTab === 'streams' && <GlobalStreamList />}
+                {activeTab === 'email-queue' && <EmailQueueList />}
                 {activeTab === 'users' && <UserList />}
                 {activeTab === 'invitations' && <InvitationList />}
                 {activeTab === 'activity' && <ActivityList />}

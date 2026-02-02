@@ -67,6 +67,15 @@ class ApprovalStatus(str, PyEnum):
     APPROVED = "approved"                     # Approved and visible to subscribers
     REJECTED = "rejected"                     # Rejected by admin
 
+
+class ReportEmailQueueStatus(str, PyEnum):
+    """Status of a report email in the queue"""
+    SCHEDULED = "scheduled"    # Queued for a future date
+    READY = "ready"            # Scheduled date has arrived, waiting to be picked up
+    PROCESSING = "processing"  # Sender is actively working on it
+    SENT = "sent"              # Successfully delivered
+    FAILED = "failed"          # Error occurred (no retry)
+
 class ExecutionStatus(str, PyEnum):
     """Status of a pipeline execution"""
     PENDING = "pending"       # Queued, waiting to start
@@ -627,6 +636,40 @@ class CurationEvent(Base):
     report = relationship("Report", back_populates="curation_events")
     article = relationship("Article")
     curator = relationship("User")
+
+# === EMAIL QUEUE ===
+
+class ReportEmailQueue(Base):
+    """
+    Queue for scheduled report email delivery.
+
+    Process 1 (Admin): Creates records with status=scheduled and scheduled_for date
+    Process 2 (2am Cron): Picks up records where scheduled_for <= today, sends emails
+
+    Status flow: scheduled → ready → processing → sent/failed
+    """
+    __tablename__ = "report_email_queue"
+
+    id = Column(Integer, primary_key=True, index=True)
+    report_id = Column(Integer, ForeignKey("reports.report_id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    email = Column(String(255), nullable=False)  # Stored directly, not looked up from user
+    status = Column(
+        Enum(ReportEmailQueueStatus, values_callable=lambda x: [e.value for e in x], name='reportemailqueuestatus'),
+        default=ReportEmailQueueStatus.SCHEDULED,
+        nullable=False,
+        index=True
+    )
+    scheduled_for = Column(Date, nullable=False, index=True)  # Target date for sending
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    sent_at = Column(DateTime, nullable=True)  # When email was actually sent
+    error_message = Column(Text, nullable=True)  # Error details if failed
+
+    # Relationships
+    report = relationship("Report")
+    user = relationship("User")
+
 
 # === MISC ===
 
