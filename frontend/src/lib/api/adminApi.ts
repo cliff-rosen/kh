@@ -249,59 +249,65 @@ export const adminApi = {
     return response.data;
   },
 
-  // ==================== Stream Chat Instructions ====================
+  // ==================== Unified Chat Config Management ====================
 
   /**
-   * Get full chat instructions for a stream (platform admin only)
+   * Get all stream chat configs (platform admin only)
    */
-  async getStreamChatInstructions(streamId: number): Promise<StreamChatInstructionsResponse> {
-    const response = await api.get(`/api/admin/streams/${streamId}/chat-instructions`);
+  async getStreamConfigs(): Promise<StreamConfigInfo[]> {
+    const response = await api.get('/api/admin/chat-config/streams');
     return response.data;
   },
 
   /**
-   * Update chat instructions for a stream (platform admin only)
+   * Get chat config for a specific stream (platform admin only)
    */
-  async updateStreamChatInstructions(streamId: number, chatInstructions: string | null): Promise<StreamChatInstructionsResponse> {
-    const response = await api.put(`/api/admin/streams/${streamId}/chat-instructions`, {
-      chat_instructions: chatInstructions
+  async getStreamConfig(streamId: number): Promise<StreamConfigInfo> {
+    const response = await api.get(`/api/admin/chat-config/streams/${streamId}`);
+    return response.data;
+  },
+
+  /**
+   * Update chat config for a stream (platform admin only)
+   */
+  async updateStreamConfig(streamId: number, instructions: string | null): Promise<StreamConfigInfo> {
+    const response = await api.put(`/api/admin/chat-config/streams/${streamId}`, {
+      instructions
     });
     return response.data;
   },
 
-  // ==================== Page Identity Management ====================
-
   /**
-   * Get all page identities with their overrides (platform admin only)
+   * Get all page chat configs (platform admin only)
    */
-  async getPageIdentities(): Promise<PageIdentityInfo[]> {
-    const response = await api.get('/api/admin/page-identities');
+  async getPageConfigs(): Promise<PageConfigIdentityInfo[]> {
+    const response = await api.get('/api/admin/chat-config/pages');
     return response.data;
   },
 
   /**
-   * Get identity for a specific page (platform admin only)
+   * Get chat config for a specific page (platform admin only)
    */
-  async getPageIdentity(page: string): Promise<PageIdentityInfo> {
-    const response = await api.get(`/api/admin/page-identities/${encodeURIComponent(page)}`);
+  async getPageConfig(page: string): Promise<PageConfigIdentityInfo> {
+    const response = await api.get(`/api/admin/chat-config/pages/${encodeURIComponent(page)}`);
     return response.data;
   },
 
   /**
-   * Update identity for a page (platform admin only)
+   * Update chat config for a page (platform admin only)
    */
-  async updatePageIdentity(page: string, identity: string | null): Promise<PageIdentityResponse> {
-    const response = await api.put(`/api/admin/page-identities/${encodeURIComponent(page)}`, {
+  async updatePageConfig(page: string, identity: string | null): Promise<PageConfigIdentityInfo> {
+    const response = await api.put(`/api/admin/chat-config/pages/${encodeURIComponent(page)}`, {
       identity
     });
     return response.data;
   },
 
   /**
-   * Delete identity override for a page (platform admin only)
+   * Delete chat config override for a page (platform admin only)
    */
-  async deletePageIdentity(page: string): Promise<{ status: string; page: string }> {
-    const response = await api.delete(`/api/admin/page-identities/${encodeURIComponent(page)}`);
+  async deletePageConfig(page: string): Promise<{ status: string; page: string }> {
+    const response = await api.delete(`/api/admin/chat-config/pages/${encodeURIComponent(page)}`);
     return response.data;
   }
 };
@@ -394,22 +400,22 @@ export interface HelpTOCPreview {
   toc: string;
 }
 
-// Stream chat instructions types
-export interface StreamChatInstructionsResponse {
+// Unified Chat Config types
+export interface StreamConfigInfo {
   stream_id: number;
   stream_name: string;
-  chat_instructions: string | null;
+  instructions: string | null;
+  has_override: boolean;
 }
 
-// Page identity types
-export interface PageIdentityInfo {
+export interface PageConfigIdentityInfo {
   page: string;
   identity: string | null;
   has_override: boolean;
   default_identity: string | null;
 }
 
-export interface PageIdentityResponse {
-  page: string;
-  identity: string | null;
+export interface ChatConfigUpdate {
+  identity?: string | null;
+  instructions?: string | null;
 }

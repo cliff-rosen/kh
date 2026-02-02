@@ -711,12 +711,21 @@ class ReportSchedule(Base):
     user = relationship("User", back_populates="report_schedule")
 
 
-class PageIdentity(Base):
-    """Custom identity/persona overrides for chat pages"""
-    __tablename__ = "page_identities"
+class ChatConfig(Base):
+    """
+    Unified chat configuration storage.
 
-    page = Column(String(100), primary_key=True)
-    identity = Column(Text, nullable=True)
+    Scope values:
+    - 'stream': Stream-specific config (scope_key = stream_id as string)
+    - 'page': Page-specific config (scope_key = page name)
+    - 'global': Global defaults (scope_key = 'default')
+    """
+    __tablename__ = "chat_config"
+
+    scope = Column(String(20), primary_key=True)  # 'stream', 'page', 'global'
+    scope_key = Column(String(100), primary_key=True)  # stream_id, page name, or 'default'
+    identity = Column(Text, nullable=True)  # Custom identity/persona
+    instructions = Column(Text, nullable=True)  # Custom instructions
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
 

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import settings
 from database import get_async_db
-from models import User, UserRole, PageIdentity
+from models import User, UserRole, ChatConfig
 from services import auth_service
 from services.organization_service import OrganizationService, get_organization_service
 from services.user_service import UserService, get_user_service
@@ -970,110 +970,38 @@ async def get_chat_config(
         )
 
 
-# ==================== Stream Chat Instructions ====================
+# ==================== Unified Chat Config Management ====================
 
 
-class StreamChatInstructionsUpdate(BaseModel):
-    """Request body for updating stream chat instructions."""
+class ChatConfigInfo(BaseModel):
+    """Chat config entry info."""
 
-    chat_instructions: Optional[str] = None
+    scope: str  # 'stream', 'page', 'global'
+    scope_key: str  # stream_id, page name, or 'default'
+    identity: Optional[str] = None
+    instructions: Optional[str] = None
+    has_override: bool = False
+    default_identity: Optional[str] = None  # For pages
 
 
-class StreamChatInstructionsResponse(BaseModel):
-    """Full chat instructions for a stream."""
+class ChatConfigUpdate(BaseModel):
+    """Request body for updating chat config."""
+
+    identity: Optional[str] = None
+    instructions: Optional[str] = None
+
+
+class StreamConfigInfo(BaseModel):
+    """Stream config with stream metadata."""
 
     stream_id: int
     stream_name: str
-    chat_instructions: Optional[str] = None
+    instructions: Optional[str] = None
+    has_override: bool = False
 
 
-@router.get(
-    "/streams/{stream_id}/chat-instructions",
-    response_model=StreamChatInstructionsResponse,
-    summary="Get stream chat instructions",
-)
-async def get_stream_chat_instructions(
-    stream_id: int,
-    current_user: User = Depends(require_platform_admin),
-    stream_service: ResearchStreamService = Depends(get_research_stream_service),
-) -> StreamChatInstructionsResponse:
-    """Get full chat instructions for a stream (platform admin only)."""
-    try:
-        stream = await stream_service.get_stream_by_id(stream_id)
-
-        if not stream:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Stream {stream_id} not found",
-            )
-
-        return StreamChatInstructionsResponse(
-            stream_id=stream.stream_id,
-            stream_name=stream.stream_name,
-            chat_instructions=stream.chat_instructions,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"get_stream_chat_instructions failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get stream chat instructions: {str(e)}",
-        )
-
-
-@router.put(
-    "/streams/{stream_id}/chat-instructions",
-    response_model=StreamChatInstructionsResponse,
-    summary="Update stream chat instructions",
-)
-async def update_stream_chat_instructions(
-    stream_id: int,
-    update: StreamChatInstructionsUpdate,
-    current_user: User = Depends(require_platform_admin),
-    stream_service: ResearchStreamService = Depends(get_research_stream_service),
-) -> StreamChatInstructionsResponse:
-    """Update chat instructions for a stream (platform admin only)."""
-    try:
-        stream = await stream_service.get_stream_by_id(stream_id)
-
-        if not stream:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Stream {stream_id} not found",
-            )
-
-        # Update chat instructions
-        updated_stream = await stream_service.update_research_stream(
-            stream_id, {"chat_instructions": update.chat_instructions}
-        )
-
-        logger.info(
-            f"User {current_user.email} updated chat instructions for stream {stream_id}"
-        )
-
-        return StreamChatInstructionsResponse(
-            stream_id=updated_stream.stream_id,
-            stream_name=updated_stream.stream_name,
-            chat_instructions=updated_stream.chat_instructions,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"update_stream_chat_instructions failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update stream chat instructions: {str(e)}",
-        )
-
-
-# ==================== Page Identity Management ====================
-
-
-class PageIdentityInfo(BaseModel):
-    """Page identity information."""
+class PageConfigIdentityInfo(BaseModel):
+    """Page config with identity info."""
 
     page: str
     identity: Optional[str] = None
@@ -1081,45 +1009,198 @@ class PageIdentityInfo(BaseModel):
     default_identity: Optional[str] = None
 
 
-class PageIdentityUpdate(BaseModel):
-    """Request body for updating page identity."""
+@router.get(
+    "/chat-config/streams",
+    response_model=List[StreamConfigInfo],
+    summary="List all stream chat configs",
+)
+async def list_stream_configs(
+    current_user: User = Depends(require_platform_admin),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
+    db: AsyncSession = Depends(get_async_db),
+) -> List[StreamConfigInfo]:
+    """Get all streams with their chat config (platform admin only)."""
+    try:
+        # Get all streams
+        streams_data = await stream_service.get_all_streams_with_chat_instructions()
 
-    identity: Optional[str] = None
+        # Get overrides from chat_config table
+        result = await db.execute(
+            select(ChatConfig).where(ChatConfig.scope == "stream")
+        )
+        overrides = {cc.scope_key: cc.instructions for cc in result.scalars().all()}
 
+        configs = []
+        for stream in streams_data:
+            stream_key = str(stream["stream_id"])
+            override = overrides.get(stream_key)
 
-class PageIdentityResponse(BaseModel):
-    """Response for page identity update."""
+            # Use override if exists, otherwise use stream's chat_instructions
+            instructions = override if stream_key in overrides else (
+                stream.get("chat_instructions") if stream.get("has_instructions") else None
+            )
 
-    page: str
-    identity: Optional[str] = None
+            configs.append(
+                StreamConfigInfo(
+                    stream_id=stream["stream_id"],
+                    stream_name=stream["stream_name"],
+                    instructions=instructions,
+                    has_override=stream_key in overrides,
+                )
+            )
+
+        return configs
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"list_stream_configs failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list stream configs: {str(e)}",
+        )
 
 
 @router.get(
-    "/page-identities",
-    response_model=List[PageIdentityInfo],
-    summary="List all page identities",
+    "/chat-config/streams/{stream_id}",
+    response_model=StreamConfigInfo,
+    summary="Get stream chat config",
 )
-async def list_page_identities(
+async def get_stream_config(
+    stream_id: int,
+    current_user: User = Depends(require_platform_admin),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
+    db: AsyncSession = Depends(get_async_db),
+) -> StreamConfigInfo:
+    """Get chat config for a stream (platform admin only)."""
+    try:
+        stream = await stream_service.get_stream_by_id(stream_id)
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Stream {stream_id} not found",
+            )
+
+        # Check for override
+        result = await db.execute(
+            select(ChatConfig).where(
+                ChatConfig.scope == "stream",
+                ChatConfig.scope_key == str(stream_id)
+            )
+        )
+        override = result.scalars().first()
+
+        return StreamConfigInfo(
+            stream_id=stream.stream_id,
+            stream_name=stream.stream_name,
+            instructions=override.instructions if override else stream.chat_instructions,
+            has_override=override is not None,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_stream_config failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get stream config: {str(e)}",
+        )
+
+
+@router.put(
+    "/chat-config/streams/{stream_id}",
+    response_model=StreamConfigInfo,
+    summary="Update stream chat config",
+)
+async def update_stream_config(
+    stream_id: int,
+    update: ChatConfigUpdate,
+    current_user: User = Depends(require_platform_admin),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
+    db: AsyncSession = Depends(get_async_db),
+) -> StreamConfigInfo:
+    """Update chat config for a stream (platform admin only)."""
+    try:
+        stream = await stream_service.get_stream_by_id(stream_id)
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Stream {stream_id} not found",
+            )
+
+        scope_key = str(stream_id)
+
+        # Check for existing config
+        result = await db.execute(
+            select(ChatConfig).where(
+                ChatConfig.scope == "stream",
+                ChatConfig.scope_key == scope_key
+            )
+        )
+        existing = result.scalars().first()
+
+        if existing:
+            existing.instructions = update.instructions
+            existing.updated_at = datetime.utcnow()
+            existing.updated_by = current_user.user_id
+        else:
+            new_config = ChatConfig(
+                scope="stream",
+                scope_key=scope_key,
+                instructions=update.instructions,
+                updated_by=current_user.user_id,
+            )
+            db.add(new_config)
+
+        await db.commit()
+
+        logger.info(f"User {current_user.email} updated chat config for stream {stream_id}")
+
+        return StreamConfigInfo(
+            stream_id=stream.stream_id,
+            stream_name=stream.stream_name,
+            instructions=update.instructions,
+            has_override=True,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_stream_config failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update stream config: {str(e)}",
+        )
+
+
+@router.get(
+    "/chat-config/pages",
+    response_model=List[PageConfigIdentityInfo],
+    summary="List all page chat configs",
+)
+async def list_page_configs(
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_db),
-) -> List[PageIdentityInfo]:
-    """Get all page identities with their overrides (platform admin only)."""
-    from services.chat_page_config.registry import _page_registry, get_identity
+) -> List[PageConfigIdentityInfo]:
+    """Get all pages with their chat config (platform admin only)."""
+    from services.chat_page_config.registry import _page_registry
 
     try:
         # Get all database overrides
-        result = await db.execute(select(PageIdentity))
-        overrides = {pi.page: pi.identity for pi in result.scalars().all()}
+        result = await db.execute(
+            select(ChatConfig).where(ChatConfig.scope == "page")
+        )
+        overrides = {cc.scope_key: cc.identity for cc in result.scalars().all()}
 
         # Build response with both defaults and overrides
-        identities = []
+        configs = []
         for page, config in _page_registry.items():
             default_identity = config.identity
             override = overrides.get(page)
             has_override = page in overrides
 
-            identities.append(
-                PageIdentityInfo(
+            configs.append(
+                PageConfigIdentityInfo(
                     page=page,
                     identity=override if has_override else default_identity,
                     has_override=has_override,
@@ -1128,32 +1209,32 @@ async def list_page_identities(
             )
 
         # Sort by page name
-        identities.sort(key=lambda x: x.page)
+        configs.sort(key=lambda x: x.page)
 
-        logger.info(f"list_page_identities - count={len(identities)}")
-        return identities
+        logger.info(f"list_page_configs - count={len(configs)}")
+        return configs
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"list_page_identities failed: {e}", exc_info=True)
+        logger.error(f"list_page_configs failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list page identities: {str(e)}",
+            detail=f"Failed to list page configs: {str(e)}",
         )
 
 
 @router.get(
-    "/page-identities/{page}",
-    response_model=PageIdentityInfo,
-    summary="Get page identity",
+    "/chat-config/pages/{page}",
+    response_model=PageConfigIdentityInfo,
+    summary="Get page chat config",
 )
-async def get_page_identity(
+async def get_page_config(
     page: str,
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_db),
-) -> PageIdentityInfo:
-    """Get identity for a specific page (platform admin only)."""
+) -> PageConfigIdentityInfo:
+    """Get chat config for a page (platform admin only)."""
     from services.chat_page_config.registry import _page_registry
 
     try:
@@ -1166,11 +1247,14 @@ async def get_page_identity(
 
         # Check for database override
         result = await db.execute(
-            select(PageIdentity).where(PageIdentity.page == page)
+            select(ChatConfig).where(
+                ChatConfig.scope == "page",
+                ChatConfig.scope_key == page
+            )
         )
         override = result.scalars().first()
 
-        return PageIdentityInfo(
+        return PageConfigIdentityInfo(
             page=page,
             identity=override.identity if override else config.identity,
             has_override=override is not None,
@@ -1180,25 +1264,25 @@ async def get_page_identity(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"get_page_identity failed: {e}", exc_info=True)
+        logger.error(f"get_page_config failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get page identity: {str(e)}",
+            detail=f"Failed to get page config: {str(e)}",
         )
 
 
 @router.put(
-    "/page-identities/{page}",
-    response_model=PageIdentityResponse,
-    summary="Update page identity",
+    "/chat-config/pages/{page}",
+    response_model=PageConfigIdentityInfo,
+    summary="Update page chat config",
 )
-async def update_page_identity(
+async def update_page_config(
     page: str,
-    update: PageIdentityUpdate,
+    update: ChatConfigUpdate,
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_db),
-) -> PageIdentityResponse:
-    """Update identity for a page (platform admin only)."""
+) -> PageConfigIdentityInfo:
+    """Update chat config for a page (platform admin only)."""
     from services.chat_page_config.registry import _page_registry
 
     try:
@@ -1211,53 +1295,57 @@ async def update_page_identity(
 
         # Check for existing override
         result = await db.execute(
-            select(PageIdentity).where(PageIdentity.page == page)
+            select(ChatConfig).where(
+                ChatConfig.scope == "page",
+                ChatConfig.scope_key == page
+            )
         )
         existing = result.scalars().first()
 
         if existing:
-            # Update existing
             existing.identity = update.identity
             existing.updated_at = datetime.utcnow()
             existing.updated_by = current_user.user_id
         else:
-            # Create new override
-            new_identity = PageIdentity(
-                page=page,
+            new_config = ChatConfig(
+                scope="page",
+                scope_key=page,
                 identity=update.identity,
                 updated_by=current_user.user_id,
             )
-            db.add(new_identity)
+            db.add(new_config)
 
         await db.commit()
 
-        logger.info(f"User {current_user.email} updated identity for page '{page}'")
+        logger.info(f"User {current_user.email} updated chat config for page '{page}'")
 
-        return PageIdentityResponse(
+        return PageConfigIdentityInfo(
             page=page,
             identity=update.identity,
+            has_override=True,
+            default_identity=config.identity,
         )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"update_page_identity failed: {e}", exc_info=True)
+        logger.error(f"update_page_config failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update page identity: {str(e)}",
+            detail=f"Failed to update page config: {str(e)}",
         )
 
 
 @router.delete(
-    "/page-identities/{page}",
-    summary="Delete page identity override",
+    "/chat-config/pages/{page}",
+    summary="Delete page chat config override",
 )
-async def delete_page_identity(
+async def delete_page_config(
     page: str,
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_db),
 ) -> Dict[str, str]:
-    """Delete identity override for a page, reverting to default (platform admin only)."""
+    """Delete chat config override for a page, reverting to default (platform admin only)."""
     from services.chat_page_config.registry import _page_registry
 
     try:
@@ -1270,14 +1358,17 @@ async def delete_page_identity(
 
         # Delete override if exists
         result = await db.execute(
-            select(PageIdentity).where(PageIdentity.page == page)
+            select(ChatConfig).where(
+                ChatConfig.scope == "page",
+                ChatConfig.scope_key == page
+            )
         )
         existing = result.scalars().first()
 
         if existing:
             await db.delete(existing)
             await db.commit()
-            logger.info(f"User {current_user.email} deleted identity override for page '{page}'")
+            logger.info(f"User {current_user.email} deleted chat config for page '{page}'")
             return {"status": "deleted", "page": page}
         else:
             return {"status": "no_override", "page": page}
@@ -1285,8 +1376,8 @@ async def delete_page_identity(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"delete_page_identity failed: {e}", exc_info=True)
+        logger.error(f"delete_page_config failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete page identity: {str(e)}",
+            detail=f"Failed to delete page config: {str(e)}",
         )

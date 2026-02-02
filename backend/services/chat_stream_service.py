@@ -458,7 +458,7 @@ class ChatStreamService:
         """
         from services.chat_page_config import get_identity
         from services.help_registry import get_help_toc_for_role
-        from models import PageIdentity
+        from models import ChatConfig
         from sqlalchemy import select
 
         current_page = context.get("current_page", "unknown")
@@ -472,14 +472,17 @@ class ChatStreamService:
         current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
         page_identity = None
 
-        # Check for database override
+        # Check for database override in chat_config
         try:
             result = await self.db.execute(
-                select(PageIdentity).where(PageIdentity.page == current_page)
+                select(ChatConfig).where(
+                    ChatConfig.scope == "page",
+                    ChatConfig.scope_key == current_page
+                )
             )
-            identity_override = result.scalars().first()
-            if identity_override and identity_override.identity:
-                page_identity = identity_override.identity
+            config_override = result.scalars().first()
+            if config_override and config_override.identity:
+                page_identity = config_override.identity
         except Exception as e:
             logger.warning(f"Failed to check page identity override: {e}")
 
@@ -615,8 +618,12 @@ class ChatStreamService:
         return base_context
 
     async def _load_stream_instructions(self, context: Dict[str, Any]) -> Optional[str]:
-        """Load stream-specific chat instructions based on stream_id in context (async)."""
-        from models import ResearchStream, Report
+        """Load stream-specific chat instructions based on stream_id in context (async).
+
+        Checks chat_config table first for overrides, then falls back to
+        the stream's chat_instructions column.
+        """
+        from models import ResearchStream, Report, ChatConfig
 
         stream_id = context.get("stream_id")
 
@@ -634,6 +641,21 @@ class ChatStreamService:
         if not stream_id:
             return None
 
+        # Check chat_config table first for override
+        try:
+            result = await self.db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "stream",
+                    ChatConfig.scope_key == str(stream_id)
+                )
+            )
+            config_override = result.scalars().first()
+            if config_override and config_override.instructions:
+                return config_override.instructions.strip()
+        except Exception as e:
+            logger.warning(f"Failed to check stream config override: {e}")
+
+        # Fall back to stream's chat_instructions column
         stmt = select(ResearchStream).where(
             ResearchStream.stream_id == stream_id,
             ResearchStream.user_id == self.user_id

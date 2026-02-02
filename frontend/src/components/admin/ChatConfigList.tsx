@@ -20,18 +20,18 @@ import {
     ShieldCheckIcon,
     EyeIcon,
 } from '@heroicons/react/24/outline';
-import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type StreamInstructionsInfo, type HelpSectionSummary, type HelpSectionDetail, type HelpTOCPreview, type PageIdentityInfo } from '../../lib/api/adminApi';
+import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpSectionSummary, type HelpSectionDetail, type HelpTOCPreview, type StreamConfigInfo, type PageConfigIdentityInfo } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 
-type ConfigTab = 'pages' | 'payloads' | 'tools' | 'streams' | 'help';
+type ConfigTab = 'streams' | 'pages' | 'payloads' | 'tools' | 'help';
 
 const configTabs: { id: ConfigTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { id: 'pages', label: 'Page Configs', icon: DocumentTextIcon },
-    { id: 'payloads', label: 'Payload Types', icon: CubeIcon },
+    { id: 'streams', label: 'Streams', icon: BeakerIcon },
+    { id: 'pages', label: 'Pages', icon: DocumentTextIcon },
+    { id: 'payloads', label: 'Payloads', icon: CubeIcon },
     { id: 'tools', label: 'Tools', icon: WrenchScrewdriverIcon },
-    { id: 'streams', label: 'Stream Instructions', icon: BeakerIcon },
-    { id: 'help', label: 'Help Content', icon: BookOpenIcon },
+    { id: 'help', label: 'Help', icon: BookOpenIcon },
 ];
 
 // Help content utilities
@@ -72,15 +72,24 @@ export function ChatConfigList() {
     const [config, setConfig] = useState<ChatConfigResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<ConfigTab>('pages');
+    const [activeTab, setActiveTab] = useState<ConfigTab>('streams');
     const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
 
-    // Stream instructions editing state
-    const [selectedStream, setSelectedStream] = useState<StreamInstructionsInfo | null>(null);
+    // Stream config editing state
+    const [streamConfigs, setStreamConfigs] = useState<StreamConfigInfo[]>([]);
+    const [selectedStream, setSelectedStream] = useState<StreamConfigInfo | null>(null);
     const [streamInstructions, setStreamInstructions] = useState<string>('');
-    const [isLoadingStream, setIsLoadingStream] = useState(false);
+    const [isLoadingStreams, setIsLoadingStreams] = useState(false);
     const [isSavingStream, setIsSavingStream] = useState(false);
     const [streamError, setStreamError] = useState<string | null>(null);
+
+    // Page config editing state
+    const [pageConfigs, setPageConfigs] = useState<PageConfigIdentityInfo[]>([]);
+    const [selectedPageConfig, setSelectedPageConfig] = useState<PageConfigIdentityInfo | null>(null);
+    const [editingIdentity, setEditingIdentity] = useState<string>('');
+    const [isLoadingPages, setIsLoadingPages] = useState(false);
+    const [isSavingPage, setIsSavingPage] = useState(false);
+    const [pageError, setPageError] = useState<string | null>(null);
 
     // Help content state
     const [helpSections, setHelpSections] = useState<HelpSectionSummary[]>([]);
@@ -92,14 +101,6 @@ export function ChatConfigList() {
     const [helpError, setHelpError] = useState<string | null>(null);
     const [helpViewMode, setHelpViewMode] = useState<'sections' | 'toc-preview'>('sections');
     const [collapsedHelpAreas, setCollapsedHelpAreas] = useState<Set<string>>(new Set());
-
-    // Page identity state
-    const [pageIdentities, setPageIdentities] = useState<PageIdentityInfo[]>([]);
-    const [selectedPageIdentity, setSelectedPageIdentity] = useState<PageIdentityInfo | null>(null);
-    const [editingIdentity, setEditingIdentity] = useState<string>('');
-    const [isLoadingIdentities, setIsLoadingIdentities] = useState(false);
-    const [isSavingIdentity, setIsSavingIdentity] = useState(false);
-    const [identityError, setIdentityError] = useState<string | null>(null);
 
     // Group help sections by area
     const groupedHelpSections = useMemo((): SectionGroup[] => {
@@ -157,28 +158,33 @@ export function ChatConfigList() {
         });
     };
 
-    const openStreamInstructions = async (stream: StreamInstructionsInfo) => {
-        setSelectedStream(stream);
+    // Stream config functions
+    const loadStreamConfigs = async () => {
+        setIsLoadingStreams(true);
         setStreamError(null);
-        setIsLoadingStream(true);
-
         try {
-            const data = await adminApi.getStreamChatInstructions(stream.stream_id);
-            setStreamInstructions(data.chat_instructions || '');
+            const configs = await adminApi.getStreamConfigs();
+            setStreamConfigs(configs);
         } catch (err) {
             setStreamError(handleApiError(err));
         } finally {
-            setIsLoadingStream(false);
+            setIsLoadingStreams(false);
         }
     };
 
-    const closeStreamInstructions = () => {
+    const openStreamConfig = (stream: StreamConfigInfo) => {
+        setSelectedStream(stream);
+        setStreamInstructions(stream.instructions || '');
+        setStreamError(null);
+    };
+
+    const closeStreamConfig = () => {
         setSelectedStream(null);
         setStreamInstructions('');
         setStreamError(null);
     };
 
-    const saveStreamInstructions = async () => {
+    const saveStreamConfig = async () => {
         if (!selectedStream) return;
 
         setIsSavingStream(true);
@@ -186,18 +192,82 @@ export function ChatConfigList() {
 
         try {
             const trimmed = streamInstructions.trim();
-            await adminApi.updateStreamChatInstructions(
+            await adminApi.updateStreamConfig(
                 selectedStream.stream_id,
                 trimmed.length > 0 ? trimmed : null
             );
 
-            // Reload the config to update the table
-            await loadConfig();
-            closeStreamInstructions();
+            await loadStreamConfigs();
+            closeStreamConfig();
         } catch (err) {
             setStreamError(handleApiError(err));
         } finally {
             setIsSavingStream(false);
+        }
+    };
+
+    // Page config functions
+    const loadPageConfigs = async () => {
+        setIsLoadingPages(true);
+        setPageError(null);
+        try {
+            const configs = await adminApi.getPageConfigs();
+            setPageConfigs(configs);
+        } catch (err) {
+            setPageError(handleApiError(err));
+        } finally {
+            setIsLoadingPages(false);
+        }
+    };
+
+    const openPageConfig = (page: PageConfigIdentityInfo) => {
+        setSelectedPageConfig(page);
+        setEditingIdentity(page.identity || '');
+        setPageError(null);
+    };
+
+    const closePageConfig = () => {
+        setSelectedPageConfig(null);
+        setEditingIdentity('');
+        setPageError(null);
+    };
+
+    const savePageConfig = async () => {
+        if (!selectedPageConfig) return;
+
+        setIsSavingPage(true);
+        setPageError(null);
+
+        try {
+            const trimmed = editingIdentity.trim();
+            await adminApi.updatePageConfig(
+                selectedPageConfig.page,
+                trimmed.length > 0 ? trimmed : null
+            );
+
+            await loadPageConfigs();
+            closePageConfig();
+        } catch (err) {
+            setPageError(handleApiError(err));
+        } finally {
+            setIsSavingPage(false);
+        }
+    };
+
+    const resetPageConfig = async () => {
+        if (!selectedPageConfig || !selectedPageConfig.has_override) return;
+
+        setIsSavingPage(true);
+        setPageError(null);
+
+        try {
+            await adminApi.deletePageConfig(selectedPageConfig.page);
+            await loadPageConfigs();
+            closePageConfig();
+        } catch (err) {
+            setPageError(handleApiError(err));
+        } finally {
+            setIsSavingPage(false);
         }
     };
 
@@ -284,74 +354,17 @@ export function ChatConfigList() {
         }
     }, [activeTab]);
 
-    // Page identity functions
-    const loadPageIdentities = async () => {
-        setIsLoadingIdentities(true);
-        setIdentityError(null);
-        try {
-            const identities = await adminApi.getPageIdentities();
-            setPageIdentities(identities);
-        } catch (err) {
-            setIdentityError(handleApiError(err));
-        } finally {
-            setIsLoadingIdentities(false);
-        }
-    };
-
-    const openPageIdentity = (identity: PageIdentityInfo) => {
-        setSelectedPageIdentity(identity);
-        setEditingIdentity(identity.identity || '');
-        setIdentityError(null);
-    };
-
-    const closePageIdentity = () => {
-        setSelectedPageIdentity(null);
-        setEditingIdentity('');
-        setIdentityError(null);
-    };
-
-    const savePageIdentity = async () => {
-        if (!selectedPageIdentity) return;
-
-        setIsSavingIdentity(true);
-        setIdentityError(null);
-
-        try {
-            const trimmed = editingIdentity.trim();
-            await adminApi.updatePageIdentity(
-                selectedPageIdentity.page,
-                trimmed.length > 0 ? trimmed : null
-            );
-            await loadPageIdentities();
-            closePageIdentity();
-        } catch (err) {
-            setIdentityError(handleApiError(err));
-        } finally {
-            setIsSavingIdentity(false);
-        }
-    };
-
-    const resetPageIdentity = async () => {
-        if (!selectedPageIdentity || !selectedPageIdentity.has_override) return;
-
-        setIsSavingIdentity(true);
-        setIdentityError(null);
-
-        try {
-            await adminApi.deletePageIdentity(selectedPageIdentity.page);
-            await loadPageIdentities();
-            closePageIdentity();
-        } catch (err) {
-            setIdentityError(handleApiError(err));
-        } finally {
-            setIsSavingIdentity(false);
-        }
-    };
-
-    // Load page identities when switching to pages tab
+    // Load stream configs when switching to streams tab
     useEffect(() => {
-        if (activeTab === 'pages' && pageIdentities.length === 0 && !isLoadingIdentities) {
-            loadPageIdentities();
+        if (activeTab === 'streams' && streamConfigs.length === 0 && !isLoadingStreams) {
+            loadStreamConfigs();
+        }
+    }, [activeTab]);
+
+    // Load page configs when switching to pages tab
+    useEffect(() => {
+        if (activeTab === 'pages' && pageConfigs.length === 0 && !isLoadingPages) {
+            loadPageConfigs();
         }
     }, [activeTab]);
 
@@ -440,23 +453,35 @@ export function ChatConfigList() {
             <div>
                 {activeTab === 'pages' && (
                     <div className="space-y-3">
-                        {config.pages.map((page) => {
-                            const identityInfo = pageIdentities.find(i => i.page === page.page);
-                            return (
-                                <PageConfigCard
-                                    key={page.page}
-                                    page={page}
-                                    isExpanded={expandedPages.has(page.page)}
-                                    onToggle={() => togglePage(page.page)}
-                                    identity={identityInfo}
-                                    onEditIdentity={() => identityInfo && openPageIdentity(identityInfo)}
-                                />
-                            );
-                        })}
-                        {config.pages.length === 0 && (
-                            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                                No page configurations registered.
+                        {isLoadingPages ? (
+                            <div className="flex items-center justify-center py-12">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
                             </div>
+                        ) : pageError ? (
+                            <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
+                                {pageError}
+                            </div>
+                        ) : (
+                            <>
+                                {config.pages.map((page) => {
+                                    const identityInfo = pageConfigs.find(i => i.page === page.page);
+                                    return (
+                                        <PageConfigCard
+                                            key={page.page}
+                                            page={page}
+                                            isExpanded={expandedPages.has(page.page)}
+                                            onToggle={() => togglePage(page.page)}
+                                            identity={identityInfo}
+                                            onEditIdentity={() => identityInfo && openPageConfig(identityInfo)}
+                                        />
+                                    );
+                                })}
+                                {config.pages.length === 0 && (
+                                    <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                                        No page configurations registered.
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}
@@ -607,74 +632,88 @@ export function ChatConfigList() {
 
                 {activeTab === 'streams' && (
                     <div>
-                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                <thead className="bg-gray-50 dark:bg-gray-900">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Stream
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Has Instructions
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Preview
-                                        </th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Actions
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                    {config.stream_instructions.map((stream) => (
-                                        <tr key={stream.stream_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="font-medium text-gray-900 dark:text-white">
-                                                    {stream.stream_name}
-                                                </div>
-                                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                    ID: {stream.stream_id}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <StatusIcon active={stream.has_instructions} />
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                {stream.instructions_preview ? (
-                                                    <div className="text-sm text-gray-600 dark:text-gray-400 max-w-md">
-                                                        <pre className="whitespace-pre-wrap font-mono text-xs bg-gray-50 dark:bg-gray-900 p-2 rounded">
-                                                            {stream.instructions_preview}
-                                                        </pre>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-gray-400 text-sm">No instructions configured</span>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                <button
-                                                    onClick={() => openStreamInstructions(stream)}
-                                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md transition-colors"
-                                                >
-                                                    <PencilSquareIcon className="h-4 w-4" />
-                                                    Edit
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {config.stream_instructions.length === 0 && (
-                                        <tr>
-                                            <td colSpan={4} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                                                No research streams found.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                        <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                            Stream instructions are included in the system prompt when chatting about reports from that stream.
-                            They guide the assistant on domain-specific terminology, classification rules, and analysis criteria.
-                        </div>
+                        {isLoadingStreams ? (
+                            <div className="flex items-center justify-center py-12">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                            </div>
+                        ) : streamError ? (
+                            <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
+                                {streamError}
+                            </div>
+                        ) : (
+                            <>
+                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                        <thead className="bg-gray-50 dark:bg-gray-900">
+                                            <tr>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                    Stream
+                                                </th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                    Has Instructions
+                                                </th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                    Preview
+                                                </th>
+                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                    Actions
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                            {streamConfigs.map((stream) => (
+                                                <tr key={stream.stream_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="font-medium text-gray-900 dark:text-white">
+                                                            {stream.stream_name}
+                                                        </div>
+                                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                            ID: {stream.stream_id}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <StatusIcon active={stream.has_override} />
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        {stream.instructions ? (
+                                                            <div className="text-sm text-gray-600 dark:text-gray-400 max-w-md">
+                                                                <pre className="whitespace-pre-wrap font-mono text-xs bg-gray-50 dark:bg-gray-900 p-2 rounded">
+                                                                    {stream.instructions.length > 200
+                                                                        ? stream.instructions.substring(0, 200) + '...'
+                                                                        : stream.instructions}
+                                                                </pre>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-gray-400 text-sm">No instructions configured</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                        <button
+                                                            onClick={() => openStreamConfig(stream)}
+                                                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md transition-colors"
+                                                        >
+                                                            <PencilSquareIcon className="h-4 w-4" />
+                                                            Edit
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {streamConfigs.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                                        No research streams found.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                                    Stream instructions are included in the system prompt when chatting about reports from that stream.
+                                    They guide the assistant on domain-specific terminology, classification rules, and analysis criteria.
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
@@ -857,10 +896,10 @@ export function ChatConfigList() {
                 </div>
             </div>
 
-            {/* Stream Instructions Edit Modal */}
+            {/* Stream Instructions Edit Modal - Full size for text editing */}
             {selectedStream && (
                 <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-[1400px] h-[calc(100vh-4rem)] flex flex-col">
                         {/* Header */}
                         <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                             <div>
@@ -869,10 +908,15 @@ export function ChatConfigList() {
                                 </h2>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
                                     {selectedStream.stream_name}
+                                    {selectedStream.has_override && (
+                                        <span className="ml-2 inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                            Custom Override
+                                        </span>
+                                    )}
                                 </p>
                             </div>
                             <button
-                                onClick={closeStreamInstructions}
+                                onClick={closeStreamConfig}
                                 className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
                             >
                                 <XMarkIcon className="h-6 w-6" />
@@ -880,43 +924,35 @@ export function ChatConfigList() {
                         </div>
 
                         {/* Content */}
-                        <div className="flex-1 overflow-y-auto p-6">
-                            {isLoadingStream ? (
-                                <div className="flex items-center justify-center py-12">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-                                </div>
-                            ) : streamError ? (
-                                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
+                        <div className="flex-1 min-h-0 flex flex-col p-6">
+                            {streamError && (
+                                <div className="flex-shrink-0 mb-4 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
                                     {streamError}
                                 </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                                        These instructions are added to the system prompt when chatting about reports from this stream.
-                                        Use them to guide the assistant on domain-specific terminology, classification rules, and analysis criteria.
-                                    </p>
-                                    <textarea
-                                        value={streamInstructions}
-                                        onChange={(e) => setStreamInstructions(e.target.value)}
-                                        placeholder="Enter custom instructions for this stream..."
-                                        rows={12}
-                                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y font-mono text-sm"
-                                    />
-                                </div>
                             )}
+                            <p className="flex-shrink-0 text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                These instructions are added to the system prompt when chatting about reports from this stream.
+                                Use them to guide the assistant on domain-specific terminology, classification rules, and analysis criteria.
+                            </p>
+                            <textarea
+                                value={streamInstructions}
+                                onChange={(e) => setStreamInstructions(e.target.value)}
+                                placeholder="Enter custom instructions for this stream..."
+                                className="flex-1 min-h-0 w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
+                            />
                         </div>
 
                         {/* Footer */}
                         <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
                             <button
-                                onClick={closeStreamInstructions}
+                                onClick={closeStreamConfig}
                                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
-                                onClick={saveStreamInstructions}
-                                disabled={isSavingStream || isLoadingStream}
+                                onClick={saveStreamConfig}
+                                disabled={isSavingStream}
                                 className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                             >
                                 {isSavingStream ? 'Saving...' : 'Save Changes'}
@@ -979,10 +1015,10 @@ export function ChatConfigList() {
                 </div>
             )}
 
-            {/* Page Identity Edit Modal */}
-            {selectedPageIdentity && (
+            {/* Page Identity Edit Modal - Full size for text editing */}
+            {selectedPageConfig && (
                 <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-[1400px] h-[calc(100vh-4rem)] flex flex-col">
                         {/* Header */}
                         <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                             <div>
@@ -990,8 +1026,8 @@ export function ChatConfigList() {
                                     Edit Page Identity
                                 </h2>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    {selectedPageIdentity.page}
-                                    {selectedPageIdentity.has_override && (
+                                    {selectedPageConfig.page}
+                                    {selectedPageConfig.has_override && (
                                         <span className="ml-2 inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
                                             Custom Override
                                         </span>
@@ -999,7 +1035,7 @@ export function ChatConfigList() {
                                 </p>
                             </div>
                             <button
-                                onClick={closePageIdentity}
+                                onClick={closePageConfig}
                                 className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
                             >
                                 <XMarkIcon className="h-6 w-6" />
@@ -1007,50 +1043,47 @@ export function ChatConfigList() {
                         </div>
 
                         {/* Content */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                            {identityError && (
-                                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
-                                    {identityError}
+                        <div className="flex-1 min-h-0 flex flex-col p-6">
+                            {pageError && (
+                                <div className="flex-shrink-0 mb-4 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
+                                    {pageError}
                                 </div>
                             )}
 
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                            <p className="flex-shrink-0 text-sm text-gray-600 dark:text-gray-400 mb-4">
                                 The identity defines the persona and role of the assistant on this page.
                                 It's the first section of the system prompt.
                             </p>
 
-                            {selectedPageIdentity.default_identity && (
-                                <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                            {selectedPageConfig.default_identity && (
+                                <div className="flex-shrink-0 mb-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg max-h-32 overflow-y-auto">
                                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
                                         Default Identity (from code):
                                     </p>
                                     <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400">
-                                        {selectedPageIdentity.default_identity}
+                                        {selectedPageConfig.default_identity}
                                     </pre>
                                 </div>
                             )}
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    {selectedPageIdentity.has_override ? 'Custom Identity:' : 'Override Identity:'}
-                                </label>
-                                <textarea
-                                    value={editingIdentity}
-                                    onChange={(e) => setEditingIdentity(e.target.value)}
-                                    placeholder={selectedPageIdentity.default_identity || "Enter custom identity..."}
-                                    rows={8}
-                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y font-mono text-sm"
-                                />
-                            </div>
+                            <label className="flex-shrink-0 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                {selectedPageConfig.has_override ? 'Custom Identity:' : 'Override Identity:'}
+                            </label>
+                            <textarea
+                                value={editingIdentity}
+                                onChange={(e) => setEditingIdentity(e.target.value)}
+                                placeholder={selectedPageConfig.default_identity || "Enter custom identity..."}
+                                className="flex-1 min-h-0 w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
+                            />
                         </div>
 
                         {/* Footer */}
                         <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                             <div>
-                                {selectedPageIdentity.has_override && (
+                                {selectedPageConfig.has_override && (
                                     <button
-                                        onClick={resetPageIdentity}
-                                        disabled={isSavingIdentity}
+                                        onClick={resetPageConfig}
+                                        disabled={isSavingPage}
                                         className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
                                     >
                                         Reset to Default
@@ -1059,17 +1092,17 @@ export function ChatConfigList() {
                             </div>
                             <div className="flex items-center gap-3">
                                 <button
-                                    onClick={closePageIdentity}
+                                    onClick={closePageConfig}
                                     className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
-                                    onClick={savePageIdentity}
-                                    disabled={isSavingIdentity}
+                                    onClick={savePageConfig}
+                                    disabled={isSavingPage}
                                     className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                                 >
-                                    {isSavingIdentity ? 'Saving...' : 'Save Changes'}
+                                    {isSavingPage ? 'Saving...' : 'Save Changes'}
                                 </button>
                             </div>
                         </div>
@@ -1150,7 +1183,7 @@ function PageConfigCard({ page, isExpanded, onToggle, identity, onEditIdentity }
     page: PageConfigInfo;
     isExpanded: boolean;
     onToggle: () => void;
-    identity?: PageIdentityInfo;
+    identity?: PageConfigIdentityInfo;
     onEditIdentity?: () => void;
 }) {
     const tabCount = Object.keys(page.tabs).length;

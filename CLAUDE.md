@@ -59,6 +59,23 @@ className="w-[600px] h-[500px]"
 className="w-[calc(100vw-4rem)] max-w-[1200px] h-[calc(100vh-4rem)]"
 ```
 
+### Text editing modals (ALWAYS full-size)
+
+**When a modal's primary purpose is editing text that is likely to be large** (system prompts, instructions, documentation, code), the modal MUST be near-maximized:
+
+```tsx
+// Text editing modal - always near full-screen
+className="w-[calc(100vw-4rem)] max-w-[1400px] h-[calc(100vh-4rem)]"
+```
+
+This includes:
+- Stream/page instructions editing
+- System prompt/identity editing
+- Help content editing
+- Any freeform text configuration
+
+Rationale: Users need to see as much context as possible when editing long text. Small modals force constant scrolling and make it hard to review what's been written.
+
 ### Required structure for scrollable modals:
 ```tsx
 <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
