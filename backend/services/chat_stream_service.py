@@ -529,8 +529,9 @@ class ChatStreamService:
         if stream_instructions:
             sections.append(f"== CUSTOM INSTRUCTIONS ==\n{stream_instructions}")
 
-        # 7. GUIDELINES (always present, brief)
-        sections.append(self._get_guidelines())
+        # 7. GUIDELINES (always present, with page/global hierarchy)
+        guidelines = await self._get_guidelines(current_page)
+        sections.append(guidelines)
 
         return "\n\n".join(sections)
 
@@ -571,23 +572,83 @@ class ChatStreamService:
 
         return "\n\n".join(parts)
 
-    def _get_guidelines(self) -> str:
-        """Get brief response guidelines."""
-        return """== GUIDELINES ==
-        Be conversational and helpful. Use tools proactively when they help answer questions.
+    # Default behavioral guidelines (used if no page or global override)
+    DEFAULT_GUIDELINES = """## Style
+Be conversational and helpful. Keep responses concise and factual.
 
-        SUGGESTED VALUES (optional):
-        To offer quick-select text options the user can click to send as their next message:
-        SUGGESTED_VALUES:
-        [{"label": "Display Text", "value": "text to send"}]
-        Use this sparingly when a few specific choices would help (e.g., selecting from options you've listed).
+## Suggestions
+Most responses should NOT include SUGGESTED_VALUES or SUGGESTED_ACTIONS.
+Only use them when they genuinely help the user take a next step - for example, offering a few clear choices after listing options."""
 
-        SUGGESTED ACTIONS (optional, ONLY use actions listed in CLIENT ACTIONS above):
-        To offer clickable buttons that trigger UI actions. You may ONLY use actions explicitly listed in the CLIENT ACTIONS section above. Do NOT invent new actions.
-        SUGGESTED_ACTIONS:
-        [{"label": "Button Text", "action": "action_from_list", "handler": "client"}]
+    # Fixed format instructions (always appended, not configurable)
+    SUGGESTION_FORMAT_INSTRUCTIONS = """
+SUGGESTED VALUES (optional):
+To offer quick-select text options the user can click to send as their next message:
+SUGGESTED_VALUES:
+[{"label": "Display Text", "value": "text to send"}]
+Use this sparingly when a few specific choices would help (e.g., selecting from options you've listed).
 
-        IMPORTANT: Most responses should NOT include suggested values or actions. Only use them when genuinely helpful."""
+SUGGESTED ACTIONS (optional, ONLY use actions listed in CLIENT ACTIONS above):
+To offer clickable buttons that trigger UI actions. You may ONLY use actions explicitly listed in the CLIENT ACTIONS section above. Do NOT invent new actions.
+SUGGESTED_ACTIONS:
+[{"label": "Button Text", "action": "action_from_list", "handler": "client"}]
+
+IMPORTANT: Most responses should NOT include suggested values or actions. Only use them when genuinely helpful."""
+
+    async def _get_guidelines(self, current_page: str) -> str:
+        """
+        Get behavioral guidelines with hierarchy:
+        1. DB page override
+        2. Code page default
+        3. DB global override
+        4. Code global default
+
+        Always appends fixed format instructions for suggestions.
+        """
+        from models import ChatConfig
+        from services.chat_page_config import get_guidelines as get_code_guidelines
+
+        guidelines = None
+
+        # 1. Check DB for page-level override
+        try:
+            result = await self.db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "page",
+                    ChatConfig.scope_key == current_page
+                )
+            )
+            page_config = result.scalars().first()
+            if page_config and page_config.guidelines:
+                guidelines = page_config.guidelines
+        except Exception as e:
+            logger.warning(f"Failed to check page guidelines override: {e}")
+
+        # 2. Fall back to code page default
+        if not guidelines:
+            guidelines = get_code_guidelines(current_page)
+
+        # 3. Check DB for global override
+        if not guidelines:
+            try:
+                result = await self.db.execute(
+                    select(ChatConfig).where(
+                        ChatConfig.scope == "global",
+                        ChatConfig.scope_key == "default"
+                    )
+                )
+                global_config = result.scalars().first()
+                if global_config and global_config.guidelines:
+                    guidelines = global_config.guidelines
+            except Exception as e:
+                logger.warning(f"Failed to check global guidelines override: {e}")
+
+        # 4. Fall back to code global default
+        if not guidelines:
+            guidelines = self.DEFAULT_GUIDELINES
+
+        # Combine behavioral guidelines with fixed format instructions
+        return f"== GUIDELINES ==\n{guidelines}\n{self.SUGGESTION_FORMAT_INSTRUCTIONS}"
 
     # =========================================================================
     # Context Loading

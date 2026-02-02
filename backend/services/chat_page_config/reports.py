@@ -113,23 +113,7 @@ def build_context(context: Dict[str, Any]) -> str:
 # Client Actions
 # =============================================================================
 
-REPORTS_CLIENT_ACTIONS = [
-    ClientAction(
-        action="navigate_to_article",
-        description="Open a specific article in the article viewer modal",
-        parameters=["article_id", "pmid"],
-    ),
-    ClientAction(
-        action="navigate_to_report",
-        description="Switch to viewing a different report",
-        parameters=["report_id"],
-    ),
-    ClientAction(
-        action="compare_reports",
-        description="Open the report comparison view",
-        parameters=["report_id_1", "report_id_2"],
-    ),
-]
+REPORTS_CLIENT_ACTIONS = []
 
 
 # =============================================================================

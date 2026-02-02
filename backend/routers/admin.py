@@ -1005,6 +1005,7 @@ class ChatConfigUpdate(BaseModel):
 
     identity: Optional[str] = None
     instructions: Optional[str] = None
+    guidelines: Optional[str] = None
 
 
 class StreamConfigInfo(BaseModel):
@@ -1017,12 +1018,15 @@ class StreamConfigInfo(BaseModel):
 
 
 class PageConfigIdentityInfo(BaseModel):
-    """Page config with identity info."""
+    """Page config with identity and guidelines info."""
 
     page: str
     identity: Optional[str] = None
-    has_override: bool = False
+    has_identity_override: bool = False
     default_identity: Optional[str] = None
+    guidelines: Optional[str] = None
+    has_guidelines_override: bool = False
+    default_guidelines: Optional[str] = None
 
 
 @router.get(
@@ -1195,27 +1199,37 @@ async def list_page_configs(
 ) -> List[PageConfigIdentityInfo]:
     """Get all pages with their chat config (platform admin only)."""
     from services.chat_page_config.registry import _page_registry
+    from services.chat_stream_service import ChatStreamService
+
+    # Get global default guidelines (used when page doesn't define its own)
+    global_default_guidelines = ChatStreamService.DEFAULT_GUIDELINES
 
     try:
         # Get all database overrides
         result = await db.execute(
             select(ChatConfig).where(ChatConfig.scope == "page")
         )
-        overrides = {cc.scope_key: cc.identity for cc in result.scalars().all()}
+        db_overrides = {cc.scope_key: cc for cc in result.scalars().all()}
 
         # Build response with both defaults and overrides
         configs = []
         for page, config in _page_registry.items():
-            default_identity = config.identity
-            override = overrides.get(page)
-            has_override = page in overrides
+            db_config = db_overrides.get(page)
+            has_identity_override = db_config is not None and db_config.identity is not None
+            has_guidelines_override = db_config is not None and db_config.guidelines is not None
+
+            # Use page-specific default if defined, otherwise use global default
+            page_default_guidelines = config.guidelines or global_default_guidelines
 
             configs.append(
                 PageConfigIdentityInfo(
                     page=page,
-                    identity=override if has_override else default_identity,
-                    has_override=has_override,
-                    default_identity=default_identity,
+                    identity=db_config.identity if has_identity_override else config.identity,
+                    has_identity_override=has_identity_override,
+                    default_identity=config.identity,
+                    guidelines=db_config.guidelines if has_guidelines_override else page_default_guidelines,
+                    has_guidelines_override=has_guidelines_override,
+                    default_guidelines=page_default_guidelines,
                 )
             )
 
@@ -1247,6 +1261,10 @@ async def get_page_config(
 ) -> PageConfigIdentityInfo:
     """Get chat config for a page (platform admin only)."""
     from services.chat_page_config.registry import _page_registry
+    from services.chat_stream_service import ChatStreamService
+
+    # Get global default guidelines (used when page doesn't define its own)
+    global_default_guidelines = ChatStreamService.DEFAULT_GUIDELINES
 
     try:
         config = _page_registry.get(page)
@@ -1263,13 +1281,21 @@ async def get_page_config(
                 ChatConfig.scope_key == page
             )
         )
-        override = result.scalars().first()
+        db_config = result.scalars().first()
+        has_identity_override = db_config is not None and db_config.identity is not None
+        has_guidelines_override = db_config is not None and db_config.guidelines is not None
+
+        # Use page-specific default if defined, otherwise use global default
+        page_default_guidelines = config.guidelines or global_default_guidelines
 
         return PageConfigIdentityInfo(
             page=page,
-            identity=override.identity if override else config.identity,
-            has_override=override is not None,
+            identity=db_config.identity if has_identity_override else config.identity,
+            has_identity_override=has_identity_override,
             default_identity=config.identity,
+            guidelines=db_config.guidelines if has_guidelines_override else page_default_guidelines,
+            has_guidelines_override=has_guidelines_override,
+            default_guidelines=page_default_guidelines,
         )
 
     except HTTPException:
@@ -1293,8 +1319,16 @@ async def update_page_config(
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_db),
 ) -> PageConfigIdentityInfo:
-    """Update chat config for a page (platform admin only)."""
+    """Update chat config for a page (platform admin only).
+
+    Supports partial updates - only fields provided in the request are updated.
+    To clear a field, explicitly set it to null/empty string.
+    """
     from services.chat_page_config.registry import _page_registry
+    from services.chat_stream_service import ChatStreamService
+
+    # Get global default guidelines (used when page doesn't define its own)
+    global_default_guidelines = ChatStreamService.DEFAULT_GUIDELINES
 
     try:
         config = _page_registry.get(page)
@@ -1314,27 +1348,43 @@ async def update_page_config(
         existing = result.scalars().first()
 
         if existing:
-            existing.identity = update.identity
+            # Update only provided fields
+            if update.identity is not None:
+                existing.identity = update.identity if update.identity else None
+            if update.guidelines is not None:
+                existing.guidelines = update.guidelines if update.guidelines else None
             existing.updated_at = datetime.utcnow()
             existing.updated_by = current_user.user_id
         else:
             new_config = ChatConfig(
                 scope="page",
                 scope_key=page,
-                identity=update.identity,
+                identity=update.identity if update.identity else None,
+                guidelines=update.guidelines if update.guidelines else None,
                 updated_by=current_user.user_id,
             )
             db.add(new_config)
+            existing = new_config
 
         await db.commit()
+        await db.refresh(existing)
 
         logger.info(f"User {current_user.email} updated chat config for page '{page}'")
 
+        has_identity_override = existing.identity is not None
+        has_guidelines_override = existing.guidelines is not None
+
+        # Use page-specific default if defined, otherwise use global default
+        page_default_guidelines = config.guidelines or global_default_guidelines
+
         return PageConfigIdentityInfo(
             page=page,
-            identity=update.identity,
-            has_override=True,
+            identity=existing.identity if has_identity_override else config.identity,
+            has_identity_override=has_identity_override,
             default_identity=config.identity,
+            guidelines=existing.guidelines if has_guidelines_override else page_default_guidelines,
+            has_guidelines_override=has_guidelines_override,
+            default_guidelines=page_default_guidelines,
         )
 
     except HTTPException:

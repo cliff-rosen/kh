@@ -719,7 +719,8 @@ class ChatConfig(Base):
     scope = Column(String(20), primary_key=True)  # 'stream', 'page', 'global'
     scope_key = Column(String(100), primary_key=True)  # stream_id, page name, or 'default'
     identity = Column(Text, nullable=True)  # Custom identity/persona
-    instructions = Column(Text, nullable=True)  # Custom instructions
+    instructions = Column(Text, nullable=True)  # Custom instructions (for streams)
+    guidelines = Column(Text, nullable=True)  # Behavioral guidelines (style, suggestions, constraints)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
 

@@ -296,10 +296,8 @@ export const adminApi = {
   /**
    * Update chat config for a page (platform admin only)
    */
-  async updatePageConfig(page: string, identity: string | null): Promise<PageConfigIdentityInfo> {
-    const response = await api.put(`/api/admin/chat-config/pages/${encodeURIComponent(page)}`, {
-      identity
-    });
+  async updatePageConfig(page: string, data: { identity?: string | null; guidelines?: string | null }): Promise<PageConfigIdentityInfo> {
+    const response = await api.put(`/api/admin/chat-config/pages/${encodeURIComponent(page)}`, data);
     return response.data;
   },
 
@@ -411,11 +409,15 @@ export interface StreamConfigInfo {
 export interface PageConfigIdentityInfo {
   page: string;
   identity: string | null;
-  has_override: boolean;
+  has_identity_override: boolean;
   default_identity: string | null;
+  guidelines: string | null;
+  has_guidelines_override: boolean;
+  default_guidelines: string | null;
 }
 
 export interface ChatConfigUpdate {
   identity?: string | null;
   instructions?: string | null;
+  guidelines?: string | null;
 }

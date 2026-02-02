@@ -135,23 +135,7 @@ def build_context(context: Dict[str, Any]) -> str:
 # Client Actions
 # =============================================================================
 
-ARTICLE_DETAIL_CLIENT_ACTIONS = [
-    ClientAction(
-        action="run_stance_analysis",
-        description="Run stance/position analysis on the current article",
-        parameters=None,
-    ),
-    ClientAction(
-        action="close_article",
-        description="Close the article viewer and return to the report/list view",
-        parameters=None,
-    ),
-    ClientAction(
-        action="navigate_to_article",
-        description="Navigate to a different article (prev/next or by ID)",
-        parameters=["direction_or_article_id"],
-    ),
-]
+ARTICLE_DETAIL_CLIENT_ACTIONS = []
 
 
 # =============================================================================
