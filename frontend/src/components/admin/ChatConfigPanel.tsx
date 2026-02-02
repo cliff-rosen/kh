@@ -175,7 +175,7 @@ export function ChatConfigPanel() {
 
     const openStreamConfig = (stream: StreamChatConfig) => {
         setSelectedStream(stream);
-        setStreamInstructions(stream.instructions || '');
+        setStreamInstructions(stream.content || '');
         setStreamError(null);
     };
 
@@ -915,12 +915,12 @@ export function ChatConfigPanel() {
                                                         <StatusIcon active={stream.has_override} />
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        {stream.instructions ? (
+                                                        {stream.content ? (
                                                             <div className="text-sm text-gray-600 dark:text-gray-400 max-w-md">
                                                                 <pre className="whitespace-pre-wrap font-mono text-xs bg-gray-50 dark:bg-gray-900 p-2 rounded">
-                                                                    {stream.instructions.length > 200
-                                                                        ? stream.instructions.substring(0, 200) + '...'
-                                                                        : stream.instructions}
+                                                                    {stream.content.length > 200
+                                                                        ? stream.content.substring(0, 200) + '...'
+                                                                        : stream.content}
                                                                 </pre>
                                                             </div>
                                                         ) : (
