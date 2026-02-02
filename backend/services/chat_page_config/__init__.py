@@ -39,7 +39,7 @@ from . import streams_list
 from . import new_stream
 from . import reports
 from . import tablizer
-from . import article_detail
+from . import article_viewer
 
 
 # =============================================================================

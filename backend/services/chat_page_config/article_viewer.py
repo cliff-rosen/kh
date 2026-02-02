@@ -1,5 +1,5 @@
 """
-Chat page config for the article detail view.
+Chat page config for the article viewer.
 
 Defines context builder and identity for when a user is viewing a specific article.
 This page config is used when the ArticleViewerModal is open.
@@ -18,9 +18,9 @@ from .registry import register_page, ClientAction
 # Identity
 # =============================================================================
 
-ARTICLE_DETAIL_IDENTITY = """You are a research assistant helping the user understand a specific biomedical research article.
+ARTICLE_VIEWER_IDENTITY = """You are a research assistant helping the user understand a specific biomedical research article.
 
-The user is currently viewing an article's details. Your focus should be on:
+The user is currently viewing an article in the Article Viewer. Your focus should be on:
 - Explaining the article's findings, methods, and significance
 - Helping interpret the stance/position analysis if available
 - Answering questions about the article's content
@@ -44,11 +44,11 @@ VERY IMPORTANT: Do not overaggrandize or overstate utility or findings. The styl
 
 def build_context(context: Dict[str, Any]) -> str:
     """
-    Build context for the article detail view.
+    Build context for the article viewer.
 
     Provides rich context about the currently viewed article.
     """
-    parts = ["Page: Article Detail", ""]
+    parts = ["Page: Article Viewer", ""]
 
     # Stream/report context (if available)
     stream_name = context.get("stream_name")
@@ -135,7 +135,7 @@ def build_context(context: Dict[str, Any]) -> str:
 # Client Actions
 # =============================================================================
 
-ARTICLE_DETAIL_CLIENT_ACTIONS = []
+ARTICLE_VIEWER_CLIENT_ACTIONS = []
 
 
 # =============================================================================
@@ -143,11 +143,11 @@ ARTICLE_DETAIL_CLIENT_ACTIONS = []
 # =============================================================================
 
 register_page(
-    page="article_detail",
+    page="article_viewer",
     context_builder=build_context,
-    identity=ARTICLE_DETAIL_IDENTITY,
-    client_actions=ARTICLE_DETAIL_CLIENT_ACTIONS,
-    # Payloads relevant to article detail view
+    identity=ARTICLE_VIEWER_IDENTITY,
+    client_actions=ARTICLE_VIEWER_CLIENT_ACTIONS,
+    # Payloads relevant to article viewer
     payloads=[],
     # Note: Tools are global (is_global=True) so not listed here
 )
