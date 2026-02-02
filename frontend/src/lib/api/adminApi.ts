@@ -411,9 +411,11 @@ export interface PageConfigIdentityInfo {
   identity: string | null;
   has_identity_override: boolean;
   default_identity: string | null;
+  default_identity_is_global: boolean;
   guidelines: string | null;
   has_guidelines_override: boolean;
   default_guidelines: string | null;
+  default_guidelines_is_global: boolean;
 }
 
 export interface ChatConfigUpdate {

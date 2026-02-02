@@ -456,10 +456,7 @@ class ChatStreamService:
         6. CUSTOM INSTRUCTIONS - Stream-specific instructions (only if defined)
         7. GUIDELINES - Brief response guidance
         """
-        from services.chat_page_config import get_identity
         from services.help_registry import get_help_toc_for_role
-        from models import ChatConfig
-        from sqlalchemy import select
 
         current_page = context.get("current_page", "unknown")
         active_tab = context.get("active_tab")
@@ -468,35 +465,10 @@ class ChatStreamService:
 
         sections = []
 
-        # 1. IDENTITY (check database override first, then code default)
+        # 1. IDENTITY
         current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-        page_identity = None
-
-        # Check for database override in chat_config
-        try:
-            result = await self.db.execute(
-                select(ChatConfig).where(
-                    ChatConfig.scope == "page",
-                    ChatConfig.scope_key == current_page
-                )
-            )
-            config_override = result.scalars().first()
-            if config_override and config_override.identity:
-                page_identity = config_override.identity
-        except Exception as e:
-            logger.warning(f"Failed to check page identity override: {e}")
-
-        # Fall back to code-defined identity
-        if not page_identity:
-            page_identity = get_identity(current_page)
-
-        if page_identity:
-            sections.append(f"{page_identity}\n\nCurrent date and time: {current_time}")
-        else:
-            sections.append(
-                f"You are a helpful AI assistant for Knowledge Horizon, a biomedical research intelligence platform.\n"
-                f"Current date and time: {current_time}"
-            )
+        identity = await self._get_identity(current_page)
+        sections.append(f"{identity}\n\nCurrent date and time: {current_time}")
 
         # 2. CONTEXT (page context + loaded data)
         page_context = await self._build_page_context(current_page, context)
@@ -572,7 +544,10 @@ class ChatStreamService:
 
         return "\n\n".join(parts)
 
-    # Default behavioral guidelines (used if no page or global override)
+    # Default identity (used if page doesn't define its own)
+    DEFAULT_IDENTITY = "You are a helpful AI assistant for Knowledge Horizon, a biomedical research intelligence platform."
+
+    # Default behavioral guidelines (used if page doesn't define its own)
     DEFAULT_GUIDELINES = """## Style
 Be conversational and helpful. Keep responses concise and factual.
 
@@ -595,13 +570,48 @@ SUGGESTED_ACTIONS:
 
 IMPORTANT: Most responses should NOT include suggested values or actions. Only use them when genuinely helpful."""
 
+    async def _get_identity(self, current_page: str) -> str:
+        """
+        Get identity with hierarchy:
+        1. DB page override
+        2. Code page default
+        3. Code global default
+        """
+        from models import ChatConfig
+        from services.chat_page_config import get_identity as get_code_identity
+
+        identity = None
+
+        # 1. Check DB for page-level override
+        try:
+            result = await self.db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "page",
+                    ChatConfig.scope_key == current_page
+                )
+            )
+            page_config = result.scalars().first()
+            if page_config and page_config.identity:
+                identity = page_config.identity
+        except Exception as e:
+            logger.warning(f"Failed to check page identity override: {e}")
+
+        # 2. Fall back to code page default
+        if not identity:
+            identity = get_code_identity(current_page)
+
+        # 3. Fall back to code global default
+        if not identity:
+            identity = self.DEFAULT_IDENTITY
+
+        return identity
+
     async def _get_guidelines(self, current_page: str) -> str:
         """
         Get behavioral guidelines with hierarchy:
         1. DB page override
         2. Code page default
-        3. DB global override
-        4. Code global default
+        3. Code global default
 
         Always appends fixed format instructions for suggestions.
         """
@@ -628,22 +638,7 @@ IMPORTANT: Most responses should NOT include suggested values or actions. Only u
         if not guidelines:
             guidelines = get_code_guidelines(current_page)
 
-        # 3. Check DB for global override
-        if not guidelines:
-            try:
-                result = await self.db.execute(
-                    select(ChatConfig).where(
-                        ChatConfig.scope == "global",
-                        ChatConfig.scope_key == "default"
-                    )
-                )
-                global_config = result.scalars().first()
-                if global_config and global_config.guidelines:
-                    guidelines = global_config.guidelines
-            except Exception as e:
-                logger.warning(f"Failed to check global guidelines override: {e}")
-
-        # 4. Fall back to code global default
+        # 3. Fall back to code global default
         if not guidelines:
             guidelines = self.DEFAULT_GUIDELINES
 

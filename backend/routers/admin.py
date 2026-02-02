@@ -1024,9 +1024,11 @@ class PageConfigIdentityInfo(BaseModel):
     identity: Optional[str] = None
     has_identity_override: bool = False
     default_identity: Optional[str] = None
+    default_identity_is_global: bool = False  # True if using global default, False if page-specific
     guidelines: Optional[str] = None
     has_guidelines_override: bool = False
     default_guidelines: Optional[str] = None
+    default_guidelines_is_global: bool = False  # True if using global default, False if page-specific
 
 
 @router.get(
@@ -1201,7 +1203,8 @@ async def list_page_configs(
     from services.chat_page_config.registry import _page_registry
     from services.chat_stream_service import ChatStreamService
 
-    # Get global default guidelines (used when page doesn't define its own)
+    # Get global defaults (used when page doesn't define its own)
+    global_default_identity = ChatStreamService.DEFAULT_IDENTITY
     global_default_guidelines = ChatStreamService.DEFAULT_GUIDELINES
 
     try:
@@ -1219,17 +1222,22 @@ async def list_page_configs(
             has_guidelines_override = db_config is not None and db_config.guidelines is not None
 
             # Use page-specific default if defined, otherwise use global default
+            identity_is_global = config.identity is None
+            guidelines_is_global = config.guidelines is None
+            page_default_identity = config.identity or global_default_identity
             page_default_guidelines = config.guidelines or global_default_guidelines
 
             configs.append(
                 PageConfigIdentityInfo(
                     page=page,
-                    identity=db_config.identity if has_identity_override else config.identity,
+                    identity=db_config.identity if has_identity_override else page_default_identity,
                     has_identity_override=has_identity_override,
-                    default_identity=config.identity,
+                    default_identity=page_default_identity,
+                    default_identity_is_global=identity_is_global,
                     guidelines=db_config.guidelines if has_guidelines_override else page_default_guidelines,
                     has_guidelines_override=has_guidelines_override,
                     default_guidelines=page_default_guidelines,
+                    default_guidelines_is_global=guidelines_is_global,
                 )
             )
 
@@ -1263,7 +1271,8 @@ async def get_page_config(
     from services.chat_page_config.registry import _page_registry
     from services.chat_stream_service import ChatStreamService
 
-    # Get global default guidelines (used when page doesn't define its own)
+    # Get global defaults (used when page doesn't define its own)
+    global_default_identity = ChatStreamService.DEFAULT_IDENTITY
     global_default_guidelines = ChatStreamService.DEFAULT_GUIDELINES
 
     try:
@@ -1286,16 +1295,21 @@ async def get_page_config(
         has_guidelines_override = db_config is not None and db_config.guidelines is not None
 
         # Use page-specific default if defined, otherwise use global default
+        identity_is_global = config.identity is None
+        guidelines_is_global = config.guidelines is None
+        page_default_identity = config.identity or global_default_identity
         page_default_guidelines = config.guidelines or global_default_guidelines
 
         return PageConfigIdentityInfo(
             page=page,
-            identity=db_config.identity if has_identity_override else config.identity,
+            identity=db_config.identity if has_identity_override else page_default_identity,
             has_identity_override=has_identity_override,
-            default_identity=config.identity,
+            default_identity=page_default_identity,
+            default_identity_is_global=identity_is_global,
             guidelines=db_config.guidelines if has_guidelines_override else page_default_guidelines,
             has_guidelines_override=has_guidelines_override,
             default_guidelines=page_default_guidelines,
+            default_guidelines_is_global=guidelines_is_global,
         )
 
     except HTTPException:
@@ -1327,7 +1341,8 @@ async def update_page_config(
     from services.chat_page_config.registry import _page_registry
     from services.chat_stream_service import ChatStreamService
 
-    # Get global default guidelines (used when page doesn't define its own)
+    # Get global defaults (used when page doesn't define its own)
+    global_default_identity = ChatStreamService.DEFAULT_IDENTITY
     global_default_guidelines = ChatStreamService.DEFAULT_GUIDELINES
 
     try:
@@ -1375,16 +1390,21 @@ async def update_page_config(
         has_guidelines_override = existing.guidelines is not None
 
         # Use page-specific default if defined, otherwise use global default
+        identity_is_global = config.identity is None
+        guidelines_is_global = config.guidelines is None
+        page_default_identity = config.identity or global_default_identity
         page_default_guidelines = config.guidelines or global_default_guidelines
 
         return PageConfigIdentityInfo(
             page=page,
-            identity=existing.identity if has_identity_override else config.identity,
+            identity=existing.identity if has_identity_override else page_default_identity,
             has_identity_override=has_identity_override,
-            default_identity=config.identity,
+            default_identity=page_default_identity,
+            default_identity_is_global=identity_is_global,
             guidelines=existing.guidelines if has_guidelines_override else page_default_guidelines,
             has_guidelines_override=has_guidelines_override,
             default_guidelines=page_default_guidelines,
+            default_guidelines_is_global=guidelines_is_global,
         )
 
     except HTTPException:

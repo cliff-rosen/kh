@@ -1100,23 +1100,17 @@ export function ChatConfigList() {
                                 <>
                                     <p className="flex-shrink-0 text-sm text-gray-600 dark:text-gray-400 mb-4">
                                         The identity defines the persona and role of the assistant on this page.
-                                        It appears at the start of the system prompt. Each page can define its own identity in code.
+                                        It appears at the start of the system prompt.
                                     </p>
 
                                     {/* Default section */}
                                     <div className="flex-shrink-0 mb-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
                                         <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                                            Default Identity {selectedPageConfig.default_identity ? '(defined for this page)' : '(none defined for this page)'}
+                                            Default Identity ({selectedPageConfig.default_identity_is_global ? 'global' : 'page-specific'})
                                         </p>
-                                        {selectedPageConfig.default_identity ? (
-                                            <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400 max-h-32 overflow-y-auto">
-                                                {selectedPageConfig.default_identity}
-                                            </pre>
-                                        ) : (
-                                            <p className="text-xs text-gray-400 dark:text-gray-500 italic">
-                                                This page has no default identity. The assistant will use a generic persona unless you set an override below.
-                                            </p>
-                                        )}
+                                        <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400 max-h-32 overflow-y-auto">
+                                            {selectedPageConfig.default_identity}
+                                        </pre>
                                     </div>
 
                                     {/* Override section */}
@@ -1134,23 +1128,17 @@ export function ChatConfigList() {
                                 <>
                                     <p className="flex-shrink-0 text-sm text-gray-600 dark:text-gray-400 mb-4">
                                         Guidelines define behavioral rules for the assistant: response style, when to make suggestions, and constraints.
-                                        They appear at the end of the system prompt. A global default is used unless overridden here.
+                                        They appear at the end of the system prompt.
                                     </p>
 
                                     {/* Default section */}
                                     <div className="flex-shrink-0 mb-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
                                         <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                                            Default Guidelines (global)
+                                            Default Guidelines ({selectedPageConfig.default_guidelines_is_global ? 'global' : 'page-specific'})
                                         </p>
-                                        {selectedPageConfig.default_guidelines ? (
-                                            <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400 max-h-32 overflow-y-auto">
-                                                {selectedPageConfig.default_guidelines}
-                                            </pre>
-                                        ) : (
-                                            <p className="text-xs text-gray-400 dark:text-gray-500 italic">
-                                                No default guidelines configured.
-                                            </p>
-                                        )}
+                                        <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400 max-h-32 overflow-y-auto">
+                                            {selectedPageConfig.default_guidelines}
+                                        </pre>
                                     </div>
 
                                     {/* Cheat sheet */}
@@ -1160,7 +1148,7 @@ export function ChatConfigList() {
                                         </p>
                                         <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
                                             <p><strong>## Style</strong> - Tone, length, formatting preferences</p>
-                                            <p><strong>## Suggestions</strong> - When to offer actions/values</p>
+                                            <p><strong>## Suggestions</strong> - When to use SUGGESTED_VALUES / SUGGESTED_ACTIONS</p>
                                             <p><strong>## Constraints</strong> - What to avoid or never do</p>
                                         </div>
                                     </div>
