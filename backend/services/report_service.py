@@ -901,10 +901,19 @@ class ReportService:
         Searches title, abstract, journal, authors, and PMID.
         Also searches DOI if query looks like a DOI.
         """
-        # Get all reports for this stream that user can access
+        # Check if user has access to this stream
+        user_service = UserService(self.db)
+        user = await user_service.get_user_by_id(user_id)
+        if not user:
+            return []
+
+        accessible_stream_ids = await self.get_accessible_stream_ids(user)
+        if stream_id not in accessible_stream_ids:
+            return []
+
+        # Get all reports for this stream
         report_stmt = select(Report.report_id).where(
-            Report.research_stream_id == stream_id,
-            Report.user_id == user_id
+            Report.research_stream_id == stream_id
         )
         report_result = await self.db.execute(report_stmt)
         report_ids = [r[0] for r in report_result.all()]
@@ -957,6 +966,16 @@ class ReportService:
         """
         Get all starred articles across all reports in a stream.
         """
+        # Check if user has access to this stream
+        user_service = UserService(self.db)
+        user = await user_service.get_user_by_id(user_id)
+        if not user:
+            return []
+
+        accessible_stream_ids = await self.get_accessible_stream_ids(user)
+        if stream_id not in accessible_stream_ids:
+            return []
+
         stmt = select(
             Article, ReportArticleAssociation, Report
         ).join(
@@ -967,7 +986,6 @@ class ReportService:
             ReportArticleAssociation.report_id == Report.report_id
         ).where(
             Report.research_stream_id == stream_id,
-            Report.user_id == user_id,
             ReportArticleAssociation.is_starred == True
         ).order_by(Report.report_date.desc())
 
