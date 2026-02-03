@@ -762,24 +762,7 @@ SUGGESTED_ACTIONS:
 
     async def _get_max_tool_iterations(self) -> int:
         """Get the maximum tool iterations from config, or default."""
-        from models import ChatConfig
-
-        try:
-            result = await self.db.execute(
-                select(ChatConfig).where(
-                    ChatConfig.scope == "system",
-                    ChatConfig.scope_key == "max_tool_iterations"
-                )
-            )
-            config = result.scalars().first()
-            if config and config.content:
-                value = int(config.content.strip())
-                # Clamp to reasonable range
-                return max(1, min(value, 20))
-        except Exception as e:
-            logger.warning(f"Failed to load max_tool_iterations config: {e}")
-
-        return DEFAULT_MAX_TOOL_ITERATIONS
+        return await self.chat_service.get_max_tool_iterations()
 
     async def _load_report_context(self, report_id: int, context: Dict[str, Any]) -> Optional[str]:
         """Load report data from database and format it for LLM context (async)."""

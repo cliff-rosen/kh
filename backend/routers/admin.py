@@ -1424,37 +1424,22 @@ class SystemConfigUpdate(BaseModel):
     max_tool_iterations: Optional[int] = Field(None, ge=1, le=20, description="Max tool iterations (1-20)")
 
 
-DEFAULT_MAX_TOOL_ITERATIONS = 5
-
-
 @router.get(
     "/chat-config/system",
     response_model=SystemConfigResponse,
     summary="Get system chat configuration",
 )
-async def get_system_config(
+async def get_system_config_endpoint(
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_db),
 ) -> SystemConfigResponse:
     """Get system-wide chat configuration settings (platform admin only)."""
+    from services.chat_service import ChatService
+
     try:
-        # Get max_tool_iterations
-        result = await db.execute(
-            select(ChatConfig).where(
-                ChatConfig.scope == "system",
-                ChatConfig.scope_key == "max_tool_iterations"
-            )
-        )
-        config = result.scalars().first()
-        max_iterations = DEFAULT_MAX_TOOL_ITERATIONS
-        if config and config.content:
-            try:
-                max_iterations = int(config.content.strip())
-            except ValueError:
-                pass
-
-        return SystemConfigResponse(max_tool_iterations=max_iterations)
-
+        chat_service = ChatService(db)
+        config = await chat_service.get_system_config()
+        return SystemConfigResponse(**config)
     except Exception as e:
         logger.error(f"get_system_config failed: {e}", exc_info=True)
         raise HTTPException(
@@ -1468,45 +1453,21 @@ async def get_system_config(
     response_model=SystemConfigResponse,
     summary="Update system chat configuration",
 )
-async def update_system_config(
+async def update_system_config_endpoint(
     update: SystemConfigUpdate,
     current_user: User = Depends(require_platform_admin),
     db: AsyncSession = Depends(get_async_db),
 ) -> SystemConfigResponse:
     """Update system-wide chat configuration settings (platform admin only)."""
-    from datetime import datetime
+    from services.chat_service import ChatService
 
     try:
-        if update.max_tool_iterations is not None:
-            result = await db.execute(
-                select(ChatConfig).where(
-                    ChatConfig.scope == "system",
-                    ChatConfig.scope_key == "max_tool_iterations"
-                )
-            )
-            existing = result.scalars().first()
-
-            if existing:
-                existing.content = str(update.max_tool_iterations)
-                existing.updated_at = datetime.utcnow()
-                existing.updated_by = current_user.user_id
-            else:
-                new_config = ChatConfig(
-                    scope="system",
-                    scope_key="max_tool_iterations",
-                    content=str(update.max_tool_iterations),
-                    updated_by=current_user.user_id
-                )
-                db.add(new_config)
-
-            await db.commit()
-            logger.info(f"User {current_user.email} updated max_tool_iterations to {update.max_tool_iterations}")
-
-        # Return current state
-        return await get_system_config(current_user, db)
-
-    except HTTPException:
-        raise
+        chat_service = ChatService(db)
+        config = await chat_service.update_system_config(
+            user_id=current_user.user_id,
+            max_tool_iterations=update.max_tool_iterations
+        )
+        return SystemConfigResponse(**config)
     except Exception as e:
         logger.error(f"update_system_config failed: {e}", exc_info=True)
         raise HTTPException(

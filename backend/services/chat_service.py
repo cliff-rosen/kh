@@ -255,6 +255,79 @@ class ChatService:
             await self.db.refresh(chat)
         return chat
 
+    # =========================================================================
+    # System Configuration
+    # =========================================================================
+
+    DEFAULT_MAX_TOOL_ITERATIONS = 5
+
+    async def get_max_tool_iterations(self) -> int:
+        """Get the maximum tool iterations setting, or default."""
+        from models import ChatConfig
+
+        try:
+            result = await self.db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "system",
+                    ChatConfig.scope_key == "max_tool_iterations"
+                )
+            )
+            config = result.scalars().first()
+            if config and config.content:
+                value = int(config.content.strip())
+                return max(1, min(value, 20))
+        except Exception as e:
+            logger.warning(f"Failed to load max_tool_iterations config: {e}")
+
+        return self.DEFAULT_MAX_TOOL_ITERATIONS
+
+    async def set_max_tool_iterations(self, value: int, user_id: int) -> int:
+        """Set the maximum tool iterations setting. Returns the saved value."""
+        from models import ChatConfig
+
+        value = max(1, min(value, 20))
+
+        result = await self.db.execute(
+            select(ChatConfig).where(
+                ChatConfig.scope == "system",
+                ChatConfig.scope_key == "max_tool_iterations"
+            )
+        )
+        existing = result.scalars().first()
+
+        if existing:
+            existing.content = str(value)
+            existing.updated_at = datetime.utcnow()
+            existing.updated_by = user_id
+        else:
+            new_config = ChatConfig(
+                scope="system",
+                scope_key="max_tool_iterations",
+                content=str(value),
+                updated_by=user_id
+            )
+            self.db.add(new_config)
+
+        await self.db.commit()
+        logger.info(f"Updated max_tool_iterations to {value} by user {user_id}")
+        return value
+
+    async def get_system_config(self) -> dict:
+        """Get all system configuration values."""
+        return {
+            "max_tool_iterations": await self.get_max_tool_iterations()
+        }
+
+    async def update_system_config(
+        self,
+        user_id: int,
+        max_tool_iterations: Optional[int] = None
+    ) -> dict:
+        """Update system configuration values. Returns the updated config."""
+        if max_tool_iterations is not None:
+            await self.set_max_tool_iterations(max_tool_iterations, user_id)
+        return await self.get_system_config()
+
 
 # Dependency injection provider for async chat service
 async def get_chat_service(
