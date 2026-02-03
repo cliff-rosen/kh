@@ -221,14 +221,14 @@ async def execute_get_report_articles(
 
             if mode == "condensed":
                 text_lines.append(f"""
-{i}. PMID: {article.pmid}
+{i}. Article ID: {article.article_id} | PMID: {article.pmid}
    Title: {article.title}
    Journal: {article.journal or 'Unknown'} ({publication_date})
    Categories: {categories_str}
 """)
             else:  # expanded
                 text_lines.append(f"""
-{i}. PMID: {article.pmid}
+{i}. Article ID: {article.article_id} | PMID: {article.pmid}
    Title: {article.title}
    Authors: {article.authors or 'Unknown'}
    Journal: {article.journal or 'Unknown'} ({publication_date})
@@ -361,8 +361,8 @@ async def execute_search_articles_in_reports(
                     abstract_snippet = article.abstract[:150] + "..."
 
             text_lines.append(f"""
-{i}. "{article.title}"
-   PMID: {article.pmid}
+{i}. Article ID: {article.article_id} | PMID: {article.pmid}
+   Title: {article.title}
    Journal: {article.journal} ({article.year or 'Unknown'})
    Report: {report.report_name} ({report.report_date.strftime('%Y-%m-%d') if report.report_date else 'Unknown'})
    Relevance Score: {assoc.relevance_score or 'N/A'}
@@ -403,8 +403,7 @@ async def execute_get_article_details(
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
     """Get full details of a specific article including notes and relevance info."""
-    from sqlalchemy import select
-    from models import Article
+    from services.article_service import ArticleService
     from services.report_article_association_service import ReportArticleAssociationService
     from services.notes_service import NotesService
     from services.user_service import UserService
@@ -417,14 +416,13 @@ async def execute_get_article_details(
         return "Error: Either article_id or pmid must be provided."
 
     try:
-        # Get article directly
-        if article_id:
-            stmt = select(Article).where(Article.article_id == article_id)
-        else:
-            stmt = select(Article).where(Article.pmid == pmid)
+        article_service = ArticleService(db)
 
-        result = await db.execute(stmt)
-        article = result.scalars().first()
+        # Get article via service - prefer article_id, fallback to pmid
+        if article_id:
+            article = await article_service.find_by_id(int(article_id))
+        else:
+            article = await article_service.find_by_pmid(str(pmid))
 
         if not article:
             return f"No article found with {'ID ' + str(article_id) if article_id else 'PMID ' + str(pmid)}"
@@ -446,9 +444,10 @@ async def execute_get_article_details(
 
         text_result = f"""
 === Article Details ===
-Title: {article.title}
+Article ID: {article.article_id}
 PMID: {article.pmid}
 DOI: {article.doi or 'N/A'}
+Title: {article.title}
 Authors: {article.authors}
 Journal: {article.journal}
 Year: {article.year}
@@ -512,19 +511,29 @@ async def execute_get_notes_for_article(
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
     """Get all notes for a specific article in a report."""
+    from services.article_service import ArticleService
     from services.notes_service import NotesService
     from services.user_service import UserService
 
     article_id = params.get("article_id")
+    pmid = params.get("pmid")
     report_id = params.get("report_id") or context.get("report_id")
 
-    if not article_id:
-        return "Error: article_id is required."
+    if not article_id and not pmid:
+        return "Error: Either article_id or pmid is required."
 
     if not report_id:
         return "Error: report_id is required (either as parameter or from context)."
 
     try:
+        # Resolve article_id from pmid if needed using the service
+        if not article_id and pmid:
+            article_service = ArticleService(db)
+            article = await article_service.find_by_pmid(str(pmid))
+            if not article:
+                return f"No article found with PMID {pmid}"
+            article_id = article.article_id
+
         user_service = UserService(db)
         user = await user_service.get_user_by_id(user_id)
         if not user:
@@ -719,8 +728,8 @@ async def execute_get_starred_articles(
 
         for i, (article, assoc, report) in enumerate(results, 1):
             text_lines.append(f"""
-{i}. "{article.title}"
-   PMID: {article.pmid}
+{i}. Article ID: {article.article_id} | PMID: {article.pmid}
+   Title: {article.title}
    Journal: {article.journal} ({article.year or 'Unknown'})
    Report: {report.report_name}
    Relevance Score: {assoc.relevance_score or 'N/A'}
@@ -834,17 +843,17 @@ register_tool(ToolConfig(
 
 register_tool(ToolConfig(
     name="get_article_details",
-    description="Get full details for a specific article including abstract, relevance info, and notes. Use article_id or pmid to identify the article.",
+    description="Get full details for a specific article including abstract, relevance info, and notes. Use the article_id shown in tool results (preferred) or pmid.",
     input_schema={
         "type": "object",
         "properties": {
             "article_id": {
                 "type": "integer",
-                "description": "The article's internal ID"
+                "description": "The article's internal ID (shown as 'Article ID' in tool results - preferred)"
             },
             "pmid": {
                 "type": "string",
-                "description": "The PubMed ID of the article"
+                "description": "The PubMed ID of the article (fallback if article_id not available)"
             },
             "report_id": {
                 "type": "integer",
@@ -858,20 +867,24 @@ register_tool(ToolConfig(
 
 register_tool(ToolConfig(
     name="get_notes_for_article",
-    description="Get all notes (personal and shared) for a specific article in a report. Includes author, visibility, and content of each note.",
+    description="Get all notes (personal and shared) for a specific article in a report. Use the article_id shown in tool results (preferred) or pmid.",
     input_schema={
         "type": "object",
         "properties": {
             "article_id": {
                 "type": "integer",
-                "description": "The article ID to get notes for"
+                "description": "The article's internal ID (shown as 'Article ID' in tool results - preferred)"
+            },
+            "pmid": {
+                "type": "string",
+                "description": "The PubMed ID of the article (fallback if article_id not available)"
             },
             "report_id": {
                 "type": "integer",
                 "description": "The report ID (optional if in report context)"
             }
         },
-        "required": ["article_id"]
+        "required": []
     },
     executor=execute_get_notes_for_article,
     category="reports"

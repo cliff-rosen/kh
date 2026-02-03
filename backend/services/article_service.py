@@ -69,6 +69,13 @@ class ArticleService:
             raise ValueError(f"Article with PMID {pmid} not found")
         return self._to_canonical(article)
 
+    async def find_by_id(self, article_id: int) -> Optional[Article]:
+        """Find an article by ID, returning the ORM model."""
+        result = await self.db.execute(
+            select(Article).where(Article.article_id == article_id)
+        )
+        return result.scalars().first()
+
     async def find_by_pmid(self, pmid: str) -> Optional[Article]:
         """Find an article by PMID, returning the ORM model."""
         result = await self.db.execute(
