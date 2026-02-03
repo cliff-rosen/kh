@@ -1565,7 +1565,7 @@ export function ChatConfigPanel() {
                             </button>
                         </div>
 
-                        {/* Content */}
+                        {/* Content - Side by side layout */}
                         <div className="flex-1 min-h-0 flex flex-col p-6">
                             {pageError && (
                                 <div className="flex-shrink-0 mb-4 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
@@ -1578,39 +1578,42 @@ export function ChatConfigPanel() {
                                 It appears at the start of the system prompt and sets the tone for all interactions.
                             </p>
 
-                            {/* Default section */}
-                            <div className="flex-shrink-0 mb-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                                    Default Persona ({selectedPageConfig.default_is_global ? 'global' : 'page-specific'})
-                                </p>
-                                <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400 max-h-40 overflow-y-auto">
-                                    {selectedPageConfig.default_content}
-                                </pre>
-                            </div>
+                            {/* Side-by-side panels */}
+                            <div className="flex-1 min-h-0 flex gap-4">
+                                {/* Left panel - Default (resizable) */}
+                                <div
+                                    className="flex flex-col min-w-[300px] max-w-[60%] bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden"
+                                    style={{ width: '40%', resize: 'horizontal', overflow: 'auto' }}
+                                >
+                                    <div className="flex-shrink-0 px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                            Default Persona ({selectedPageConfig.default_is_global ? 'global' : 'page-specific'})
+                                        </p>
+                                    </div>
+                                    <pre className="flex-1 min-h-0 overflow-auto p-3 text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400">
+                                        {selectedPageConfig.default_content || '(no default)'}
+                                    </pre>
+                                </div>
 
-                            {/* Cheat sheet */}
-                            <div className="flex-shrink-0 mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2">
-                                    Suggested sections for persona:
-                                </p>
-                                <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
-                                    <p><strong>## Role</strong> - Who the assistant is and what it specializes in</p>
-                                    <p><strong>## Style</strong> - Tone, length, formatting preferences</p>
-                                    <p><strong>## Handling Ambiguity</strong> - How to handle unclear queries</p>
-                                    <p><strong>## Constraints</strong> - What to avoid or never do</p>
+                                {/* Right panel - Override editor */}
+                                <div className="flex-1 min-w-[300px] flex flex-col">
+                                    <label className="flex-shrink-0 block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                                        Override {selectedPageConfig.has_override && <span className="text-purple-600 dark:text-purple-400">(active)</span>}
+                                    </label>
+                                    <textarea
+                                        value={editingContent}
+                                        onChange={(e) => setEditingContent(e.target.value)}
+                                        placeholder="Leave empty to use the default, or enter a custom persona..."
+                                        className="flex-1 min-h-0 w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
+                                    />
+                                    {/* Cheat sheet - compact */}
+                                    <div className="flex-shrink-0 mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        <p className="text-xs text-blue-600 dark:text-blue-400">
+                                            <strong>Suggested sections:</strong> ## Role, ## Style, ## Handling Ambiguity, ## Constraints
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-
-                            {/* Override section */}
-                            <label className="flex-shrink-0 block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Override {selectedPageConfig.has_override && <span className="text-purple-600 dark:text-purple-400">(active)</span>}
-                            </label>
-                            <textarea
-                                value={editingContent}
-                                onChange={(e) => setEditingContent(e.target.value)}
-                                placeholder="Leave empty to use the default, or enter a custom persona..."
-                                className="flex-1 min-h-0 w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
-                            />
                         </div>
 
                         {/* Footer */}
