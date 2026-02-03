@@ -298,3 +298,32 @@ Useful for understanding what capabilities the assistant has. Tool changes requi
 5. [ ] Make the fix
 6. [ ] Test with similar queries
 7. [ ] Monitor conversation history for recurrence
+
+## APPENDIX
+
+Criteria for chat being viable to release (from Adam)
+
+Chat function should provide clear value to the user:
+- Should be clear how to use it in general
+- Should be clear how to use it next in context
+- Should suggest next steps that would provide unexpected value to the user
+
+Chat function should assist with the two key areas of usage:
+- Should provide help in using the KH app
+- Should provide help in working with/interpreting the user’s content
+
+Chat function should feel like an enrichment of the core functionality
+- not a requirement to get meaningful results from the core functionality 
+
+Chat function should NOT draw attention to the types of common LLM issues that KH is supposed to be the antidote to
+- Frustration with the AI in chat could undermine an amazing experience everywhere else in the app
+- Common issues that must be avoided:
+    - Overly verbose in general
+    - Overly complimentary to the user
+    - Overly boastful about KH
+    - Over confident about it’s (sometimes subjective) answers
+    - Overly explain the answer
+    - Make up results/halucinate
+    - Perform incorrectly when presented with ambiguous input
+    - Overly quick to try to please without fully understanding the task
+    - Overly prone to asking endless follow up clarification questions
