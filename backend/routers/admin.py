@@ -1419,11 +1419,15 @@ async def delete_page_config(
 class SystemConfigResponse(BaseModel):
     """System configuration settings."""
     max_tool_iterations: int = Field(description="Maximum tool call iterations per chat request")
+    global_preamble: Optional[str] = Field(None, description="Global preamble override (None = use default)")
+    default_global_preamble: str = Field(description="Default global preamble from code")
 
 
 class SystemConfigUpdate(BaseModel):
     """Update system configuration."""
     max_tool_iterations: Optional[int] = Field(None, ge=1, le=20, description="Max tool iterations (1-20)")
+    global_preamble: Optional[str] = Field(None, description="Global preamble override")
+    clear_global_preamble: bool = Field(False, description="Set to True to remove preamble override")
 
 
 @router.get(
@@ -1437,11 +1441,15 @@ async def get_system_config_endpoint(
 ) -> SystemConfigResponse:
     """Get system-wide chat configuration settings (platform admin only)."""
     from services.chat_service import ChatService
+    from services.chat_stream_service import ChatStreamService
 
     try:
         chat_service = ChatService(db)
         config = await chat_service.get_system_config()
-        return SystemConfigResponse(**config)
+        return SystemConfigResponse(
+            **config,
+            default_global_preamble=ChatStreamService.GLOBAL_PREAMBLE
+        )
     except Exception as e:
         logger.error(f"get_system_config failed: {e}", exc_info=True)
         raise HTTPException(
@@ -1462,14 +1470,20 @@ async def update_system_config_endpoint(
 ) -> SystemConfigResponse:
     """Update system-wide chat configuration settings (platform admin only)."""
     from services.chat_service import ChatService
+    from services.chat_stream_service import ChatStreamService
 
     try:
         chat_service = ChatService(db)
         config = await chat_service.update_system_config(
             user_id=current_user.user_id,
-            max_tool_iterations=update.max_tool_iterations
+            max_tool_iterations=update.max_tool_iterations,
+            global_preamble=update.global_preamble,
+            clear_global_preamble=update.clear_global_preamble
         )
-        return SystemConfigResponse(**config)
+        return SystemConfigResponse(
+            **config,
+            default_global_preamble=ChatStreamService.GLOBAL_PREAMBLE
+        )
     except Exception as e:
         logger.error(f"update_system_config failed: {e}", exc_info=True)
         raise HTTPException(

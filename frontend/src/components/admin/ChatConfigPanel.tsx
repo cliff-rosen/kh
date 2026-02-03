@@ -51,7 +51,6 @@ export function ChatConfigPanel() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<ConfigTab>('streams');
-    const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
 
     // Stream config editing state
     const [streamConfigs, setStreamConfigs] = useState<StreamChatConfig[]>([]);
@@ -75,6 +74,11 @@ export function ChatConfigPanel() {
     const [isSavingSystem, setIsSavingSystem] = useState(false);
     const [systemError, setSystemError] = useState<string | null>(null);
     const [editingMaxIterations, setEditingMaxIterations] = useState<number>(5);
+    const [editingPreamble, setEditingPreamble] = useState<string>('');
+    const [isPreambleMaximized, setIsPreambleMaximized] = useState(false);
+
+    // Pages tab state - for master-detail view
+    const [selectedPageName, setSelectedPageName] = useState<string | null>(null);
 
     // Tools state
     const [selectedToolName, setSelectedToolName] = useState<string | null>(null);
@@ -168,18 +172,6 @@ export function ChatConfigPanel() {
         }
     };
 
-    const togglePage = (page: string) => {
-        setExpandedPages(prev => {
-            const next = new Set(prev);
-            if (next.has(page)) {
-                next.delete(page);
-            } else {
-                next.add(page);
-            }
-            return next;
-        });
-    };
-
     // Stream config functions
     const loadStreamConfigs = async () => {
         setIsLoadingStreams(true);
@@ -249,6 +241,8 @@ export function ChatConfigPanel() {
             const config = await adminApi.getSystemConfig();
             setSystemConfig(config);
             setEditingMaxIterations(config.max_tool_iterations);
+            // Only show the override in the editor, not the effective value
+            setEditingPreamble(config.global_preamble || '');
         } catch (err) {
             setSystemError(handleApiError(err));
         } finally {
@@ -265,6 +259,40 @@ export function ChatConfigPanel() {
             });
             setSystemConfig(updated);
             setEditingMaxIterations(updated.max_tool_iterations);
+        } catch (err) {
+            setSystemError(handleApiError(err));
+        } finally {
+            setIsSavingSystem(false);
+        }
+    };
+
+    const savePreamble = async () => {
+        setIsSavingSystem(true);
+        setSystemError(null);
+        try {
+            const trimmed = editingPreamble.trim();
+            const updated = await adminApi.updateSystemConfig({
+                global_preamble: trimmed.length > 0 ? trimmed : null,
+                clear_global_preamble: trimmed.length === 0
+            });
+            setSystemConfig(updated);
+            setEditingPreamble(updated.global_preamble || '');
+        } catch (err) {
+            setSystemError(handleApiError(err));
+        } finally {
+            setIsSavingSystem(false);
+        }
+    };
+
+    const resetPreamble = async () => {
+        setIsSavingSystem(true);
+        setSystemError(null);
+        try {
+            const updated = await adminApi.updateSystemConfig({
+                clear_global_preamble: true
+            });
+            setSystemConfig(updated);
+            setEditingPreamble('');
         } catch (err) {
             setSystemError(handleApiError(err));
         } finally {
@@ -664,37 +692,237 @@ export function ChatConfigPanel() {
             {/* Tab Content */}
             <div>
                 {activeTab === 'pages' && (
-                    <div className="space-y-3">
-                        {isLoadingPages ? (
-                            <div className="flex items-center justify-center py-12">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                    <div className="flex gap-6 h-[calc(100vh-16rem)]">
+                        {/* Left column - Page list */}
+                        <div className="w-1/3 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
+                            <div className="flex-shrink-0 px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                                    Pages ({config.pages.length})
+                                </h3>
                             </div>
-                        ) : pageError ? (
-                            <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
-                                {pageError}
-                            </div>
-                        ) : (
-                            <>
-                                {config.pages.map((page) => {
-                                    const identityInfo = pageConfigs.find(i => i.page === page.page);
+                            {isLoadingPages ? (
+                                <div className="flex-1 flex items-center justify-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                                </div>
+                            ) : pageError ? (
+                                <div className="p-4 text-red-600 dark:text-red-400">
+                                    {pageError}
+                                </div>
+                            ) : (
+                                <div className="flex-1 overflow-y-auto">
+                                    {config.pages.map((page) => {
+                                        const tabCount = Object.keys(page.tabs).length;
+                                        const identityInfo = pageConfigs.find(i => i.page === page.page);
+                                        return (
+                                            <div
+                                                key={page.page}
+                                                onClick={() => setSelectedPageName(page.page)}
+                                                className={`px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-700 ${
+                                                    selectedPageName === page.page
+                                                        ? 'bg-blue-50 dark:bg-blue-900/20'
+                                                        : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-medium text-gray-900 dark:text-white text-sm">
+                                                        {page.page}
+                                                    </span>
+                                                    {page.has_context_builder && (
+                                                        <span className="inline-flex px-1.5 py-0.5 text-xs font-medium rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                                            ctx
+                                                        </span>
+                                                    )}
+                                                    {identityInfo?.has_override && (
+                                                        <span className="inline-flex px-1.5 py-0.5 text-xs font-medium rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                                                            custom
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                    {tabCount > 0 ? `${tabCount} tabs` : 'No tabs'} | {page.payloads.length} payloads | {page.tools.length} tools
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Right column - Page details */}
+                        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
+                            {selectedPageName ? (
+                                (() => {
+                                    const page = config.pages.find(p => p.page === selectedPageName);
+                                    const identityInfo = pageConfigs.find(i => i.page === selectedPageName);
+                                    if (!page) return null;
                                     return (
-                                        <PageConfigCard
-                                            key={page.page}
-                                            page={page}
-                                            isExpanded={expandedPages.has(page.page)}
-                                            onToggle={() => togglePage(page.page)}
-                                            identity={identityInfo}
-                                            onEditIdentity={() => identityInfo && openPageConfig(identityInfo)}
-                                        />
+                                        <>
+                                            <div className="flex-shrink-0 px-6 py-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                                                <div>
+                                                    <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                                                        {page.page}
+                                                    </h3>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        {page.has_context_builder && (
+                                                            <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                                                Context Builder
+                                                            </span>
+                                                        )}
+                                                        {identityInfo?.has_override && (
+                                                            <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                                                Custom Persona
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {identityInfo && (
+                                                    <button
+                                                        onClick={() => openPageConfig(identityInfo)}
+                                                        className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
+                                                    >
+                                                        <PencilSquareIcon className="h-4 w-4" />
+                                                        Edit Persona
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                                                {/* Persona preview */}
+                                                {identityInfo && (
+                                                    <div>
+                                                        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                                                            Page Persona
+                                                        </h4>
+                                                        <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 max-h-48 overflow-y-auto">
+                                                            <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400">
+                                                                {identityInfo.has_override
+                                                                    ? identityInfo.content
+                                                                    : identityInfo.default_content || '(using default)'}
+                                                            </pre>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Page-wide payloads and tools */}
+                                                {(page.payloads.length > 0 || page.tools.length > 0) && (
+                                                    <div>
+                                                        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                                                            Page-wide (available on all tabs)
+                                                        </h4>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {page.payloads.map(p => (
+                                                                <span key={p} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                                                    <CubeIcon className="h-3 w-3" />
+                                                                    {p}
+                                                                </span>
+                                                            ))}
+                                                            {page.tools.map(t => (
+                                                                <span key={t} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                                                    <WrenchScrewdriverIcon className="h-3 w-3" />
+                                                                    {t}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Client Actions */}
+                                                {page.client_actions.length > 0 && (
+                                                    <div>
+                                                        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                                                            Client Actions
+                                                        </h4>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {page.client_actions.map(action => (
+                                                                <span key={action} className="inline-flex px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                                                    {action}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Tabs */}
+                                                {Object.keys(page.tabs).length > 0 && (
+                                                    <div>
+                                                        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                                                            Tabs ({Object.keys(page.tabs).length})
+                                                        </h4>
+                                                        <div className="space-y-3">
+                                                            {Object.entries(page.tabs).map(([tabName, tabConfig]) => (
+                                                                <div key={tabName} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                                                                    <div className="flex items-center gap-2 mb-2">
+                                                                        <TagIcon className="h-4 w-4 text-gray-400" />
+                                                                        <span className="font-medium text-gray-900 dark:text-white text-sm">
+                                                                            {tabName}
+                                                                        </span>
+                                                                    </div>
+                                                                    {(tabConfig.payloads.length > 0 || tabConfig.tools.length > 0) && (
+                                                                        <div className="flex flex-wrap gap-2 mb-2">
+                                                                            {tabConfig.payloads.map(p => (
+                                                                                <span key={p} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                                                                    <CubeIcon className="h-3 w-3" />
+                                                                                    {p}
+                                                                                </span>
+                                                                            ))}
+                                                                            {tabConfig.tools.map(t => (
+                                                                                <span key={t} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                                                                    <WrenchScrewdriverIcon className="h-3 w-3" />
+                                                                                    {t}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                    {tabConfig.payloads.length === 0 && tabConfig.tools.length === 0 && Object.keys(tabConfig.subtabs || {}).length === 0 && (
+                                                                        <span className="text-xs text-gray-400">No tab-specific payloads or tools</span>
+                                                                    )}
+
+                                                                    {/* Subtabs */}
+                                                                    {Object.keys(tabConfig.subtabs || {}).length > 0 && (
+                                                                        <div className="mt-3 ml-4 pl-4 border-l-2 border-gray-200 dark:border-gray-600 space-y-2">
+                                                                            {Object.entries(tabConfig.subtabs || {}).map(([subtabName, subtabConfig]) => (
+                                                                                <div key={subtabName}>
+                                                                                    <div className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                                                                        <Squares2X2Icon className="h-3 w-3" />
+                                                                                        {subtabName}
+                                                                                    </div>
+                                                                                    {(subtabConfig.payloads.length > 0 || subtabConfig.tools.length > 0) ? (
+                                                                                        <div className="flex flex-wrap gap-1">
+                                                                                            {subtabConfig.payloads.map(p => (
+                                                                                                <span key={p} className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                                                                                    {p}
+                                                                                                </span>
+                                                                                            ))}
+                                                                                            {subtabConfig.tools.map(t => (
+                                                                                                <span key={t} className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                                                                                    {t}
+                                                                                                </span>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <span className="text-xs text-gray-400">No subtab-specific config</span>
+                                                                                    )}
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </>
                                     );
-                                })}
-                                {config.pages.length === 0 && (
-                                    <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                                        No page configurations registered.
+                                })()
+                            ) : (
+                                <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
+                                    <div className="text-center">
+                                        <DocumentTextIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                                        <p>Select a page to view details</p>
                                     </div>
-                                )}
-                            </>
-                        )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
@@ -1577,40 +1805,78 @@ export function ChatConfigPanel() {
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
                         </div>
                     ) : systemConfig ? (
-                        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-                            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                                Agent Settings
-                            </h3>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Max Tool Iterations
-                                    </label>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                        Maximum number of tool call iterations per chat request. Higher values allow more complex multi-step operations but increase response time and cost.
-                                    </p>
-                                    <div className="flex items-center gap-4">
-                                        <input
-                                            type="number"
-                                            min={1}
-                                            max={20}
-                                            value={editingMaxIterations}
-                                            onChange={(e) => setEditingMaxIterations(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
-                                            className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                        />
-                                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                                            (1-20, default: 5)
-                                        </span>
-                                        {editingMaxIterations !== systemConfig.max_tool_iterations && (
-                                            <button
-                                                onClick={saveSystemConfig}
-                                                disabled={isSavingSystem}
-                                                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-                                            >
-                                                {isSavingSystem ? 'Saving...' : 'Save'}
-                                            </button>
+                        <div className="space-y-6">
+                            {/* Global Preamble */}
+                            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div>
+                                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                                            Global Preamble
+                                        </h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                            The global preamble appears at the start of every chat system prompt. It explains what Knowledge Horizon is, the assistant's role, and how to handle different types of questions.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {systemConfig.global_preamble && (
+                                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                                Custom Override
+                                            </span>
                                         )}
+                                        <button
+                                            onClick={() => setIsPreambleMaximized(true)}
+                                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
+                                        >
+                                            <PencilSquareIcon className="h-4 w-4" />
+                                            Edit
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Preview of current preamble */}
+                                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 max-h-64 overflow-y-auto">
+                                    <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400">
+                                        {systemConfig.global_preamble || systemConfig.default_global_preamble}
+                                    </pre>
+                                </div>
+                            </div>
+
+                            {/* Agent Settings */}
+                            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+                                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                                    Agent Settings
+                                </h3>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            Max Tool Iterations
+                                        </label>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                            Maximum number of tool call iterations per chat request. Higher values allow more complex multi-step operations but increase response time and cost.
+                                        </p>
+                                        <div className="flex items-center gap-4">
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={20}
+                                                value={editingMaxIterations}
+                                                onChange={(e) => setEditingMaxIterations(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                                                className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                            />
+                                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                (1-20, default: 5)
+                                            </span>
+                                            {editingMaxIterations !== systemConfig.max_tool_iterations && (
+                                                <button
+                                                    onClick={saveSystemConfig}
+                                                    disabled={isSavingSystem}
+                                                    className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                                                >
+                                                    {isSavingSystem ? 'Saving...' : 'Save'}
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1705,6 +1971,117 @@ export function ChatConfigPanel() {
                                 {isSavingStream ? 'Saving...' : 'Save Changes'}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Global Preamble Edit Modal */}
+            {isPreambleMaximized && systemConfig && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-[1400px] h-[calc(100vh-4rem)] flex flex-col">
+                        {/* Header */}
+                        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    Edit Global Preamble
+                                </h2>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    This text appears at the start of every chat system prompt
+                                    {systemConfig.global_preamble && (
+                                        <span className="ml-2 inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                            Custom Override
+                                        </span>
+                                    )}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsPreambleMaximized(false)}
+                                className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                            >
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                        </div>
+
+                        {/* Content - Side by side layout */}
+                        <div className="flex-1 min-h-0 flex flex-col p-6">
+                            {systemError && (
+                                <div className="flex-shrink-0 mb-4 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
+                                    {systemError}
+                                </div>
+                            )}
+
+                            <p className="flex-shrink-0 text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                The global preamble explains what Knowledge Horizon is, the assistant's role, and how to handle different types of questions (navigation vs data).
+                            </p>
+
+                            {/* Side-by-side panels */}
+                            <div className="flex-1 min-h-0 flex gap-4">
+                                {/* Left panel - Default */}
+                                <div
+                                    className="flex flex-col min-w-[300px] max-w-[60%] bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden"
+                                    style={{ width: '40%', resize: 'horizontal', overflow: 'auto' }}
+                                >
+                                    <div className="flex-shrink-0 px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                            Default Preamble (from code)
+                                        </p>
+                                    </div>
+                                    <pre className="flex-1 min-h-0 overflow-auto p-3 text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400">
+                                        {systemConfig.default_global_preamble}
+                                    </pre>
+                                </div>
+
+                                {/* Right panel - Override editor */}
+                                <div className="flex-1 min-w-[300px] flex flex-col">
+                                    <label className="flex-shrink-0 block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                                        Override {systemConfig.global_preamble && <span className="text-purple-600 dark:text-purple-400">(active)</span>}
+                                    </label>
+                                    <textarea
+                                        value={editingPreamble}
+                                        onChange={(e) => setEditingPreamble(e.target.value)}
+                                        placeholder="Leave empty to use the default, or enter a custom preamble..."
+                                        className="flex-1 min-h-0 w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        {(() => {
+                            const savedContent = systemConfig.global_preamble || '';
+                            const hasChanges = editingPreamble !== savedContent;
+
+                            return (
+                                <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                                    <div>
+                                        {systemConfig.global_preamble && (
+                                            <button
+                                                onClick={resetPreamble}
+                                                disabled={isSavingSystem}
+                                                className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                                            >
+                                                Reset to Default
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={savePreamble}
+                                            disabled={isSavingSystem || !hasChanges}
+                                            className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                                        >
+                                            {isSavingSystem ? 'Saving...' : 'Save'}
+                                        </button>
+                                        <button
+                                            onClick={() => setIsPreambleMaximized(false)}
+                                            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                        >
+                                            {hasChanges ? 'Cancel' : 'Close'}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
             )}
@@ -2013,177 +2390,3 @@ function StatusIcon({ active }: { active: boolean }) {
     );
 }
 
-function SubTabConfigDisplay({ subtabName, config }: { subtabName: string; config: SubTabConfigInfo }) {
-    const hasContent = config.payloads.length > 0 || config.tools.length > 0;
-
-    return (
-        <div className="ml-4 pl-4 border-l-2 border-gray-200 dark:border-gray-600">
-            <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 flex items-center gap-1">
-                <Squares2X2Icon className="h-3 w-3" />
-                Subtab: {subtabName}
-            </h5>
-            {hasContent ? (
-                <div className="flex flex-wrap gap-2">
-                    {config.payloads.map(p => (
-                        <span key={p} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                            <CubeIcon className="h-3 w-3" />
-                            {p}
-                        </span>
-                    ))}
-                    {config.tools.map(t => (
-                        <span key={t} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                            <WrenchScrewdriverIcon className="h-3 w-3" />
-                            {t}
-                        </span>
-                    ))}
-                </div>
-            ) : (
-                <span className="text-xs text-gray-400">No subtab-specific payloads or tools</span>
-            )}
-        </div>
-    );
-}
-
-function PageConfigCard({ page, isExpanded, onToggle, identity, onEditIdentity }: {
-    page: PageConfigInfo;
-    isExpanded: boolean;
-    onToggle: () => void;
-    identity?: PageChatConfig;
-    onEditIdentity?: () => void;
-}) {
-    const tabCount = Object.keys(page.tabs).length;
-    const subtabCount = Object.values(page.tabs).reduce(
-        (sum, tab) => sum + Object.keys(tab.subtabs || {}).length,
-        0
-    );
-
-    return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-            <div className="px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                <button
-                    onClick={onToggle}
-                    className="flex items-center gap-3 flex-1 text-left"
-                >
-                    {isExpanded ? (
-                        <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-                    ) : (
-                        <ChevronRightIcon className="h-5 w-5 text-gray-400" />
-                    )}
-                    <div>
-                        <div className="font-medium text-gray-900 dark:text-white">
-                            {page.page}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {tabCount > 0 ? `${tabCount} tabs` : 'No tabs'}
-                            {subtabCount > 0 ? `, ${subtabCount} subtabs` : ''} |
-                            {page.payloads.length} page payloads |
-                            {page.tools.length} page tools
-                        </div>
-                    </div>
-                </button>
-                <div className="flex items-center gap-2">
-                    {page.has_context_builder && (
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                            Context Builder
-                        </span>
-                    )}
-                    {identity?.has_override && (
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                            Custom Persona
-                        </span>
-                    )}
-                    {onEditIdentity && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onEditIdentity(); }}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
-                        >
-                            <PencilSquareIcon className="h-3.5 w-3.5" />
-                            Edit
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            {isExpanded && (
-                <div className="px-4 pb-4 pt-2 border-t border-gray-200 dark:border-gray-700 space-y-4">
-                    {/* Page-wide config */}
-                    {(page.payloads.length > 0 || page.tools.length > 0) && (
-                        <div>
-                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Page-wide (available on all tabs)
-                            </h4>
-                            <div className="flex flex-wrap gap-2">
-                                {page.payloads.map(p => (
-                                    <span key={p} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                                        <CubeIcon className="h-3 w-3" />
-                                        {p}
-                                    </span>
-                                ))}
-                                {page.tools.map(t => (
-                                    <span key={t} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                        <WrenchScrewdriverIcon className="h-3 w-3" />
-                                        {t}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Tabs */}
-                    {Object.entries(page.tabs).map(([tabName, tabConfig]) => (
-                        <div key={tabName} className="space-y-2">
-                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                <TagIcon className="h-4 w-4" />
-                                Tab: {tabName}
-                            </h4>
-                            {(tabConfig.payloads.length > 0 || tabConfig.tools.length > 0) && (
-                                <div className="flex flex-wrap gap-2">
-                                    {tabConfig.payloads.map(p => (
-                                        <span key={p} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                                            <CubeIcon className="h-3 w-3" />
-                                            {p}
-                                        </span>
-                                    ))}
-                                    {tabConfig.tools.map(t => (
-                                        <span key={t} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                            <WrenchScrewdriverIcon className="h-3 w-3" />
-                                            {t}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                            {tabConfig.payloads.length === 0 && tabConfig.tools.length === 0 && Object.keys(tabConfig.subtabs || {}).length === 0 && (
-                                <span className="text-xs text-gray-400 ml-6">No tab-specific payloads or tools</span>
-                            )}
-
-                            {/* Subtabs */}
-                            {Object.entries(tabConfig.subtabs || {}).map(([subtabName, subtabConfig]) => (
-                                <SubTabConfigDisplay
-                                    key={subtabName}
-                                    subtabName={subtabName}
-                                    config={subtabConfig}
-                                />
-                            ))}
-                        </div>
-                    ))}
-
-                    {/* Client Actions */}
-                    {page.client_actions.length > 0 && (
-                        <div>
-                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Client Actions
-                            </h4>
-                            <div className="flex flex-wrap gap-2">
-                                {page.client_actions.map(action => (
-                                    <span key={action} className="inline-flex px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                        {action}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-}

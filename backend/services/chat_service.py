@@ -312,20 +312,84 @@ class ChatService:
         logger.info(f"Updated max_tool_iterations to {value} by user {user_id}")
         return value
 
+    async def get_global_preamble(self) -> Optional[str]:
+        """Get the global preamble override, or None to use default."""
+        from models import ChatConfig
+
+        try:
+            result = await self.db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "system",
+                    ChatConfig.scope_key == "global_preamble"
+                )
+            )
+            config = result.scalars().first()
+            if config and config.content:
+                return config.content
+        except Exception as e:
+            logger.warning(f"Failed to load global_preamble config: {e}")
+
+        return None
+
+    async def set_global_preamble(self, content: Optional[str], user_id: int) -> Optional[str]:
+        """Set the global preamble override. Pass None to remove override."""
+        from models import ChatConfig
+
+        result = await self.db.execute(
+            select(ChatConfig).where(
+                ChatConfig.scope == "system",
+                ChatConfig.scope_key == "global_preamble"
+            )
+        )
+        existing = result.scalars().first()
+
+        if content is None or content.strip() == "":
+            # Remove override
+            if existing:
+                await self.db.delete(existing)
+                await self.db.commit()
+                logger.info(f"Removed global_preamble override by user {user_id}")
+            return None
+
+        content = content.strip()
+        if existing:
+            existing.content = content
+            existing.updated_at = datetime.utcnow()
+            existing.updated_by = user_id
+        else:
+            new_config = ChatConfig(
+                scope="system",
+                scope_key="global_preamble",
+                content=content,
+                updated_by=user_id
+            )
+            self.db.add(new_config)
+
+        await self.db.commit()
+        logger.info(f"Updated global_preamble by user {user_id}")
+        return content
+
     async def get_system_config(self) -> dict:
         """Get all system configuration values."""
         return {
-            "max_tool_iterations": await self.get_max_tool_iterations()
+            "max_tool_iterations": await self.get_max_tool_iterations(),
+            "global_preamble": await self.get_global_preamble()
         }
 
     async def update_system_config(
         self,
         user_id: int,
-        max_tool_iterations: Optional[int] = None
+        max_tool_iterations: Optional[int] = None,
+        global_preamble: Optional[str] = None,
+        clear_global_preamble: bool = False
     ) -> dict:
         """Update system configuration values. Returns the updated config."""
         if max_tool_iterations is not None:
             await self.set_max_tool_iterations(max_tool_iterations, user_id)
+        if clear_global_preamble:
+            await self.set_global_preamble(None, user_id)
+        elif global_preamble is not None:
+            await self.set_global_preamble(global_preamble, user_id)
         return await self.get_system_config()
 
 

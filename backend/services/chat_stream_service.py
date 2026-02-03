@@ -484,9 +484,11 @@ class ChatStreamService:
 
         sections = []
 
-        # 1. GLOBAL PREAMBLE (always the same - explains KH, your role, question types)
+        # 1. GLOBAL PREAMBLE (explains KH, your role, question types)
+        # Use override from database if available, otherwise use default
+        preamble = await self._get_global_preamble()
         current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-        sections.append(f"{self.GLOBAL_PREAMBLE}\n\nCurrent date and time: {current_time}")
+        sections.append(f"{preamble}\n\nCurrent date and time: {current_time}")
 
         # 2. PAGE INSTRUCTIONS (page-specific guidance)
         page_instructions = await self._get_page_instructions(current_page)
@@ -605,6 +607,25 @@ If a task requires chaining many tools with fragile parsing, or you're not confi
 
 ## Page-Specific Instructions
 Users can be on different pages in the app, each with its own context and capabilities. Page-specific instructions (if any) appear in the next section."""
+
+    async def _get_global_preamble(self) -> str:
+        """Get the global preamble, checking for database override first."""
+        from models import ChatConfig
+
+        try:
+            result = await self.db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "system",
+                    ChatConfig.scope_key == "global_preamble"
+                )
+            )
+            config = result.scalars().first()
+            if config and config.content:
+                return config.content
+        except Exception as e:
+            logger.warning(f"Failed to load global_preamble: {e}")
+
+        return self.GLOBAL_PREAMBLE
 
     # Default page instructions (used if page doesn't define its own)
     DEFAULT_PAGE_INSTRUCTIONS = """No special instructions for this page. Use your general capabilities and the help system as needed."""

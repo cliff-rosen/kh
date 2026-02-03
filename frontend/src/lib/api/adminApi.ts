@@ -576,8 +576,12 @@ export interface ChatConfigUpdate {
 // System config types
 export interface SystemConfig {
   max_tool_iterations: number;
+  global_preamble: string | null;
+  default_global_preamble: string;
 }
 
 export interface SystemConfigUpdate {
   max_tool_iterations?: number;
+  global_preamble?: string | null;
+  clear_global_preamble?: boolean;
 }
