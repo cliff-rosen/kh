@@ -51,6 +51,8 @@ DEFAULT_CATEGORY_LABELS = {
     'streams': 'Streams',
     'tools': 'Tools',
     'operations': 'Operations',
+    'field-reference': 'Field Reference',
+    'glossary': 'Glossary',
 }
 
 # Path to help content directory
@@ -173,7 +175,7 @@ def get_help_toc_for_role(
         by_category[cat].sort(key=lambda s: (s.order, s.topic))
 
     # Category order
-    category_order = {'general': 0, 'getting-started': 1, 'reports': 2, 'article-viewer': 3, 'tablizer': 4, 'streams': 5, 'tools': 6, 'operations': 7}
+    category_order = {'general': 0, 'getting-started': 1, 'field-reference': 2, 'glossary': 3, 'reports': 4, 'article-viewer': 5, 'tablizer': 6, 'streams': 7, 'tools': 8, 'operations': 9}
 
     # Use provided preamble or default
     toc_preamble = preamble if preamble is not None else DEFAULT_TOC_PREAMBLE
@@ -213,12 +215,14 @@ def get_all_categories() -> List[str]:
     order = {
         'general': 0,
         'getting-started': 1,
-        'reports': 2,
-        'article-viewer': 3,
-        'tablizer': 4,
-        'streams': 5,
-        'tools': 6,
-        'operations': 7,
+        'field-reference': 2,
+        'glossary': 3,
+        'reports': 4,
+        'article-viewer': 5,
+        'tablizer': 6,
+        'streams': 7,
+        'tools': 8,
+        'operations': 9,
     }
     return sorted(categories, key=lambda c: (order.get(c, 99), c))
 

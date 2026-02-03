@@ -235,15 +235,25 @@ When tool documentation is incomplete:
 
 ### 3.5 Current Tool Inventory
 
+*Updated: 2026-02-02*
+
 | Tool | Purpose | Mode |
 |------|---------|------|
-| `search_help` | Find documentation on app features/semantics | Navigation |
-| `get_article_details` | Retrieve specific article data | Analysis |
-| `search_articles` | Find articles matching criteria | Analysis |
-| `get_report_summary` | Get report overview | Analysis |
-| ... | ... | ... |
-
-*TODO: Complete inventory of all chat tools*
+| `get_help` | Retrieve help documentation by category/topic | Navigation |
+| `list_stream_reports` | List all reports for a stream | Analysis |
+| `get_report_summary` | Get executive summary, highlights, thematic analysis | Analysis |
+| `get_report_articles` | Get articles in a report (condensed or expanded) | Analysis |
+| `search_articles_in_reports` | Search articles by PMID, title, author, etc. | Analysis |
+| `get_article_details` | Get full details for a specific article | Analysis |
+| `get_notes_for_article` | Get personal and shared notes on an article | Analysis |
+| `compare_reports` | Compare two reports (new/removed/shared articles) | Analysis |
+| `get_starred_articles` | Get starred articles across all reports | Analysis |
+| `search_pubmed` | Search PubMed for additional articles | Analysis |
+| `get_pubmed_article` | Get full details of a PubMed article by PMID | Analysis |
+| `get_full_text` | Get full text from PubMed Central (if available) | Analysis |
+| `search_web` | Search the web for information | Analysis |
+| `fetch_webpage` | Fetch and read webpage content | Analysis |
+| `get_payload` | Retrieve payload from earlier in conversation | Utility |
 
 ---
 

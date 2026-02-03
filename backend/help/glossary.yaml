@@ -1,0 +1,228 @@
+sections:
+  - category: glossary
+    topic: core-concepts
+    title: Core Concepts
+    summary: Definitions of Research Stream, Report, Article, and other key terms
+    roles: [member, org_admin, platform_admin]
+    order: 10
+    content: |
+      Key terms used throughout Knowledge Horizon.
+
+      ## Research Stream
+
+      A configured monitoring setup that tracks a specific research area.
+
+      **Components:**
+      - **Search queries** - What to look for in PubMed
+      - **Semantic filters** - AI-powered relevance scoring
+      - **Schedule** - How often to check for new articles (daily, weekly, etc.)
+      - **Reports** - Generated summaries of new findings
+
+      **Example:** A stream monitoring "CAR-T cell therapy adverse events" would have queries
+      targeting CAR-T literature and filters focusing on safety/toxicity topics.
+
+      ## Report
+
+      A curated collection of recent articles from a research stream.
+
+      **Contains:**
+      - Date range covered
+      - Executive summary (AI-generated overview)
+      - Thematic analysis (key themes identified)
+      - Category summaries (grouped findings)
+      - Individual article cards with summaries
+
+      Reports are generated automatically based on the stream's schedule.
+
+      ## Article
+
+      A research publication (paper, review, etc.) from PubMed.
+
+      **Key properties:**
+      - PMID (PubMed identifier)
+      - Title, authors, journal
+      - Abstract (original author summary)
+      - AI summary (Knowledge Horizon generated)
+      - Filter score (relevance rating)
+      - Categories (thematic groupings)
+
+      ## Pipeline
+
+      The automated process that retrieves and processes articles.
+
+      **Steps:**
+      1. Query PubMed for new articles
+      2. Apply semantic filters (relevance scoring)
+      3. Generate AI summaries
+      4. Categorize by theme
+      5. Compile into report
+
+      Pipelines run on schedule or can be triggered manually.
+
+  - category: glossary
+    topic: filtering-terms
+    title: Filtering & Relevance Terms
+    summary: Definitions for semantic filter, filter score, threshold, curation
+    roles: [member, org_admin, platform_admin]
+    order: 20
+    content: |
+      Terms related to article filtering and relevance.
+
+      ## Semantic Filter
+
+      An AI-powered relevance assessment that scores articles.
+
+      **How it works:**
+      - Each stream has configured filter criteria (what makes an article relevant)
+      - AI reads each article and assigns a score (0.0 to 1.0)
+      - Articles above the threshold pass; those below are filtered out
+
+      **Why "semantic":** Unlike keyword matching, semantic filters understand meaning.
+      An article about "CAR-T toxicity management" would match a filter for
+      "adverse events in cell therapy" even without exact keyword overlap.
+
+      ## Filter Score
+
+      A number from 0.0 to 1.0 indicating how relevant an article is.
+
+      - 1.0 = Perfectly relevant
+      - 0.0 = Not relevant at all
+      - Scores are relative to the stream's configured focus
+
+      ## Threshold
+
+      The minimum filter score for automatic inclusion.
+
+      - Set by stream administrators
+      - Typical values: 0.5 to 0.7
+      - Higher threshold = stricter filtering (fewer articles, higher quality)
+      - Lower threshold = broader coverage (more articles, may include less relevant)
+
+      ## Curation
+
+      Human review and adjustment of automated filtering decisions.
+
+      **Curator actions:**
+      - **Include** - Add an article that was filtered out
+      - **Exclude** - Remove an article that passed the filter
+      - **Star** - Mark an article as important
+      - **Add notes** - Annotate articles with comments
+
+      Curation overrides are preserved across report regenerations.
+
+  - category: glossary
+    topic: retrieval-terms
+    title: Retrieval & Search Terms
+    summary: Definitions for retrieval group, query expansion, date types
+    roles: [org_admin, platform_admin]
+    order: 30
+    content: |
+      Terms related to article retrieval from PubMed.
+
+      ## Retrieval Group
+
+      A named set of search queries that work together.
+
+      **Example:** A "CAR-T Safety" retrieval group might include:
+      - "CAR-T cytokine release syndrome"
+      - "chimeric antigen receptor neurotoxicity"
+      - "CD19 CAR adverse events"
+
+      Multiple queries in a group are combined (OR logic) to cast a wider net.
+
+      ## Query Expansion
+
+      Automatic enhancement of search queries using synonyms and related terms.
+
+      **Example:** Query "heart attack" might expand to include:
+      - myocardial infarction
+      - MI
+      - coronary event
+
+      Expansion improves recall but may reduce precision.
+
+      ## Date Type
+
+      Which date field to use when filtering by time range.
+
+      | Type | Field Used | Best For |
+      |------|------------|----------|
+      | Publication | When article was published | Most common use |
+      | Entry | When PubMed added the article | Catching backfilled articles |
+
+      ## Boolean Query Syntax
+
+      Standard operators for PubMed searches:
+
+      | Operator | Example | Meaning |
+      |----------|---------|---------|
+      | AND | "cancer AND therapy" | Both terms required |
+      | OR | "tumor OR tumour" | Either term matches |
+      | NOT | "cancer NOT review" | First term, excluding second |
+      | [ti] | "CRISPR[ti]" | Search in title only |
+      | [au] | "Smith[au]" | Search by author |
+      | [mh] | "Neoplasms[mh]" | Search MeSH terms |
+
+  - category: glossary
+    topic: report-terms
+    title: Report & Analysis Terms
+    summary: Definitions for executive summary, thematic analysis, category
+    roles: [member, org_admin, platform_admin]
+    order: 40
+    content: |
+      Terms related to reports and AI analysis.
+
+      ## Executive Summary
+
+      An AI-generated overview of the entire report.
+
+      **Contains:**
+      - Key themes across all articles
+      - Notable findings or trends
+      - High-level takeaways
+
+      Typically 2-4 paragraphs summarizing the report's contents.
+
+      ## Thematic Analysis
+
+      AI identification of recurring themes across articles.
+
+      **Output:**
+      - Named themes (e.g., "Manufacturing improvements", "Safety profiles")
+      - Articles grouped by theme
+      - Theme descriptions
+
+      Helps readers quickly understand the landscape of recent research.
+
+      ## Category
+
+      A thematic grouping of articles within a report.
+
+      **Properties:**
+      - Category name (e.g., "Clinical Trials", "Mechanism Studies")
+      - Category summary (AI-generated description)
+      - List of articles in the category
+
+      Categories are determined automatically but can be influenced by
+      stream configuration.
+
+      ## Key Highlights
+
+      The most important findings extracted from the report.
+
+      **Used for:**
+      - Quick scanning
+      - Email digests
+      - Dashboard widgets
+
+      Highlights are concise bullet points, not full summaries.
+
+      ## Article Summary
+
+      An AI-generated summary of a single article.
+
+      **Differs from abstract:**
+      - Abstract: Written by the paper's authors
+      - AI Summary: Generated by Knowledge Horizon, focused on relevance to the stream
+
+      AI summaries emphasize findings relevant to the stream's focus area.
