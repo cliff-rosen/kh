@@ -280,9 +280,7 @@ async def execute_search_articles_in_reports(
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
     """Search for articles across all reports in the current stream."""
-    from sqlalchemy import select, or_
-    from sqlalchemy.sql import func as sql_func
-    from models import Report, Article, ReportArticleAssociation
+    from services.report_service import ReportService
 
     query = params.get("query", "").strip()
     stream_id = context.get("stream_id") or params.get("stream_id")
@@ -295,50 +293,13 @@ async def execute_search_articles_in_reports(
         return "Error: No stream context available."
 
     try:
-        # Get all reports for this stream
-        report_stmt = select(Report.report_id).where(
-            Report.research_stream_id == stream_id,
-            Report.user_id == user_id
+        service = ReportService(db)
+        results = await service.search_articles_in_stream(
+            user_id=user_id,
+            stream_id=stream_id,
+            query=query,
+            max_results=max_results
         )
-        report_result = await db.execute(report_stmt)
-        report_ids = [r[0] for r in report_result.all()]
-
-        if not report_ids:
-            return "No reports found for this stream."
-
-        # Search articles in these reports
-        search_term = f"%{query}%"
-
-        # Build search conditions - always include text fields
-        search_conditions = [
-            Article.title.ilike(search_term),
-            Article.abstract.ilike(search_term),
-            Article.journal.ilike(search_term),
-            Article.authors.ilike(search_term),
-            Article.pmid.ilike(search_term),  # Allow PMID search
-        ]
-
-        # If query looks like a DOI, also search DOI field
-        if "/" in query or query.lower().startswith("10."):
-            search_conditions.append(Article.doi.ilike(search_term))
-
-        search_stmt = select(
-            Article, ReportArticleAssociation, Report
-        ).join(
-            ReportArticleAssociation,
-            Article.article_id == ReportArticleAssociation.article_id
-        ).join(
-            Report,
-            ReportArticleAssociation.report_id == Report.report_id
-        ).where(
-            ReportArticleAssociation.report_id.in_(report_ids),
-            or_(*search_conditions)
-        ).order_by(
-            sql_func.coalesce(ReportArticleAssociation.relevance_score, -1).desc()
-        ).limit(max_results)
-
-        search_result = await db.execute(search_stmt)
-        results = search_result.all()
 
         if not results:
             return f"No articles found matching '{query}' in this stream's reports."
@@ -346,7 +307,10 @@ async def execute_search_articles_in_reports(
         text_lines = [f"Found {len(results)} articles matching '{query}':\n"]
         articles_data = []
 
-        for i, (article, assoc, report) in enumerate(results, 1):
+        for i, result in enumerate(results, 1):
+            article = result.article
+            assoc = result.association
+            report = result.report
             # Create snippet from abstract
             abstract_snippet = ""
             if article.abstract:
@@ -593,9 +557,7 @@ async def execute_compare_reports(
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
     """Compare two reports to identify new articles, removed articles, and changes."""
-    from sqlalchemy import select
     from services.report_service import ReportService
-    from models import Article, ReportArticleAssociation
 
     report_id_1 = params.get("report_id_1")
     report_id_2 = params.get("report_id_2")
@@ -606,7 +568,7 @@ async def execute_compare_reports(
     try:
         service = ReportService(db)
 
-        # Get both reports
+        # Get both reports with articles
         result1 = await service.get_report_with_articles(user_id, report_id_1)
         result2 = await service.get_report_with_articles(user_id, report_id_2)
 
@@ -618,23 +580,26 @@ async def execute_compare_reports(
         report1 = result1.report
         report2 = result2.report
 
-        # Get article IDs in each report
-        articles_1 = {a.article.article_id for a in result1.articles} if result1.articles else set()
-        articles_2 = {a.article.article_id for a in result2.articles} if result2.articles else set()
+        # Build article lookup dicts from data we already have
+        articles_1_map = {a.article.article_id: a.article for a in result1.articles} if result1.articles else {}
+        articles_2_map = {a.article.article_id: a.article for a in result2.articles} if result2.articles else {}
+
+        articles_1_ids = set(articles_1_map.keys())
+        articles_2_ids = set(articles_2_map.keys())
 
         # Calculate differences
-        only_in_1 = articles_1 - articles_2
-        only_in_2 = articles_2 - articles_1
-        in_both = articles_1 & articles_2
+        only_in_1 = articles_1_ids - articles_2_ids
+        only_in_2 = articles_2_ids - articles_1_ids
+        in_both = articles_1_ids & articles_2_ids
 
         text_result = f"""
 === Report Comparison ===
 
 Report 1: {report1.report_name} ({report1.report_date.strftime('%Y-%m-%d') if report1.report_date else 'Unknown'})
-Total articles: {len(articles_1)}
+Total articles: {len(articles_1_ids)}
 
 Report 2: {report2.report_name} ({report2.report_date.strftime('%Y-%m-%d') if report2.report_date else 'Unknown'})
-Total articles: {len(articles_2)}
+Total articles: {len(articles_2_ids)}
 
 === Differences ===
 Articles only in Report 1: {len(only_in_1)}
@@ -642,22 +607,18 @@ Articles only in Report 2: {len(only_in_2)}
 Articles in both reports: {len(in_both)}
 """
 
-        # Get details for unique articles
+        # Show details for unique articles (use data we already have)
         if only_in_2:
-            new_stmt = select(Article).where(Article.article_id.in_(only_in_2)).limit(10)
-            new_result = await db.execute(new_stmt)
-            new_articles = new_result.scalars().all()
             text_result += f"\n=== New in Report 2 (showing up to 10) ===\n"
-            for art in new_articles:
-                text_result += f"- {art.title} (PMID: {art.pmid})\n"
+            for article_id in list(only_in_2)[:10]:
+                art = articles_2_map[article_id]
+                text_result += f"- Article ID: {art.article_id} | {art.title} (PMID: {art.pmid})\n"
 
         if only_in_1:
-            rem_stmt = select(Article).where(Article.article_id.in_(only_in_1)).limit(10)
-            rem_result = await db.execute(rem_stmt)
-            removed_articles = rem_result.scalars().all()
             text_result += f"\n=== Not in Report 2 (showing up to 10) ===\n"
-            for art in removed_articles:
-                text_result += f"- {art.title} (PMID: {art.pmid})\n"
+            for article_id in list(only_in_1)[:10]:
+                art = articles_1_map[article_id]
+                text_result += f"- Article ID: {art.article_id} | {art.title} (PMID: {art.pmid})\n"
 
         payload = {
             "type": "report_comparison",
@@ -666,13 +627,13 @@ Articles in both reports: {len(in_both)}
                     "id": report_id_1,
                     "name": report1.report_name,
                     "date": report1.report_date.isoformat() if report1.report_date else None,
-                    "article_count": len(articles_1)
+                    "article_count": len(articles_1_ids)
                 },
                 "report_2": {
                     "id": report_id_2,
                     "name": report2.report_name,
                     "date": report2.report_date.isoformat() if report2.report_date else None,
-                    "article_count": len(articles_2)
+                    "article_count": len(articles_2_ids)
                 },
                 "only_in_report_1": len(only_in_1),
                 "only_in_report_2": len(only_in_2),
@@ -694,8 +655,7 @@ async def execute_get_starred_articles(
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
     """Get all starred articles across reports in the current stream."""
-    from sqlalchemy import select
-    from models import Report, Article, ReportArticleAssociation
+    from services.report_service import ReportService
 
     stream_id = context.get("stream_id") or params.get("stream_id")
 
@@ -703,22 +663,8 @@ async def execute_get_starred_articles(
         return "Error: No stream context available."
 
     try:
-        stmt = select(
-            Article, ReportArticleAssociation, Report
-        ).join(
-            ReportArticleAssociation,
-            Article.article_id == ReportArticleAssociation.article_id
-        ).join(
-            Report,
-            ReportArticleAssociation.report_id == Report.report_id
-        ).where(
-            Report.research_stream_id == stream_id,
-            Report.user_id == user_id,
-            ReportArticleAssociation.is_starred == True
-        ).order_by(Report.report_date.desc())
-
-        result = await db.execute(stmt)
-        results = result.all()
+        service = ReportService(db)
+        results = await service.get_starred_articles_in_stream(user_id, stream_id)
 
         if not results:
             return "No starred articles found in this stream's reports."
@@ -726,7 +672,10 @@ async def execute_get_starred_articles(
         text_lines = [f"Found {len(results)} starred articles:\n"]
         articles_data = []
 
-        for i, (article, assoc, report) in enumerate(results, 1):
+        for i, result in enumerate(results, 1):
+            article = result.article
+            assoc = result.association
+            report = result.report
             text_lines.append(f"""
 {i}. Article ID: {article.article_id} | PMID: {article.pmid}
    Title: {article.title}

@@ -125,6 +125,14 @@ class ReportWithArticlesData:
 
 
 @dataclass
+class ArticleSearchResult:
+    """Search result for an article in a report."""
+    article: Article
+    association: ReportArticleAssociation
+    report: Report
+
+
+@dataclass
 class CurationStats:
     """Pipeline and curation statistics."""
     pipeline_included: int
@@ -879,6 +887,97 @@ class ReportService:
             retrieval_params=retrieval_params,
             category_map=category_map
         )
+
+    async def search_articles_in_stream(
+        self,
+        user_id: int,
+        stream_id: int,
+        query: str,
+        max_results: int = 20
+    ) -> List[ArticleSearchResult]:
+        """
+        Search for articles across all reports in a stream.
+
+        Searches title, abstract, journal, authors, and PMID.
+        Also searches DOI if query looks like a DOI.
+        """
+        # Get all reports for this stream that user can access
+        report_stmt = select(Report.report_id).where(
+            Report.research_stream_id == stream_id,
+            Report.user_id == user_id
+        )
+        report_result = await self.db.execute(report_stmt)
+        report_ids = [r[0] for r in report_result.all()]
+
+        if not report_ids:
+            return []
+
+        # Build search conditions
+        search_term = f"%{query}%"
+        search_conditions = [
+            Article.title.ilike(search_term),
+            Article.abstract.ilike(search_term),
+            Article.journal.ilike(search_term),
+            Article.authors.ilike(search_term),
+            Article.pmid.ilike(search_term),
+        ]
+
+        # If query looks like a DOI, also search DOI field
+        if "/" in query or query.lower().startswith("10."):
+            search_conditions.append(Article.doi.ilike(search_term))
+
+        search_stmt = select(
+            Article, ReportArticleAssociation, Report
+        ).join(
+            ReportArticleAssociation,
+            Article.article_id == ReportArticleAssociation.article_id
+        ).join(
+            Report,
+            ReportArticleAssociation.report_id == Report.report_id
+        ).where(
+            ReportArticleAssociation.report_id.in_(report_ids),
+            or_(*search_conditions)
+        ).order_by(
+            func.coalesce(ReportArticleAssociation.relevance_score, -1).desc()
+        ).limit(max_results)
+
+        result = await self.db.execute(search_stmt)
+        rows = result.all()
+
+        return [
+            ArticleSearchResult(article=article, association=assoc, report=report)
+            for article, assoc, report in rows
+        ]
+
+    async def get_starred_articles_in_stream(
+        self,
+        user_id: int,
+        stream_id: int
+    ) -> List[ArticleSearchResult]:
+        """
+        Get all starred articles across all reports in a stream.
+        """
+        stmt = select(
+            Article, ReportArticleAssociation, Report
+        ).join(
+            ReportArticleAssociation,
+            Article.article_id == ReportArticleAssociation.article_id
+        ).join(
+            Report,
+            ReportArticleAssociation.report_id == Report.report_id
+        ).where(
+            Report.research_stream_id == stream_id,
+            Report.user_id == user_id,
+            ReportArticleAssociation.is_starred == True
+        ).order_by(Report.report_date.desc())
+
+        result = await self.db.execute(stmt)
+        rows = result.all()
+
+        return [
+            ArticleSearchResult(article=article, association=assoc, report=report)
+            for article, assoc, report in rows
+        ]
 
     # =========================================================================
     # DELETE
