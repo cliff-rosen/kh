@@ -352,7 +352,7 @@ register_tool(ToolConfig(
 ))
 ```
 
-**Note**: Current implementation runs generator to completion before yielding progress events. For a multi-minute tool, we may need to enhance the agent_loop to support true async streaming, OR use a background task approach where the tool returns immediately with a trace_id and the frontend polls for updates.
+**Async generator support added to agent_loop.py** - progress events are streamed in real-time as the tool yields them.
 
 ### Parallel Execution
 
@@ -431,11 +431,6 @@ backend/
 
 ## Open Questions
 
-1. **Real-time streaming**: Current generator approach collects all progress before yielding. Options:
-   - Enhance agent_loop for true async generator streaming
-   - Use background task + polling approach
-   - Accept batch progress delivery (simpler, less ideal UX)
+1. **Rate limiting**: Do we need to throttle API calls to avoid limits?
 
-2. **Rate limiting**: Do we need to throttle API calls to avoid limits?
-
-3. **Caching**: Should we cache similar questions or partial results?
+2. **Caching**: Should we cache similar questions or partial results?

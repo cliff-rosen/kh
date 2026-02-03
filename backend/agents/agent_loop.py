@@ -4,9 +4,15 @@ Generic Agentic Loop
 A reusable async generator that runs an agentic loop with tool support.
 Emits typed events that consumers can map to their specific output format.
 
+Supports multiple tool executor types:
+- Sync executor: returns str or ToolResult
+- Async executor: returns str or ToolResult
+- Sync generator: yields ToolProgress, returns ToolResult (via StopIteration)
+- Async generator: yields ToolProgress and final ToolResult (real-time streaming)
+
 Used by:
-- GeneralChatService (SSE streaming)
-- Future agentic tools
+- ChatStreamService (SSE streaming)
+- Future agentic tools (e.g., deep_research)
 """
 
 import asyncio
@@ -590,6 +596,15 @@ async def _process_tools(
     """
     Process all tool calls and yield events.
 
+    Supports multiple executor types:
+    - Sync executor: def executor(...) -> str | ToolResult
+    - Async executor: async def executor(...) -> str | ToolResult
+    - Sync generator: def executor(...) -> Generator[ToolProgress, None, ToolResult]
+    - Async generator: async def executor(...) -> AsyncGenerator[ToolProgress | ToolResult, None]
+
+    For streaming tools (generators), ToolProgress items are yielded as AgentToolProgress
+    events in real-time. The final ToolResult is captured as the tool output.
+
     Yields:
         AgentToolStart, AgentToolProgress, AgentToolComplete events
         _ToolsResult as final item with results, records, tool_calls, and payloads
@@ -654,8 +669,37 @@ async def _process_tools(
                 # Capture raw output before any processing
                 output_from_executor = raw_result
 
-                # Check if result is a generator (streaming tool - sync only)
-                if hasattr(raw_result, '__next__'):
+                # Check if result is an async generator (streaming async tool)
+                if hasattr(raw_result, '__anext__'):
+                    output_type = "async_generator"
+                    # Async generator - iterate and yield progress in real-time
+                    async_generator_final_result = None
+                    async for item in raw_result:
+                        if cancellation_token.is_cancelled:
+                            raise asyncio.CancelledError(f"Tool {tool_name} cancelled during streaming")
+                        if isinstance(item, ToolProgress):
+                            yield AgentToolProgress(
+                                tool_name=tool_name,
+                                stage=item.stage,
+                                message=item.message,
+                                progress=item.progress,
+                                data=item.data
+                            )
+                        elif isinstance(item, ToolResult):
+                            # Final result from async generator
+                            async_generator_final_result = item
+                            tool_result_str = item.text
+                            tool_result_data = item.payload
+                            output_type = "ToolResult"
+                        elif isinstance(item, str):
+                            # String result (less common)
+                            async_generator_final_result = item
+                            tool_result_str = item
+                            output_type = "str"
+                    output_from_executor = async_generator_final_result
+
+                # Check if result is a sync generator (streaming tool)
+                elif hasattr(raw_result, '__next__'):
                     output_type = "generator"
                     # It's a generator - collect progress and result
                     def run_generator(gen):
