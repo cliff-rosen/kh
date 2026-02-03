@@ -464,12 +464,13 @@ class ChatStreamService:
         Build system prompt with clean structure (async).
 
         Order rationale:
-        1. PERSONA - Who the assistant is and how it behaves (customization first)
-        2. STREAM INSTRUCTIONS - Domain-specific context (narrows focus)
-        3. CONTEXT - Current page state and loaded data (facts)
-        4. CAPABILITIES - Available tools and actions (what it can do)
-        5. HELP - Help system documentation and TOC (reference material)
-        6. FORMAT RULES - Technical formatting (least important)
+        1. GLOBAL PREAMBLE - What KH is, your role, two types of questions (always same)
+        2. PAGE INSTRUCTIONS - Page-specific guidance (varies by page)
+        3. STREAM INSTRUCTIONS - Domain-specific context from the stream
+        4. CONTEXT - Current page state, user role, loaded data
+        5. CAPABILITIES - Available tools and actions
+        6. HELP - Help system TOC
+        7. FORMAT RULES - Technical formatting
 
         Args:
             context: Page context dict
@@ -483,37 +484,41 @@ class ChatStreamService:
 
         sections = []
 
-        # 1. PERSONA (who + how, page-level)
+        # 1. GLOBAL PREAMBLE (always the same - explains KH, your role, question types)
         current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-        persona = await self._get_persona(current_page)
-        sections.append(f"{persona}\n\nCurrent date and time: {current_time}")
+        sections.append(f"{self.GLOBAL_PREAMBLE}\n\nCurrent date and time: {current_time}")
 
-        # 2. STREAM INSTRUCTIONS (domain-specific, stream-level)
+        # 2. PAGE INSTRUCTIONS (page-specific guidance)
+        page_instructions = await self._get_page_instructions(current_page)
+        if page_instructions:
+            sections.append(f"== PAGE INSTRUCTIONS ==\n{page_instructions}")
+
+        # 3. STREAM INSTRUCTIONS (domain-specific, stream-level)
         stream_instructions = await self._load_stream_instructions(context)
         if stream_instructions:
             sections.append(f"== STREAM CONTEXT ==\n{stream_instructions}")
 
-        # 3. CONTEXT (page context + loaded data)
+        # 4. CONTEXT (page context + user role + loaded data)
         page_context = await self._build_page_context(current_page, context)
         if page_context:
             sections.append(f"== CURRENT CONTEXT ==\n{page_context}")
 
-        # 4. PAYLOAD MANIFEST (payloads from conversation history, if any)
+        # 5. PAYLOAD MANIFEST (payloads from conversation history, if any)
         payload_manifest = self._build_payload_manifest(db_messages)
         if payload_manifest:
             sections.append(f"== CONVERSATION DATA ==\n{payload_manifest}")
 
-        # 5. CAPABILITIES (tools + payloads + client actions)
+        # 6. CAPABILITIES (tools + payloads + client actions)
         capabilities = self._build_capabilities_section(current_page, active_tab, active_subtab)
         if capabilities:
             sections.append(f"== CAPABILITIES ==\n{capabilities}")
 
-        # 6. HELP (consolidated: narrative + tool usage + TOC)
+        # 7. HELP (consolidated: narrative + tool usage + TOC)
         help_section = await self._build_help_section(user_role)
         if help_section:
             sections.append(f"== HELP ==\n{help_section}")
 
-        # 7. FORMAT RULES (fixed technical instructions)
+        # 8. FORMAT RULES (fixed technical instructions)
         sections.append(f"== FORMAT RULES ==\n{self.FORMAT_INSTRUCTIONS}")
 
         return "\n\n".join(sections)
@@ -555,43 +560,54 @@ class ChatStreamService:
 
         return "\n\n".join(parts)
 
-    # Default persona (used if page doesn't define its own)
-    DEFAULT_PERSONA = """You are a helpful AI assistant for Knowledge Horizon, a biomedical research intelligence platform.
+    # ==========================================================================
+    # System Prompt Constants
+    # ==========================================================================
 
-## Style
-Be conversational and helpful. Keep responses concise and factual.
+    # Global preamble - explains the overall situation (always included)
+    GLOBAL_PREAMBLE = """You are the AI assistant for Knowledge Horizon, a biomedical research intelligence platform.
 
-## Query Classification
-Determine what kind of help the user needs:
+## What Knowledge Horizon Does
+Knowledge Horizon helps researchers stay current with biomedical literature by:
+- Monitoring PubMed for new articles matching configured research streams
+- Generating curated intelligence reports with AI summaries
+- Organizing articles by themes and categories
 
-**Navigation queries** (use help documentation):
+## Your Role
+Users interact with you through the chat function on various pages. When they come to you, they typically have one of two needs:
+
+**1. Navigation/How-To Questions** (use the help tool):
 - "How do I..." questions about using the app
 - "What does X mean?" questions about fields or terminology
-- Questions about system behavior or semantics
-- Example: "Are report dates inclusive?" → Check field-reference help
+- Questions about system behavior or features
+- For these, retrieve relevant help documentation with get_help()
 
-**Analysis queries** (use data tools):
-- Questions about article content
+**2. Data/Analysis Questions** (use data tools):
+- Questions about article content in reports
 - Requests to summarize, compare, or find patterns
 - Questions about specific data values
-- Example: "Which articles mention CRISPR?" → Use search tool
+- For these, use the appropriate data tools (search, get_report_articles, etc.)
 
-When uncertain, default to checking documentation first.
+When uncertain which type, default to checking help documentation first.
+
+## Style
+Be conversational and helpful. Keep responses concise and factual. Don't over-explain.
 
 ## Handling Ambiguity
 - For marginally ambiguous queries: State your interpretation, then answer
 - For highly ambiguous queries: Ask for clarification with 2-3 specific options
-- Leverage context (current page, recent actions) before asking for clarification
+- Leverage context (current page, recent actions) before asking
 
 ## Tool Limitations
-If a task would require chaining many tools with fragile parsing, or if you're not confident the result will be reliable, tell the user honestly:
-- "I don't have the right tool for cross-stream comparisons, but I can check individual streams."
-- "I can look at specific reports, but aggregating trends across all reports would be unreliable."
-Don't attempt elaborate workarounds that may fail partway through.
+If a task requires chaining many tools with fragile parsing, or you're not confident the result will be reliable, be honest:
+- "I can check individual reports, but aggregating across all reports would be unreliable."
+- "I don't have a tool for that specific operation."
 
-## Suggestions
-Most responses should NOT include SUGGESTED_VALUES or SUGGESTED_ACTIONS.
-Only use them when they genuinely help the user take a next step."""
+## Page-Specific Instructions
+Users can be on different pages in the app, each with its own context and capabilities. Page-specific instructions (if any) appear in the next section."""
+
+    # Default page instructions (used if page doesn't define its own)
+    DEFAULT_PAGE_INSTRUCTIONS = """No special instructions for this page. Use your general capabilities and the help system as needed."""
 
     # Fixed format instructions (always appended, not configurable)
     FORMAT_INSTRUCTIONS = """SUGGESTED VALUES (optional):
@@ -656,18 +672,20 @@ SUGGESTED_ACTIONS:
             logger.error(f"Failed to build help section: {e}")
             return None
 
-    async def _get_persona(self, current_page: str) -> str:
+    async def _get_page_instructions(self, current_page: str) -> str:
         """
-        Get persona (who the assistant is + how it behaves) with hierarchy:
-        1. DB page override (persona field)
-        2. DB page legacy (identity + guidelines fields, for backwards compatibility)
-        3. Code page default
-        4. Code global default
+        Get page-specific instructions with hierarchy:
+        1. DB page override (content field)
+        2. Code page default (from chat_page_config)
+        3. Global default (minimal)
+
+        Note: The global preamble is now separate and always included.
+        This function only returns page-specific guidance.
         """
         from models import ChatConfig
-        from services.chat_page_config import get_persona as get_code_persona
+        from services.chat_page_config import get_persona as get_code_page_instructions
 
-        persona = None
+        instructions = None
 
         # 1. Check DB for page-level override
         try:
@@ -679,19 +697,19 @@ SUGGESTED_ACTIONS:
             )
             page_config = result.scalars().first()
             if page_config and page_config.content:
-                persona = page_config.content
+                instructions = page_config.content
         except Exception as e:
-            logger.warning(f"Failed to check page persona override: {e}")
+            logger.warning(f"Failed to check page instructions override: {e}")
 
         # 2. Fall back to code page default
-        if not persona:
-            persona = get_code_persona(current_page)
+        if not instructions:
+            instructions = get_code_page_instructions(current_page)
 
-        # 3. Fall back to code global default
-        if not persona:
-            persona = self.DEFAULT_PERSONA
+        # 3. Fall back to global default (minimal)
+        if not instructions:
+            instructions = self.DEFAULT_PAGE_INSTRUCTIONS
 
-        return persona
+        return instructions
 
     # =========================================================================
     # Context Loading

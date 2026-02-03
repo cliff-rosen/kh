@@ -1197,7 +1197,7 @@ async def list_page_configs(
     from services.chat_stream_service import ChatStreamService
 
     # Get global default persona
-    global_default = ChatStreamService.DEFAULT_PERSONA
+    global_default = ChatStreamService.DEFAULT_PAGE_INSTRUCTIONS
 
     try:
         # Get all database overrides
@@ -1252,7 +1252,7 @@ async def get_page_config(
     from services.chat_page_config.registry import _page_registry, get_persona
     from services.chat_stream_service import ChatStreamService
 
-    global_default = ChatStreamService.DEFAULT_PERSONA
+    global_default = ChatStreamService.DEFAULT_PAGE_INSTRUCTIONS
 
     try:
         if not _page_registry.get(page):
@@ -1308,7 +1308,7 @@ async def update_page_config(
     from services.chat_page_config.registry import _page_registry, get_persona
     from services.chat_stream_service import ChatStreamService
 
-    global_default = ChatStreamService.DEFAULT_PERSONA
+    global_default = ChatStreamService.DEFAULT_PAGE_INSTRUCTIONS
 
     try:
         if not _page_registry.get(page):
