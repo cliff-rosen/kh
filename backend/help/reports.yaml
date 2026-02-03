@@ -75,61 +75,39 @@ sections:
       - "How do I find all articles on topic Y?" → Search across reports, or use compare_reports
 
   - category: reports
-    topic: views-member
+    topic: view-modes
     title: Report View Modes
-    summary: Different ways to view report articles (All Articles, By Category)
-    roles: [member]
+    summary: Different ways to view report articles (varies by role)
+    roles: [member, org_admin, platform_admin]
     order: 12
     content: |
-      Reports offer different view modes to help you explore articles:
+      Reports offer different view modes to help you explore articles.
 
-      **All Articles View:**
+      ## Available Views
+
+      **All Articles View** (all users):
       - Shows every article in a single list
       - Sorted by relevance or date
       - Good for scanning everything quickly
 
-      **By Category View:**
+      **By Category View** (all users):
       - Articles grouped into thematic categories
       - Each category has an AI-generated summary
       - Collapse/expand each category section
       - Useful when you want to focus on specific topics
 
-      **Switching Views:**
-      Use the view mode buttons in the report header:
-      - "All Articles" - Linear list view
-      - "By Category" - Grouped by theme with category summaries
-
-  - category: reports
-    topic: views-admin
-    title: Report View Modes
-    summary: Different ways to view report articles (All Articles, By Category, Tablizer)
-    roles: [org_admin, platform_admin]
-    order: 12
-    content: |
-      Reports offer different view modes to help you explore articles:
-
-      **All Articles View:**
-      - Shows every article in a single list
-      - Sorted by relevance or date
-      - Good for scanning everything quickly
-
-      **By Category View:**
-      - Articles grouped into thematic categories
-      - Each category has an AI-generated summary
-      - Collapse/expand each category section
-      - Useful when you want to focus on specific topics
-
-      **Tablizer View:**
+      **Tablizer View** (admins only):
       - Advanced table view with sortable columns
       - Add AI-powered columns for custom analysis
       - Filter and search across all data
       - See the **tablizer** help category for full details
 
-      **Switching Views:**
+      ## Switching Views
+
       Use the view mode buttons in the report header:
       - "All Articles" - Linear list view
       - "By Category" - Grouped by theme with category summaries
-      - "Tablizer" - Table view with AI columns
+      - "Tablizer" - Table view with AI columns (admins only)
 
   - category: reports
     topic: card-formats

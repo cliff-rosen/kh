@@ -26,11 +26,47 @@ sections:
       - Find specific information
 
   - category: general
+    topic: user-roles
+    title: User Roles and Permissions
+    summary: What each role (Member, Org Admin, Platform Admin) can do
+    roles: [member, org_admin, platform_admin]
+    order: 2
+    content: |
+      Knowledge Horizon has three user roles with different capabilities.
+
+      ## Member
+      - View reports and articles in subscribed streams
+      - Read AI summaries, abstracts, and analysis
+      - Use chat to explore content and get help
+      - Add personal notes to articles
+
+      ## Organization Admin (Org Admin)
+      Everything Members can do, plus:
+      - Configure research streams (queries, filters, categories)
+      - Curate reports (include/exclude articles, edit summaries)
+      - Use Tablizer view for advanced analysis
+      - Approve/reject reports before distribution
+      - Manage organization users and invitations
+      - Create shared notes visible to organization members
+
+      ## Platform Admin
+      Everything Org Admins can do, plus:
+      - Access all organizations and streams
+      - Configure system-wide settings
+      - Manage chat personas and help content
+      - View platform analytics and logs
+
+      ## How Role Affects Your Experience
+      - Help topics are filtered to show only what's relevant to your role
+      - Some views (like Tablizer) are only available to admins
+      - Certain navigation options appear based on your role
+
+  - category: general
     topic: navigation
     title: App Navigation
     summary: How to navigate between pages and features
     roles: [member, org_admin, platform_admin]
-    order: 2
+    order: 3
     content: |
       **Top Navigation Bar:**
       - **Dashboard** - Home page showing recent reports and quick access

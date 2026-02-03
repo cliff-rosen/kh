@@ -697,6 +697,13 @@ SUGGESTED_ACTIONS:
     # Context Loading
     # =========================================================================
 
+    # Role descriptions for system prompt context
+    ROLE_DESCRIPTIONS = {
+        "member": "Member (can view reports and articles, but cannot configure streams or curate content)",
+        "org_admin": "Organization Admin (can configure streams, curate reports, and manage organization users)",
+        "platform_admin": "Platform Admin (full access to all features including system configuration)",
+    }
+
     async def _build_page_context(self, current_page: str, context: Dict[str, Any]) -> str:
         """Build page-specific context section of the prompt (async)."""
         context_builder = get_context_builder(current_page)
@@ -705,6 +712,11 @@ SUGGESTED_ACTIONS:
             base_context = context_builder(context)
         else:
             base_context = f"The user is currently on: {current_page}"
+
+        # Add user role information
+        user_role = context.get("user_role", "member")
+        role_description = self.ROLE_DESCRIPTIONS.get(user_role, user_role)
+        base_context = f"User role: {role_description}\n\n{base_context}"
 
         # For reports page, enrich with report data from database
         if current_page == "reports" and context.get("report_id"):
