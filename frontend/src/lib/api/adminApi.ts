@@ -385,6 +385,24 @@ export const adminApi = {
   async deletePageConfig(page: string): Promise<{ status: string; page: string }> {
     const response = await api.delete(`/api/admin/chat-config/pages/${encodeURIComponent(page)}`);
     return response.data;
+  },
+
+  // ==================== System Chat Config ====================
+
+  /**
+   * Get system chat configuration (platform admin only)
+   */
+  async getSystemConfig(): Promise<SystemConfig> {
+    const response = await api.get('/api/admin/chat-config/system');
+    return response.data;
+  },
+
+  /**
+   * Update system chat configuration (platform admin only)
+   */
+  async updateSystemConfig(data: SystemConfigUpdate): Promise<SystemConfig> {
+    const response = await api.put('/api/admin/chat-config/system', data);
+    return response.data;
   }
 };
 
@@ -552,4 +570,13 @@ export interface PageChatConfig {
 
 export interface ChatConfigUpdate {
   content?: string | null;
+}
+
+// System config types
+export interface SystemConfig {
+  max_tool_iterations: number;
+}
+
+export interface SystemConfigUpdate {
+  max_tool_iterations?: number;
 }

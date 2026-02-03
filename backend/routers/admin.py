@@ -1408,3 +1408,108 @@ async def delete_page_config(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete page config: {str(e)}",
         )
+
+
+# =============================================================================
+# System Chat Config
+# =============================================================================
+
+class SystemConfigResponse(BaseModel):
+    """System configuration settings."""
+    max_tool_iterations: int = Field(description="Maximum tool call iterations per chat request")
+
+
+class SystemConfigUpdate(BaseModel):
+    """Update system configuration."""
+    max_tool_iterations: Optional[int] = Field(None, ge=1, le=20, description="Max tool iterations (1-20)")
+
+
+DEFAULT_MAX_TOOL_ITERATIONS = 5
+
+
+@router.get(
+    "/chat-config/system",
+    response_model=SystemConfigResponse,
+    summary="Get system chat configuration",
+)
+async def get_system_config(
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+) -> SystemConfigResponse:
+    """Get system-wide chat configuration settings (platform admin only)."""
+    try:
+        # Get max_tool_iterations
+        result = await db.execute(
+            select(ChatConfig).where(
+                ChatConfig.scope == "system",
+                ChatConfig.scope_key == "max_tool_iterations"
+            )
+        )
+        config = result.scalars().first()
+        max_iterations = DEFAULT_MAX_TOOL_ITERATIONS
+        if config and config.content:
+            try:
+                max_iterations = int(config.content.strip())
+            except ValueError:
+                pass
+
+        return SystemConfigResponse(max_tool_iterations=max_iterations)
+
+    except Exception as e:
+        logger.error(f"get_system_config failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get system config: {str(e)}",
+        )
+
+
+@router.put(
+    "/chat-config/system",
+    response_model=SystemConfigResponse,
+    summary="Update system chat configuration",
+)
+async def update_system_config(
+    update: SystemConfigUpdate,
+    current_user: User = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_async_db),
+) -> SystemConfigResponse:
+    """Update system-wide chat configuration settings (platform admin only)."""
+    from datetime import datetime
+
+    try:
+        if update.max_tool_iterations is not None:
+            result = await db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "system",
+                    ChatConfig.scope_key == "max_tool_iterations"
+                )
+            )
+            existing = result.scalars().first()
+
+            if existing:
+                existing.content = str(update.max_tool_iterations)
+                existing.updated_at = datetime.utcnow()
+                existing.updated_by = current_user.user_id
+            else:
+                new_config = ChatConfig(
+                    scope="system",
+                    scope_key="max_tool_iterations",
+                    content=str(update.max_tool_iterations),
+                    updated_by=current_user.user_id
+                )
+                db.add(new_config)
+
+            await db.commit()
+            logger.info(f"User {current_user.email} updated max_tool_iterations to {update.max_tool_iterations}")
+
+        # Return current state
+        return await get_system_config(current_user, db)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_system_config failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update system config: {str(e)}",
+        )

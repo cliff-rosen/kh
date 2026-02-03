@@ -713,6 +713,7 @@ class ChatConfig(Base):
     - 'stream': Stream-specific instructions (scope_key = stream_id as string)
     - 'page': Page-specific persona (scope_key = page name)
     - 'help': Help system configuration (scope_key = config key)
+    - 'system': System-wide settings (scope_key = setting name)
 
     The 'content' field meaning depends on scope:
     - For streams: domain-specific instructions for the assistant
@@ -720,10 +721,12 @@ class ChatConfig(Base):
     - For help: configuration values for the help system
       - 'toc-preamble': Text shown before the help TOC listing
       - 'narrative': Explains when/why to use the help tool
+    - For system: system-wide settings
+      - 'max_tool_iterations': Maximum tool call iterations per request (default: 5)
     """
     __tablename__ = "chat_config"
 
-    scope = Column(String(20), primary_key=True)  # 'stream', 'page', or 'help'
+    scope = Column(String(20), primary_key=True)  # 'stream', 'page', 'help', or 'system'
     scope_key = Column(String(100), primary_key=True)  # stream_id or page name
     content = Column(Text, nullable=True)  # instructions (stream) or persona (page)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

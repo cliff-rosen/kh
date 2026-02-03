@@ -21,11 +21,12 @@ import {
     EyeIcon,
     ArrowsPointingOutIcon,
     ArrowsPointingInIcon,
+    Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
-import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpCategorySummary, type HelpCategoryDetail, type HelpTOCConfig, type StreamChatConfig, type PageChatConfig, type ToolInfo, type TopicSummariesResponse } from '../../lib/api/adminApi';
+import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo, type HelpCategorySummary, type HelpCategoryDetail, type HelpTOCConfig, type StreamChatConfig, type PageChatConfig, type ToolInfo, type TopicSummariesResponse, type SystemConfig } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
 
-type ConfigTab = 'streams' | 'pages' | 'payloads' | 'tools' | 'help';
+type ConfigTab = 'streams' | 'pages' | 'payloads' | 'tools' | 'help' | 'system';
 
 const configTabs: { id: ConfigTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'streams', label: 'Streams', icon: BeakerIcon },
@@ -33,6 +34,7 @@ const configTabs: { id: ConfigTab; label: string; icon: React.ComponentType<{ cl
     { id: 'payloads', label: 'Payloads', icon: CubeIcon },
     { id: 'tools', label: 'Tools', icon: WrenchScrewdriverIcon },
     { id: 'help', label: 'Help', icon: BookOpenIcon },
+    { id: 'system', label: 'System', icon: Cog6ToothIcon },
 ];
 
 // Help content types for editing state
@@ -66,6 +68,13 @@ export function ChatConfigPanel() {
     const [isLoadingPages, setIsLoadingPages] = useState(false);
     const [isSavingPage, setIsSavingPage] = useState(false);
     const [pageError, setPageError] = useState<string | null>(null);
+
+    // System config state
+    const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
+    const [isLoadingSystem, setIsLoadingSystem] = useState(false);
+    const [isSavingSystem, setIsSavingSystem] = useState(false);
+    const [systemError, setSystemError] = useState<string | null>(null);
+    const [editingMaxIterations, setEditingMaxIterations] = useState<number>(5);
 
     // Tools state
     const [selectedToolName, setSelectedToolName] = useState<string | null>(null);
@@ -227,6 +236,36 @@ export function ChatConfigPanel() {
             setPageError(handleApiError(err));
         } finally {
             setIsLoadingPages(false);
+        }
+    };
+
+    const loadSystemConfig = async () => {
+        setIsLoadingSystem(true);
+        setSystemError(null);
+        try {
+            const config = await adminApi.getSystemConfig();
+            setSystemConfig(config);
+            setEditingMaxIterations(config.max_tool_iterations);
+        } catch (err) {
+            setSystemError(handleApiError(err));
+        } finally {
+            setIsLoadingSystem(false);
+        }
+    };
+
+    const saveSystemConfig = async () => {
+        setIsSavingSystem(true);
+        setSystemError(null);
+        try {
+            const updated = await adminApi.updateSystemConfig({
+                max_tool_iterations: editingMaxIterations
+            });
+            setSystemConfig(updated);
+            setEditingMaxIterations(updated.max_tool_iterations);
+        } catch (err) {
+            setSystemError(handleApiError(err));
+        } finally {
+            setIsSavingSystem(false);
         }
     };
 
@@ -528,6 +567,13 @@ export function ChatConfigPanel() {
     useEffect(() => {
         if (activeTab === 'pages' && pageConfigs.length === 0 && !isLoadingPages) {
             loadPageConfigs();
+        }
+    }, [activeTab]);
+
+    // Load system config when switching to system tab
+    useEffect(() => {
+        if (activeTab === 'system' && !systemConfig && !isLoadingSystem) {
+            loadSystemConfig();
         }
     }, [activeTab]);
 
@@ -1447,6 +1493,66 @@ export function ChatConfigPanel() {
                     </div>
                 )}
             </div>
+
+            {/* System Tab Content */}
+            {activeTab === 'system' && (
+                <div className="space-y-6">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                        System-wide chat configuration settings.
+                    </div>
+
+                    {systemError && (
+                        <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
+                            {systemError}
+                        </div>
+                    )}
+
+                    {isLoadingSystem ? (
+                        <div className="flex items-center justify-center py-8">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                        </div>
+                    ) : systemConfig ? (
+                        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+                            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                                Agent Settings
+                            </h3>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        Max Tool Iterations
+                                    </label>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                        Maximum number of tool call iterations per chat request. Higher values allow more complex multi-step operations but increase response time and cost.
+                                    </p>
+                                    <div className="flex items-center gap-4">
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            max={20}
+                                            value={editingMaxIterations}
+                                            onChange={(e) => setEditingMaxIterations(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                                            className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        />
+                                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                                            (1-20, default: 5)
+                                        </span>
+                                        {editingMaxIterations !== systemConfig.max_tool_iterations && (
+                                            <button
+                                                onClick={saveSystemConfig}
+                                                disabled={isSavingSystem}
+                                                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                                            >
+                                                {isSavingSystem ? 'Saving...' : 'Save'}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
+                </div>
+            )}
 
             {/* Architecture Info */}
             <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">

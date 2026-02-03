@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 CHAT_MODEL = "claude-sonnet-4-20250514"
 CHAT_MAX_TOKENS = 2000
-MAX_TOOL_ITERATIONS = 5
+DEFAULT_MAX_TOOL_ITERATIONS = 5
 
 
 class ChatStreamService:
@@ -129,11 +129,14 @@ class ChatStreamService:
             trace: Optional[AgentTrace] = None
             tool_call_index = 0
 
+            # Get configurable max iterations
+            max_iterations = await self._get_max_tool_iterations()
+
             async for event in run_agent_loop(
                 client=self.async_client,
                 model=CHAT_MODEL,
                 max_tokens=CHAT_MAX_TOKENS,
-                max_iterations=MAX_TOOL_ITERATIONS,
+                max_iterations=max_iterations,
                 system_prompt=system_prompt,
                 messages=messages,
                 tools=tools_by_name,
@@ -756,6 +759,27 @@ SUGGESTED_ACTIONS:
             logger.warning(f"Failed to load stream instructions: {e}")
 
         return None
+
+    async def _get_max_tool_iterations(self) -> int:
+        """Get the maximum tool iterations from config, or default."""
+        from models import ChatConfig
+
+        try:
+            result = await self.db.execute(
+                select(ChatConfig).where(
+                    ChatConfig.scope == "system",
+                    ChatConfig.scope_key == "max_tool_iterations"
+                )
+            )
+            config = result.scalars().first()
+            if config and config.content:
+                value = int(config.content.strip())
+                # Clamp to reasonable range
+                return max(1, min(value, 20))
+        except Exception as e:
+            logger.warning(f"Failed to load max_tool_iterations config: {e}")
+
+        return DEFAULT_MAX_TOOL_ITERATIONS
 
     async def _load_report_context(self, report_id: int, context: Dict[str, Any]) -> Optional[str]:
         """Load report data from database and format it for LLM context (async)."""
