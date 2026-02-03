@@ -1,151 +1,189 @@
 sections:
   - category: tablizer
     topic: overview
-    title: Tablizer Overview
-    summary: Search PubMed and analyze articles with AI-powered columns
+    title: Tablizer View Overview
+    summary: Table view for analyzing report articles with AI-powered columns
     roles: [org_admin, platform_admin]
     order: 10
     content: |
-      Tablizer is a powerful tool for searching PubMed and analyzing articles with custom AI columns.
+      Tablizer is a table view for analyzing articles within a report using custom AI columns.
 
       **Accessing Tablizer:**
-      - From a report: Click the "Tablizer" view mode button
-      - Standalone: Navigate to the Tablizer page directly
+      From any report, click the "Tablizer" button in the report header.
 
-      **Core Features:**
-      1. **Search** - Query PubMed with standard syntax
-      2. **AI Columns** - Add custom analysis columns
-      3. **Filter & Sort** - Refine results dynamically
-      4. **History** - Track and compare searches
-      5. **Export** - Download results as CSV
+      **What Tablizer Does:**
+      - Displays report articles in a sortable, filterable table
+      - Add AI columns to categorize or extract information from articles
+      - Filter to find specific subsets of articles
+      - Export results with AI analysis included
 
-  - category: tablizer
-    topic: searching
-    title: Searching PubMed
-    summary: How to construct effective PubMed queries
-    roles: [org_admin, platform_admin]
-    order: 20
-    content: |
-      Tablizer uses standard PubMed query syntax for searching.
-
-      **Basic Search:**
-      Enter keywords or phrases to search across titles, abstracts, and MeSH terms.
-
-      **Advanced Syntax:**
-      - `AND` / `OR` / `NOT` - Boolean operators
-      - `"phrase"` - Exact phrase matching
-      - `[ti]` - Search title only
-      - `[au]` - Search author
-      - `[mh]` - Search MeSH terms
-      - `[pt]` - Publication type
-
-      **Examples:**
-      - `asbestos AND mesothelioma`
-      - `"lung cancer"[ti] AND treatment`
-      - `Smith J[au] AND 2023[dp]`
-
-      **Date Filters:**
-      Use the date filter controls to limit by:
-      - Publication date
-      - Entry date (when added to PubMed)
-
-      **Results:**
-      - Initial search returns ~20 articles quickly
-      - Adding AI columns fetches up to 500 for analysis
+      **Available Columns:**
+      - PMID, Title, Journal, Publication Date
+      - AI Summary, Abstract (toggle visibility)
+      - Categories assigned by the report
+      - Custom AI columns you add
 
   - category: tablizer
     topic: ai-columns
-    title: AI-Powered Columns
-    summary: Add custom AI analysis to your search results
+    title: Adding AI Columns
+    summary: Create custom AI-powered columns to analyze articles
     roles: [org_admin, platform_admin]
-    order: 30
+    order: 20
     content: |
       AI columns let you analyze articles with custom criteria.
 
       **Adding an AI Column:**
       1. Click "Add AI Column"
-      2. Choose column type
-      3. Enter your criteria/question
-      4. Optionally enable "Show reasoning"
+      2. Enter a column name
+      3. Choose the output type
+      4. Write your criteria or question
       5. Click "Add"
+
+      The AI processes each article and populates the column with results.
 
       **Column Types:**
 
       **Boolean (Yes/No)**
-      Best for filtering. Examples:
+      Ask yes/no questions. Results show as colored badges.
+      Examples:
       - "Is this a clinical trial?"
       - "Does this study involve human subjects?"
-      - "Is this about drug X?"
-
-      After adding, use Yes/No toggle buttons to filter.
+      - "Is this about [specific drug or condition]?"
 
       **Text**
-      Extract specific information. Examples:
+      Extract specific information from each article.
+      Examples:
       - "What is the study design?"
-      - "Summarize the main finding in one sentence"
       - "What population was studied?"
+      - "What is the primary endpoint?"
+      - "Summarize the main finding in one sentence"
 
       **Number**
-      Extract numeric values. Examples:
+      Extract numeric values.
+      Examples:
       - "What is the sample size?"
       - "How many months of follow-up?"
 
+  - category: tablizer
+    topic: ai-results
+    title: Understanding AI Results
+    summary: Confidence scores, reasoning, and how to interpret AI column values
+    roles: [org_admin, platform_admin]
+    order: 25
+    content: |
+      Each AI column result includes:
+
+      **The Value:**
+      - Boolean: Yes or No (shown as colored badge)
+      - Text: The extracted information
+      - Number: The numeric value
+
+      **Confidence Score:**
+      How confident the AI is in its answer (0-100%).
+      - High confidence: AI found clear evidence
+      - Low confidence: Answer is uncertain or inferred
+
+      **Reasoning:**
+      The AI's explanation for its answer.
+      - Toggle visibility with the chat bubble icon in the column header
+      - Hover over a cell to see reasoning in a tooltip
+      - Exported CSV includes reasoning for each row
+
       **Tips:**
-      - Be specific in your criteria
-      - Boolean columns are most useful for filtering
-      - "Show reasoning" helps understand AI decisions
+      - Check reasoning when confidence is low
+      - Boolean columns are most reliable for filtering
+      - Text columns work best with specific, focused questions
 
   - category: tablizer
-    topic: history-compare
-    title: History and Compare
-    summary: Track searches and find differences between result sets
+    topic: filtering
+    title: Filtering and Sorting
+    summary: Find specific articles using filters and sorting
     roles: [org_admin, platform_admin]
-    order: 40
+    order: 30
     content: |
-      The History panel tracks your searches and enables powerful comparisons.
+      Tablizer provides multiple ways to narrow down articles.
 
-      **History Panel:**
-      - Every search is automatically saved
-      - Click a past search to view those results
-      - Delete old searches you no longer need
+      **Text Search:**
+      Use the search box to filter across all visible columns.
+      Matches title, journal, abstract, AI summary, and AI column values.
 
-      **Compare Mode:**
-      Select two searches to compare and see:
-      - **Intersection** - Articles in both searches
-      - **Only in A** - Articles unique to first search
-      - **Only in B** - Articles unique to second search
+      **Boolean Quick Filters:**
+      When you add a Boolean AI column, quick filter buttons appear:
+      - **All** - Show all articles
+      - **Yes** - Show only articles where the AI answered "Yes"
+      - **No** - Show only articles where the AI answered "No"
 
-      **Use Case: Finding False Negatives**
-      A common workflow for validating search strategies:
+      Multiple Boolean columns can be filtered simultaneously.
 
-      1. Run your original query (Query A)
-      2. Run a broader alternative (Query B)
-      3. Compare A vs B
-      4. Check "Only in B" for relevant articles A missed
-      5. If you find relevant articles, refine Query A
+      **Column Sorting:**
+      Click any column header to sort:
+      - First click: Sort ascending
+      - Second click: Sort descending
+      - Third click: Clear sort
 
-      This helps ensure your search strategy isn't missing important literature.
+      **Column Visibility:**
+      Click "Columns" to show/hide specific columns.
+      Hidden columns are still searchable.
 
   - category: tablizer
     topic: export
     title: Exporting Results
-    summary: Copy and export filtered article data
+    summary: Export filtered articles with AI analysis
     roles: [org_admin, platform_admin]
-    order: 50
+    order: 40
     content: |
-      Export your Tablizer results for use in other tools.
-
-      **Copy to Clipboard:**
-      - Click "Copy" to copy visible rows
-      - Includes all columns (standard and AI)
-      - Paste into Excel, Google Sheets, etc.
+      Export your analysis for use in other tools.
 
       **Export CSV:**
-      - Click "Export" for a CSV download
-      - Contains all filtered results
-      - AI column values included
+      Click "Export" to download a CSV file containing:
+      - All visible columns
+      - All filtered rows (or all rows if no filter active)
+      - AI column values with confidence and reasoning
+
+      **Copy IDs:**
+      Click "Copy X IDs" to copy PMIDs of filtered articles to clipboard.
+      Useful for searching in PubMed or other tools.
+
+      **What's Included in Export:**
+      For each AI column, the CSV includes three columns:
+      - The value (Yes/No, text, or number)
+      - Confidence percentage
+      - Reasoning explanation
 
       **Tips:**
       - Apply filters before exporting to get specific subsets
-      - Boolean AI columns help narrow down relevant articles
-      - Use text AI columns to pre-extract information you need
+      - Use Boolean AI columns to identify articles of interest, then export just those
+      - Text AI columns pre-extract information you'd otherwise need to read for manually
+
+  - category: tablizer
+    topic: use-cases
+    title: Example Use Cases
+    summary: Common workflows for analyzing report articles
+    roles: [org_admin, platform_admin]
+    order: 50
+    content: |
+      **Categorize by Study Type:**
+      1. Add Boolean column: "Is this a randomized controlled trial?"
+      2. Filter to Yes to see only RCTs
+      3. Export the filtered list
+
+      **Extract Key Data:**
+      1. Add Text column: "What is the primary endpoint?"
+      2. Add Text column: "What is the study population?"
+      3. Sort by publication date
+      4. Export for a structured summary
+
+      **Find Specific Articles:**
+      1. Add Boolean column: "Does this article discuss [your topic]?"
+      2. Filter to Yes
+      3. Review the matching articles
+
+      **Quantify Studies:**
+      1. Add Number column: "What is the sample size?"
+      2. Sort descending to find largest studies
+      3. Use text search to further narrow
+
+      **Quality Assessment:**
+      1. Add Boolean column: "Is this a systematic review or meta-analysis?"
+      2. Add Boolean column: "Does this include a control group?"
+      3. Filter and cross-reference to find high-quality evidence
