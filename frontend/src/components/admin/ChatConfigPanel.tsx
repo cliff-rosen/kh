@@ -83,6 +83,9 @@ export function ChatConfigPanel() {
         return config.tools.find(t => t.name === selectedToolName) || null;
     }, [config, selectedToolName]);
 
+    // Payloads state
+    const [selectedPayload, setSelectedPayload] = useState<string | null>(null);
+
     // Group tools by category
     const toolsByCategory = useMemo(() => {
         if (!config) return [];
@@ -696,79 +699,141 @@ export function ChatConfigPanel() {
                 )}
 
                 {activeTab === 'payloads' && (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead className="bg-gray-50 dark:bg-gray-900">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Name
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Source
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Scope
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Parse Marker
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Parser
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Instructions
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    <div className="flex gap-6 h-[calc(100vh-16rem)]">
+                        {/* Left column - Payload list */}
+                        <div className="w-1/3 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
+                            <div className="flex-shrink-0 px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                                    Payload Types ({config.payload_types.length})
+                                </h3>
+                            </div>
+                            <div className="flex-1 overflow-y-auto">
                                 {config.payload_types.map((pt) => (
-                                    <tr key={pt.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="font-medium text-gray-900 dark:text-white">
+                                    <div
+                                        key={pt.name}
+                                        onClick={() => setSelectedPayload(pt.name)}
+                                        className={`px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-700 ${
+                                            selectedPayload === pt.name
+                                                ? 'bg-blue-50 dark:bg-blue-900/20'
+                                                : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium text-gray-900 dark:text-white text-sm">
                                                 {pt.name}
-                                            </div>
-                                            <div className="text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
-                                                {pt.description}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                            </span>
+                                            {pt.is_global && (
+                                                <GlobeAltIcon className="h-3 w-3 text-purple-500" />
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded ${
                                                 pt.source === 'llm'
-                                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                                                    : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                                    : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                             }`}>
                                                 {pt.source}
                                             </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            {pt.is_global ? (
-                                                <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400">
-                                                    <GlobeAltIcon className="h-4 w-4" />
-                                                    Global
-                                                </span>
-                                            ) : (
-                                                <span className="text-gray-500 dark:text-gray-400">Page-specific</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                            {pt.parse_marker ? (
-                                                <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">
-                                                    {pt.parse_marker}
-                                                </code>
-                                            ) : (
-                                                <span className="text-gray-400">-</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <StatusIcon active={pt.has_parser} />
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <StatusIcon active={pt.has_instructions} />
-                                        </td>
-                                    </tr>
+                                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                                {pt.description}
+                                            </span>
+                                        </div>
+                                    </div>
                                 ))}
-                            </tbody>
-                        </table>
+                            </div>
+                        </div>
+
+                        {/* Right column - Payload details */}
+                        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col">
+                            {selectedPayload ? (
+                                (() => {
+                                    const payload = config.payload_types.find(p => p.name === selectedPayload);
+                                    if (!payload) return null;
+                                    return (
+                                        <>
+                                            <div className="flex-shrink-0 px-6 py-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                                                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                                                    {payload.name}
+                                                </h3>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                    {payload.description}
+                                                </p>
+                                            </div>
+                                            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                                                {/* Properties */}
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Source</div>
+                                                        <div className={`mt-1 inline-flex px-2 py-1 text-sm font-medium rounded ${
+                                                            payload.source === 'llm'
+                                                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                                                : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                        }`}>
+                                                            {payload.source}
+                                                        </div>
+                                                    </div>
+                                                    <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Scope</div>
+                                                        <div className="mt-1 text-sm text-gray-900 dark:text-white">
+                                                            {payload.is_global ? (
+                                                                <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400">
+                                                                    <GlobeAltIcon className="h-4 w-4" />
+                                                                    Global
+                                                                </span>
+                                                            ) : (
+                                                                'Page-specific'
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {payload.parse_marker && (
+                                                        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Parse Marker</div>
+                                                            <code className="mt-1 inline-block bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded text-sm">
+                                                                {payload.parse_marker}
+                                                            </code>
+                                                        </div>
+                                                    )}
+                                                    <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Features</div>
+                                                        <div className="mt-1 flex gap-3 text-sm">
+                                                            <span className={payload.has_parser ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}>
+                                                                {payload.has_parser ? '✓' : '✗'} Parser
+                                                            </span>
+                                                            <span className={payload.has_instructions ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}>
+                                                                {payload.has_instructions ? '✓' : '✗'} Instructions
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Schema */}
+                                                <div>
+                                                    <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                                                        Data Schema
+                                                    </h4>
+                                                    {payload.schema ? (
+                                                        <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-xs font-mono max-h-96 overflow-y-auto">
+                                                            {JSON.stringify(payload.schema, null, 2)}
+                                                        </pre>
+                                                    ) : (
+                                                        <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                                                            No schema defined
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </>
+                                    );
+                                })()
+                            ) : (
+                                <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
+                                    <div className="text-center">
+                                        <CubeIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                                        <p>Select a payload type to view details</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 

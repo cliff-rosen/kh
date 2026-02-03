@@ -784,6 +784,7 @@ class PayloadTypeInfo(BaseModel):
     parse_marker: Optional[str] = None
     has_parser: bool = False
     has_instructions: bool = False
+    schema: Optional[dict] = None  # JSON Schema for the payload data
 
     class Config:
         from_attributes = True
@@ -881,6 +882,7 @@ async def get_chat_config(
                     has_parser=pt.parser is not None,
                     has_instructions=pt.llm_instructions is not None
                     and len(pt.llm_instructions) > 0,
+                    schema=pt.schema,
                 )
             )
 

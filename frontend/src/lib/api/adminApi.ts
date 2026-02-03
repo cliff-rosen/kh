@@ -415,6 +415,7 @@ export interface PayloadTypeInfo {
   parse_marker?: string;
   has_parser: boolean;
   has_instructions: boolean;
+  schema?: Record<string, unknown>;  // JSON Schema for the payload data
 }
 
 export interface ToolInputSchema {
