@@ -5,9 +5,11 @@
  */
 
 import { useState, useEffect } from 'react';
-import { ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon, UserIcon, CpuChipIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon, UserIcon, CpuChipIcon, BugAntIcon } from '@heroicons/react/24/outline';
 import { api } from '@/lib/api';
 import { showErrorToast } from '@/lib/errorToast';
+import { AgentTrace as ChatAgentTrace } from '@/types/chat';
+import { DiagnosticsPanel } from '@/components/chat/DiagnosticsPanel';
 
 interface SuggestedValue {
     label: string;
@@ -514,28 +516,51 @@ function MessageDetailPanel({ message }: { message: Message }) {
         tabs.length > 0 ? tabs[0].id : 'input'
     );
 
+    // State for diagnostics panel (rich trace viewer)
+    const [showDiagnosticsPanel, setShowDiagnosticsPanel] = useState(false);
+
     return (
         <div className="space-y-4">
             {/* Message Header */}
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        message.role === 'user'
-                            ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
-                            : 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
-                    }`}>
-                        {message.role === 'user' ? (
-                            <UserIcon className="h-5 w-5" />
-                        ) : (
-                            <CpuChipIcon className="h-5 w-5" />
-                        )}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            message.role === 'user'
+                                ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                                : 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
+                        }`}>
+                            {message.role === 'user' ? (
+                                <UserIcon className="h-5 w-5" />
+                            ) : (
+                                <CpuChipIcon className="h-5 w-5" />
+                            )}
+                        </div>
+                        <div>
+                            <div className="font-semibold text-gray-900 dark:text-white capitalize">{message.role}</div>
+                            <div className="text-xs text-gray-500">{new Date(message.created_at).toLocaleString()}</div>
+                        </div>
                     </div>
-                    <div>
-                        <div className="font-semibold text-gray-900 dark:text-white capitalize">{message.role}</div>
-                        <div className="text-xs text-gray-500">{new Date(message.created_at).toLocaleString()}</div>
-                    </div>
+                    {/* View Trace button - only shown for new trace format */}
+                    {trace && (
+                        <button
+                            onClick={() => setShowDiagnosticsPanel(true)}
+                            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                        >
+                            <BugAntIcon className="h-4 w-4" />
+                            View Trace
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {/* Diagnostics Panel Modal (rich trace viewer) */}
+            {showDiagnosticsPanel && trace && (
+                <DiagnosticsPanel
+                    diagnostics={trace as unknown as ChatAgentTrace}
+                    onClose={() => setShowDiagnosticsPanel(false)}
+                />
+            )}
 
             {/* Tabs */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
