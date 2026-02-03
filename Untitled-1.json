@@ -1,0 +1,1012 @@
+{
+    "refined_question": "What does current scientific evidence indicate about the impact of low-level environmental exposures (such as asbestos or talc) on cancer risk in individuals with BRCA1 or BRCA2 mutations? Specifically, is there evidence that minimal exposures meaningfully increase cancer risk beyond the baseline risk conferred by BRCA mutations, and are there established exposure thresholds below which such environmental factors are not considered to contribute to cancer risk in this genetically predisposed population?",
+    "scope_boundaries": [
+        "In scope: Peer-reviewed studies on gene-environment interactions in BRCA1/2 mutation carriers; epidemiological data on cancer risk in BRCA carriers with environmental exposures (asbestos, talc); mechanistic studies on interaction between BRCA mutations and environmental carcinogens; regulatory or consensus statements on exposure thresholds for BRCA carriers.",
+        "Out of scope: Studies on non-BRCA genetic mutations; environmental exposures unrelated to asbestos or talc; animal studies unless directly relevant to human risk; general population risk without BRCA context; legal arguments or case law."
+    ],
+    "key_terms": [
+        "BRCA1",
+        "BRCA2",
+        "gene-environment interaction",
+        "asbestos exposure",
+        "talc exposure",
+        "cancer risk",
+        "exposure threshold",
+        "minimal exposure",
+        "ovarian cancer",
+        "breast cancer",
+        "genetic predisposition",
+        "synergistic risk",
+        "epidemiology",
+        "carcinogenesis"
+    ],
+    "checklist": [
+        {
+            "id": "1",
+            "description": "Summary of current scientific studies examining cancer risk from low-level environmental exposures (e.g., asbestos, talc) specifically in individuals with BRCA1 or BRCA2 mutations."
+        },
+        {
+            "id": "2",
+            "description": "Evidence regarding whether minimal exposures to these substances increase cancer risk beyond the baseline risk associated with BRCA1/2 mutations."
+        },
+        {
+            "id": "3",
+            "description": "Identification of any established exposure thresholds (e.g., dose, duration) for asbestos or talc below which cancer risk is not considered elevated in BRCA1/2 mutation carriers."
+        },
+        {
+            "id": "4",
+            "description": "Comparison of cancer risk from low-level exposures in BRCA1/2 mutation carriers versus the general population."
+        },
+        {
+            "id": "5",
+            "description": "Discussion of the biological plausibility or mechanistic evidence for increased susceptibility to environmental carcinogens in BRCA1/2 mutation carriers."
+        },
+        {
+            "id": "6",
+            "description": "Assessment of the quality and limitations of the available evidence, including study design, sample size, and potential confounders."
+        }
+    ],
+    "iterations": [
+        {
+            "iteration": 1,
+            "pubmed_queries": [
+                "(BRCA1[MeSH Terms] OR BRCA2[MeSH Terms] OR BRCA1[Title/Abstract] OR BRCA2[Title/Abstract]) AND (Asbestos[MeSH Terms] OR Talc[MeSH Terms] OR asbestos[Title/Abstract] OR talc[Title/Abstract] OR environmental exposure[MeSH Terms] OR environmental exposure[Title/Abstract]) AND (Neoplasms[MeSH Terms] OR cancer[Title/Abstract])",
+                "(BRCA1[Title/Abstract] OR BRCA2[Title/Abstract]) AND (asbestos[Title/Abstract] OR talc[Title/Abstract]) AND (cancer risk[Title/Abstract] OR neoplasm[Title/Abstract]) AND (threshold[Title/Abstract] OR dose-response[Title/Abstract] OR minimal exposure[Title/Abstract])"
+            ],
+            "web_queries": [
+                "Does low-level exposure to asbestos or talc increase cancer risk in people with BRCA1 or BRCA2 mutations?",
+                "Are there safe exposure thresholds for asbestos or talc in individuals with BRCA1/2 mutations, and how does their cancer risk compare to the general population?"
+            ],
+            "results_count": 20,
+            "checklist_progress": "1/6"
+        },
+        {
+            "iteration": 2,
+            "pubmed_queries": [
+                "(BRCA1[MeSH Terms] OR BRCA2[MeSH Terms] OR \"BRCA1 mutation\"[tiab] OR \"BRCA2 mutation\"[tiab]) AND (asbestos[MeSH Terms] OR talc[MeSH Terms] OR asbestos[tiab] OR talc[tiab]) AND (cancer risk[tiab] OR neoplasms[MeSH Terms] OR \"ovarian cancer\"[tiab] OR \"breast cancer\"[tiab]) AND (exposure[tiab] OR \"low-level exposure\"[tiab] OR threshold[tiab])",
+                "(BRCA1[MeSH Terms] OR BRCA2[MeSH Terms]) AND (asbestos[MeSH Terms] OR talc[MeSH Terms]) AND (carcinogenesis[MeSH Terms] OR \"biological plausibility\"[tiab] OR \"mechanism\"[tiab] OR \"DNA repair\"[tiab])"
+            ],
+            "web_queries": [
+                "Does low-level asbestos or talc exposure increase cancer risk in BRCA1 or BRCA2 mutation carriers?",
+                "Are there established safe exposure thresholds for asbestos or talc in people with BRCA1 or BRCA2 mutations?"
+            ],
+            "results_count": 20,
+            "checklist_progress": "1/6"
+        },
+        {
+            "iteration": 3,
+            "pubmed_queries": [
+                "(BRCA1[MeSH Terms] OR BRCA2[MeSH Terms] OR \"BRCA1 mutation\" OR \"BRCA2 mutation\") AND (Asbestos[MeSH Terms] OR Talc[MeSH Terms] OR \"environmental exposure\") AND (Ovarian Neoplasms[MeSH Terms] OR Neoplasms[MeSH Terms]) AND (\"risk\" OR \"threshold\" OR \"dose-response\" OR \"gene-environment interaction\")",
+                "(BRCA1[MeSH Terms] OR BRCA2[MeSH Terms]) AND (\"asbestos exposure\" OR \"talc exposure\" OR \"environmental carcinogens\") AND (\"cancer risk\" OR \"susceptibility\" OR \"mechanism\" OR \"threshold\")"
+            ],
+            "web_queries": [
+                "Does low-level asbestos or talc exposure increase cancer risk in BRCA1 or BRCA2 mutation carriers?",
+                "Are there established safe exposure thresholds for asbestos or talc in people with BRCA1 or BRCA2 mutations?"
+            ],
+            "results_count": 20,
+            "checklist_progress": "1/6"
+        },
+        {
+            "iteration": 4,
+            "pubmed_queries": [
+                "(BRCA1[MeSH Terms] OR BRCA2[MeSH Terms] OR \"BRCA1 mutation\"[Title/Abstract] OR \"BRCA2 mutation\"[Title/Abstract]) AND (Asbestos[MeSH Terms] OR Talc[MeSH Terms] OR \"environmental exposure\"[MeSH Terms] OR \"low-level exposure\"[Title/Abstract]) AND (Neoplasms[MeSH Terms] OR \"cancer risk\"[Title/Abstract])",
+                "(BRCA1[MeSH Terms] OR BRCA2[MeSH Terms]) AND (Asbestos[MeSH Terms] OR Talc[MeSH Terms]) AND (\"dose-response relationship, drug\"[MeSH Terms] OR \"threshold limit values\"[MeSH Terms] OR \"exposure threshold\"[Title/Abstract])"
+            ],
+            "web_queries": [
+                "Does low-level asbestos or talc exposure increase cancer risk in BRCA1 or BRCA2 mutation carriers?",
+                "Are there established safe exposure thresholds for asbestos or talc in people with BRCA1 or BRCA2 mutations?"
+            ],
+            "results_count": 20,
+            "checklist_progress": "1/6"
+        }
+    ],
+    "knowledge_base": {
+        "facts": [
+            {
+                "fact": "Chronic inflammation caused by talc and/or asbestos is a known risk factor for ovarian cancer, but there is no mention of studies specifically examining this risk in individuals with BRCA1 or BRCA2 mutations.",
+                "source_id": "web_12"
+            },
+            {
+                "fact": "Rare high penetrant mutations in the BRCA1 and BRCA2 genes greatly increase lifetime risk of ovarian cancer, but the review does not specify whether asbestos exposure further increases risk in this group or if there are established exposure thresholds for BRCA1/2 carriers.",
+                "source_id": "web_20"
+            },
+            {
+                "fact": "The National Toxicology Program (2000) concluded that talc is unlikely to pose a cancer risk to humans under exposure conditions that do not involve inhalation of asbestos-contaminated talc, but this assessment is not specific to BRCA1/2 mutation carriers.",
+                "source_id": "web_26"
+            },
+            {
+                "fact": "There is no known safe exposure level below which there is no risk of cancer from asbestos; the data suggest a linear relationship between asbestos exposure and cancer risk, but this is not specific to BRCA1/2 mutation carriers.",
+                "source_id": "web_5"
+            },
+            {
+                "fact": "Available reviews and background documents do not identify established exposure thresholds for asbestos or talc below which cancer risk is not considered elevated, either in the general population or in BRCA1/2 mutation carriers.",
+                "source_id": "web_26"
+            },
+            {
+                "fact": "There is a lack of direct evidence comparing cancer risk from low-level environmental exposures (asbestos, talc) in BRCA1/2 mutation carriers versus the general population.",
+                "source_id": "web_1"
+            },
+            {
+                "fact": "The biological plausibility for increased susceptibility to environmental carcinogens in BRCA1/2 mutation carriers is supported by the role of these genes in DNA repair, but there is no direct mechanistic evidence specific to asbestos or talc exposures in this population.",
+                "source_id": "web_1"
+            },
+            {
+                "fact": "The quality and limitations of the available evidence include a lack of studies specifically designed to assess low-level environmental exposures in BRCA1/2 mutation carriers, small sample sizes, and potential confounders such as co-exposures and genetic heterogeneity.",
+                "source_id": "web_20"
+            },
+            {
+                "fact": "There is a lack of direct scientific studies specifically examining cancer risk from low-level environmental exposures (such as asbestos or talc) in individuals with BRCA1 or BRCA2 mutations. Most available studies address these risk factors separately, not in combination.",
+                "source_id": "web_23"
+            },
+            {
+                "fact": "People with BRCA1, BRCA2, and p53 genetic alterations are less able to suppress the growth of cancer cells, suggesting increased susceptibility to environmental carcinogens, but direct evidence for increased risk from minimal exposures is lacking.",
+                "source_id": "web_23"
+            },
+            {
+                "fact": "No established exposure thresholds (dose or duration) for asbestos or talc have been identified below which cancer risk is not considered elevated in BRCA1/2 mutation carriers. Regulatory agencies generally do not define a 'safe' exposure level for these substances, even in the general population.",
+                "source_id": "web_31"
+            },
+            {
+                "fact": "The biological plausibility for increased susceptibility to environmental carcinogens in BRCA1/2 mutation carriers is supported by the role of these genes in DNA repair, but mechanistic or epidemiological evidence specifically linking low-level exposures to increased cancer risk in this population is limited.",
+                "source_id": "web_23"
+            },
+            {
+                "fact": "Some reviews and case reports note the co-occurrence of asbestos exposure and ovarian cancer, and separately, the high risk of ovarian cancer in BRCA1/2 mutation carriers, but do not provide comparative risk estimates for low-level exposures in mutation carriers versus the general population.",
+                "source_id": "web_25"
+            },
+            {
+                "fact": "Talc particles have been found in pelvic organs of exposed ovarian cancer patients, and BRCA1/2 mutations are known to increase ovarian cancer risk, but there is no direct evidence that talc exposure further increases risk in BRCA1/2 carriers beyond their baseline genetic risk.",
+                "source_id": "web_33"
+            },
+            {
+                "fact": "There is a lack of direct scientific studies specifically examining cancer risk from low-level environmental exposures (such as asbestos or talc) in individuals with BRCA1 or BRCA2 mutations. Most available studies address these risk factors separately, not in combination.",
+                "source_id": "web_53"
+            },
+            {
+                "fact": "BRCA1 and BRCA2 mutations greatly increase the baseline risk of ovarian and other cancers, but current evidence does not establish whether minimal exposures to asbestos or talc further increase cancer risk beyond this baseline in mutation carriers.",
+                "source_id": "web_53"
+            },
+            {
+                "fact": "No established exposure thresholds (dose or duration) for asbestos or talc have been defined below which cancer risk is not considered elevated in BRCA1/2 mutation carriers. Regulatory agencies generally do not specify lower safe limits for these exposures in genetically predisposed populations.",
+                "source_id": "web_47"
+            },
+            {
+                "fact": "Some mechanistic evidence suggests that individuals with BRCA1, BRCA2, or p53 mutations may be less able to suppress the growth of cancer cells, potentially increasing susceptibility to environmental carcinogens, but this is based on general biological plausibility rather than direct evidence in the context of low-level exposures.",
+                "source_id": "web_50"
+            },
+            {
+                "fact": "There is no clear evidence comparing cancer risk from low-level asbestos or talc exposures in BRCA1/2 mutation carriers versus the general population; most studies do not stratify risk by genetic status.",
+                "source_id": "web_53"
+            },
+            {
+                "fact": "Talc particles have been found in pelvic organs of ovarian cancer patients, and BRCA1/2 mutations are known to increase ovarian cancer risk, but there is no direct evidence that talc exposure further increases risk specifically in BRCA1/2 carriers.",
+                "source_id": "web_60"
+            },
+            {
+                "fact": "There is currently no direct evidence from scientific studies specifically examining whether low-level environmental exposures (such as asbestos or talc) increase cancer risk in individuals with BRCA1 or BRCA2 mutations beyond their already elevated baseline risk.",
+                "source_id": "web_59"
+            },
+            {
+                "fact": "People with BRCA1, BRCA2, and p53 genetic alterations are less able to suppress the growth of cancer cells, suggesting a biological plausibility for increased susceptibility to environmental carcinogens, but this is based on mechanistic reasoning rather than direct epidemiological evidence.",
+                "source_id": "web_59"
+            },
+            {
+                "fact": "No established exposure thresholds (dose or duration) for asbestos or talc have been identified below which cancer risk is not considered elevated in BRCA1/2 mutation carriers; most guidelines and reviews do not differentiate thresholds for genetically predisposed populations.",
+                "source_id": "web_74"
+            },
+            {
+                "fact": "While studies have shown that BRCA1/2 mutations greatly increase lifetime risk of ovarian and other cancers, and that asbestos and talc are associated with increased cancer risk in the general population, there is no evidence directly comparing the impact of low-level exposures in BRCA1/2 carriers versus the general population.",
+                "source_id": "web_68"
+            },
+            {
+                "fact": "Talc particles have been found in pelvic organs of ovarian cancer patients, and BRCA1/2 mutations are known to increase ovarian cancer risk, but there is no direct evidence that talc exposure further increases risk specifically in BRCA1/2 carriers.",
+                "source_id": "web_69"
+            }
+        ],
+        "sources": [
+            {
+                "id": "web_1",
+                "type": "web",
+                "title": "Environmental Factors Inducing Human Cancers - PMC - NIH",
+                "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3521879/",
+                "snippet": "Compared with cancers arising in the general population, individuals with a ... Similar mutations would be expected to result in cancer progression among all\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pmc.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_3",
+                "type": "web",
+                "title": "Cancer Facts & Figures 2025",
+                "url": "https://www.cancer.org/content/dam/cancer-org/research/cancer-facts-and-statistics/annual-cancer-facts-and-figures/2025/2025-cancer-facts-and-figures-acs.pdf",
+                "snippet": "What Percentage of People. Survive Cancer? The 5-year relative survival rate for all cancers combined is 69% for people diagnosed from 2014 to. 2020 (\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cancer.org"
+                }
+            },
+            {
+                "id": "web_5",
+                "type": "web",
+                "title": "Summary of External Peer Review and Public Comments for ... - EPA",
+                "url": "https://www.epa.gov/sites/default/files/2020-12/documents/2_summary_of_external_peer_review_and_public_comments_and_disposition.pdf",
+                "snippet": "and cancer, and there is no known safe exposure below which there is no risk ... relationship of lung cancer risk and asbestos exposure, the data can\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.epa.gov"
+                }
+            },
+            {
+                "id": "web_7",
+                "type": "web",
+                "title": "Screening assessment talc - Canada.ca",
+                "url": "https://www.canada.ca/en/environment-climate-change/services/evaluating-existing-substances/screening-assessment-talc.html",
+                "snippet": "Apr 22, 2021 ... Exposure to the general population from drinking water is not expected. ... cancers in women with a BRCA1 or BRCA2 Mutation. JAMA. 296:185\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.canada.ca"
+                }
+            },
+            {
+                "id": "web_9",
+                "type": "web",
+                "title": "Prevention and Early Detection - Ovarian Cancers - NCBI Bookshelf",
+                "url": "https://www.ncbi.nlm.nih.gov/books/NBK367614/",
+                "snippet": "For instance, women with a known BRCA1 or BRCA2 mutation who have prophylactic bilateral salpingo-oophorectomy (BSO) can reduce their risk of ovarian cancer by\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_11",
+                "type": "web",
+                "title": "Risk for ovarian cancer | Canadian Cancer Society",
+                "url": "https://cancer.ca/en/cancer-information/cancer-types/ovarian/risks",
+                "snippet": "This could be because of a BRCA gene mutation. Some of the same risks for breast cancer that are related to menstruation history may also increase the risk of\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "cancer.ca"
+                }
+            },
+            {
+                "id": "web_13",
+                "type": "web",
+                "title": "Nemeth v. Brenntag North America, APL-2020-00122",
+                "url": "https://www.crowell.com/a/web/sVeEiZXPYnPkJTHDJ8jGZL/4Ttirh/Nemeth-Amicus-Brief-Final.pdf",
+                "snippet": "Oct 29, 2020 ... Otherwise, those rulings would foreclose the cosmetic talc litigation by exposing the unreliability of the plaintiff experts' testimony. To help\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.crowell.com"
+                }
+            },
+            {
+                "id": "web_15",
+                "type": "web",
+                "title": "Serous Ovarian Cancer Caused by Exposure to Asbestos and...",
+                "url": "https://journals.lww.com/joem/fulltext/2020/02000/serous_ovarian_cancer_caused_by_exposure_to.19.aspx",
+                "snippet": "We provide evidence that the inhaled dose of asbestos/fibrous talc from \u201ccosmetic\u201d talc use causes ovarian cancer.",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "journals.lww.com"
+                }
+            },
+            {
+                "id": "web_17",
+                "type": "web",
+                "title": "Geographic co-occurrence of mesothelioma and ovarian cancer ...",
+                "url": "https://stacks.cdc.gov/view/cdc/84335/cdc_84335_DS1.pdf?",
+                "snippet": "Jan 1, 2021 ... Ensuring that people are protected from exposure to asbestos in their workplaces, homes, schools, and communities may reduce the risk of several.",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "stacks.cdc.gov"
+                }
+            },
+            {
+                "id": "web_19",
+                "type": "web",
+                "title": "Talc Summary Judgment Order - NJ Courts",
+                "url": "https://www.njcourts.gov/sites/default/files/mcl/orders-decisions/talc-powder/general/talc-dismissal-w-prej.pdf",
+                "snippet": "smoking and asbestos to lung cancer. ln Landrigan, an occupational asbestos exposure case, the trial court dismissed the case on the ground that there was a\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.njcourts.gov"
+                }
+            },
+            {
+                "id": "web_12",
+                "type": "web",
+                "title": "Epidemiologic and Genetic Factors Associated with Ovarian Cancer",
+                "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC2891150/",
+                "snippet": "Chronic inflammation caused by talc and/or asbestos is a known risk factor for ovarian cancer. In addition, patients with ovarian cancer have a higher\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pmc.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_14",
+                "type": "web",
+                "title": "Mesothelioma: Scientific clues for prevention, diagnosis, and therapy",
+                "url": "https://acsjournals.onlinelibrary.wiley.com/doi/10.3322/caac.21572",
+                "snippet": "Jul 8, 2019 ... The discovery that germline BRCA1-asssociated protein 1 (BAP1) mutations cause mesothelioma and other cancers (BAP1 cancer syndrome) elucidated\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "acsjournals.onlinelibrary.wiley.com"
+                }
+            },
+            {
+                "id": "web_16",
+                "type": "web",
+                "title": "Role of BRCA1 and BRCA2 mutations in pancreatic cancer - NIH",
+                "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1942153/",
+                "snippet": "Germline mutations in the tumour suppressor genes breast cancer antigen gene (BRCA)1 and BRCA2 have been proven to portend a drastically increased lifetime\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pmc.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_18",
+                "type": "web",
+                "title": "Prevention and Early Detection - Ovarian Cancers - NCBI Bookshelf",
+                "url": "https://www.ncbi.nlm.nih.gov/books/NBK367614/",
+                "snippet": "High- and Moderate-Risk Gene Mutations. BRCA1 and BRCA2 are the most recognizable of the genes that increase the risk of ovarian cancer. These genes were\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_20",
+                "type": "web",
+                "title": "RoC Background Document: Talc - National Toxicology Program",
+                "url": "https://ntp.niehs.nih.gov/sites/default/files/ntp/roc/zarchive/talc/roctalcbg20001213.pdf",
+                "snippet": "Dec 13, 2000 ... In one adequate inhalation study, rats exposed to non-asbestiform talc developed tumors of the adrenal glands and lungs (NTP 1993). Other\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "ntp.niehs.nih.gov"
+                }
+            },
+            {
+                "id": "web_22",
+                "type": "web",
+                "title": "Adenocarcinoma: Cancer Types, Stages & Survival Rate",
+                "url": "https://www.cancercenter.com/adenocarcinoma",
+                "snippet": "... exposed to arsenic in drinking water may increase lung cancer risk. Using talc or ... mutations (such as BRCA1 and BRCA2) raise the risk of breast cancer.",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cancercenter.com"
+                }
+            },
+            {
+                "id": "web_24",
+                "type": "web",
+                "title": "Epidemiology of ovarian cancer: a review - Semantic Scholar",
+                "url": "https://pdfs.semanticscholar.org/82e7/2e09c4249dfc7c66ecc22c499061785a3fa5.pdf",
+                "snippet": "Prevalence of founder BRCA1 and BRCA2 mutations among breast and ovarian cancer patients in Hungary. ... Does exposure to asbestos cause ovarian cancer? A\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pdfs.semanticscholar.org"
+                }
+            },
+            {
+                "id": "web_26",
+                "type": "web",
+                "title": "RoC Background Document: Talc - National Toxicology Program",
+                "url": "https://ntp.niehs.nih.gov/sites/default/files/ntp/roc/zarchive/talc/roctalcbg20001213.pdf",
+                "snippet": "Dec 13, 2000 ... ... cancer risk and the level of talc exposure. A ... talc is unlikely to pose a cancer risk to humans under exposure conditions that do not.",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "ntp.niehs.nih.gov"
+                }
+            },
+            {
+                "id": "web_28",
+                "type": "web",
+                "title": "The Fire Fighting Environment Risk for Breast Cancer, Gynecologic ...",
+                "url": "https://www.iaff.org/wp-content/uploads/2019/07/20219_IAFF_Women_and_Cancer_Study.pdf",
+                "snippet": "There is also an increased risk for women who have had breast cancer or are from a family with a breast cancer or ovarian cancer history. Mutations in the BRCA-\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.iaff.org"
+                }
+            },
+            {
+                "id": "web_21",
+                "type": "web",
+                "title": "Screening assessment talc - Canada.ca",
+                "url": "https://www.canada.ca/en/environment-climate-change/services/evaluating-existing-substances/screening-assessment-talc.html",
+                "snippet": "Apr 22, 2021 ... 2020) to compare talc particles from commercially available powders to those found ... BRCA1 or BRCA2 Mutation. JAMA. 296:185-192. Fine LJ\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.canada.ca"
+                }
+            },
+            {
+                "id": "web_23",
+                "type": "web",
+                "title": "Environmental Factors Inducing Human Cancers - PMC - NIH",
+                "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3521879/",
+                "snippet": "... exposures than others. People with BRCA1, BRCA2 and p53 genetic alterations render those individuals less able to suppress the growth of cancer cells (2).",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pmc.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_25",
+                "type": "web",
+                "title": "Geographic co-occurrence of mesothelioma and ovarian cancer ...",
+                "url": "https://stacks.cdc.gov/view/cdc/84335/cdc_84335_DS1.pdf?",
+                "snippet": "Jan 1, 2021 ... related to genetic mutations including BRCA1, BRCA2, and Lynch syndrome. ... informed choices about reducing their exposure to asbestos.",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "stacks.cdc.gov"
+                }
+            },
+            {
+                "id": "web_27",
+                "type": "web",
+                "title": "Ovarian cancer in a former asbestos textile factory worker",
+                "url": "https://aoemj.org/journal/view.php?doi=10.1186/s40557-018-0277-1",
+                "snippet": "Nov 16, 2018 ... Many studies on lung cancer, and mesothelioma caused by asbestos exposure have been conducted, but there was no case report of ovarian cancer\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "aoemj.org"
+                }
+            },
+            {
+                "id": "web_29",
+                "type": "web",
+                "title": "Mesothelioma: Scientific clues for prevention, diagnosis, and therapy",
+                "url": "https://acsjournals.onlinelibrary.wiley.com/doi/10.3322/caac.21572",
+                "snippet": "Jul 8, 2019 ... The discovery that germline BRCA1-asssociated protein 1 (BAP1) mutations cause mesothelioma and other cancers (BAP1 cancer syndrome) elucidated\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "acsjournals.onlinelibrary.wiley.com"
+                }
+            },
+            {
+                "id": "web_31",
+                "type": "web",
+                "title": "Cancer Facts & Figures 2018 - American Cancer Society",
+                "url": "https://www.cancer.org/content/dam/cancer-org/research/cancer-facts-and-statistics/annual-cancer-facts-and-figures/2018/cancer-facts-and-figures-2018.pdf",
+                "snippet": "Nov 21, 2025 ... While BRCA1 and BRCA2 mutations are rare (much less than 1%) in the ... There is no safe level of exposure to secondhand smoke. (SHS)\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cancer.org"
+                }
+            },
+            {
+                "id": "web_33",
+                "type": "web",
+                "title": "Decoding the Link Between Talcum Powder and Ovarian Cancer",
+                "url": "https://www.mdpi.com/2077-0383/14/16/5746",
+                "snippet": "... mutations in the BRCA1 and BRCA2 genes, which significantly ... Talc particles found in multiple pelvic organs of exposed OC patients; absent in controls\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.mdpi.com"
+                }
+            },
+            {
+                "id": "web_35",
+                "type": "web",
+                "title": "Cancer facts and figures, 2023 by American Cancer Society",
+                "url": "https://www.cancer.org/content/dam/cancer-org/research/cancer-facts-and-statistics/annual-cancer-facts-and-figures/2023/2023-cancer-facts-and-figures.pdf",
+                "snippet": "mutations (e.g., BRCA1 or BRCA2 or those related to. Lynch syndrome). Other ... of asbestos exposure in construction workers using pleural malignant\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cancer.org"
+                }
+            },
+            {
+                "id": "web_37",
+                "type": "web",
+                "title": "British Gynaecological Cancer Society (BGCS) ovarian, tubal and ...",
+                "url": "https://www.ejog.org/article/S0301-2115(24)00314-2/fulltext",
+                "snippet": "Jun 20, 2024 ... Most participants had BRCA mutations, either in their ... Association between BRCA1 and BRCA2 mutations and survival in women with invasive\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.ejog.org"
+                }
+            },
+            {
+                "id": "web_30",
+                "type": "web",
+                "title": "Epidemiologic and Genetic Factors Associated with Ovarian Cancer",
+                "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC2891150/",
+                "snippet": "Ethnicity does play a role in incidence, as women of Ashkenazi Jewish descent are at greater risk for BRCA1/2 mutations, which gives them an over-representation\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pmc.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_32",
+                "type": "web",
+                "title": "Epidemiology of ovarian cancer: a review",
+                "url": "https://www.cancerbiomed.org/content/14/1/9",
+                "snippet": "Feb 1, 2017 ... ... are affected, and at an early age of onset. Rare high penetrant mutations in the BRCA1 and BRCA2 genes greatly increase lifetime risk\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cancerbiomed.org"
+                }
+            },
+            {
+                "id": "web_34",
+                "type": "web",
+                "title": "Role of BRCA1 and BRCA2 mutations in pancreatic cancer - NIH",
+                "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1942153/",
+                "snippet": "Talc, asbestos exposure, Breastfeeding. PCOS, Parity (childbearing) ... is associated with a markedly increased lifetime risk of pancreatic cancer.",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pmc.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_36",
+                "type": "web",
+                "title": "Epidemiology of ovarian cancer: a review - Semantic Scholar",
+                "url": "https://pdfs.semanticscholar.org/82e7/2e09c4249dfc7c66ecc22c499061785a3fa5.pdf",
+                "snippet": "BRCA1 mutation carriers identifies novel loci associated with breast and ovarian cancer risk. ... Does exposure to asbestos cause ovarian cancer? A\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pdfs.semanticscholar.org"
+                }
+            },
+            {
+                "id": "web_38",
+                "type": "web",
+                "title": "Mesothelioma: Scientific clues for prevention, diagnosis, and therapy",
+                "url": "https://acsjournals.onlinelibrary.wiley.com/doi/10.3322/caac.21572",
+                "snippet": "Jul 8, 2019 ... The discovery that germline BRCA1-asssociated protein 1 (BAP1) mutations cause mesothelioma and other cancers (BAP1 cancer syndrome) elucidated\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "acsjournals.onlinelibrary.wiley.com"
+                }
+            },
+            {
+                "id": "web_40",
+                "type": "web",
+                "title": "Prevention and Early Detection - Ovarian Cancers - NCBI Bookshelf",
+                "url": "https://www.ncbi.nlm.nih.gov/books/NBK367614/",
+                "snippet": "High- and Moderate-Risk Gene Mutations. BRCA1 and BRCA2 are the most recognizable of the genes that increase the risk of ovarian cancer. These genes were\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_42",
+                "type": "web",
+                "title": "Volume 4, Chapter 27. Epidemiologic Perspective of Ovarian Cancer",
+                "url": "https://www.glowm.com/resources/glowm/cd/pages/v4/v4c027.html",
+                "snippet": "... cancer no increased risk for ovarian cancer with the use of perineal talc. ... levels greater than 200 mg/dL are at increased risk for ovarian cancer.",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.glowm.com"
+                }
+            },
+            {
+                "id": "web_44",
+                "type": "web",
+                "title": "Natural history of ovarian cancer - ecancer",
+                "url": "https://ecancer.org/en/journal/article/465-natural-history-of-ovarian-cancer",
+                "snippet": "BRCA 1 and BRCA 2 mutations: Risk for ovarian cancer from 27\u201344%, compared ... Exposure to asbestos, talc, or radiation. 9. Migration from adjacent\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "ecancer.org"
+                }
+            },
+            {
+                "id": "web_46",
+                "type": "web",
+                "title": "Focus on epithelial ovarian cancer - Cell Press",
+                "url": "https://www.cell.com/cancer-cell/fulltext/S1535-6108(04)00002-9",
+                "snippet": "The highest level of risk for ovarian cancer is associated with germline mutations in BRCA1, BRCA2, and the HNPCC genes (Narod and Boyd, 2002; Brown et al.,\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cell.com"
+                }
+            },
+            {
+                "id": "web_39",
+                "type": "web",
+                "title": "Epidemiologic and Genetic Factors Associated with Ovarian Cancer",
+                "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC2891150/",
+                "snippet": "Ethnicity does play a role in incidence, as women of Ashkenazi Jewish descent are at greater risk for BRCA1/2 mutations, which gives them an over-representation\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pmc.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_41",
+                "type": "web",
+                "title": "Epidemiology of ovarian cancer: a review",
+                "url": "https://www.cancerbiomed.org/content/14/1/9",
+                "snippet": "Feb 1, 2017 ... ... are affected, and at an early age of onset. Rare high penetrant mutations in the BRCA1 and BRCA2 genes greatly increase lifetime risk\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cancerbiomed.org"
+                }
+            },
+            {
+                "id": "web_43",
+                "type": "web",
+                "title": "Role of BRCA1 and BRCA2 mutations in pancreatic cancer - NIH",
+                "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1942153/",
+                "snippet": "Talc, asbestos exposure, Breastfeeding. PCOS, Parity (childbearing) ... is associated with a markedly increased lifetime risk of pancreatic cancer.",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pmc.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_45",
+                "type": "web",
+                "title": "Epidemiology of ovarian cancer: a review - Semantic Scholar",
+                "url": "https://pdfs.semanticscholar.org/82e7/2e09c4249dfc7c66ecc22c499061785a3fa5.pdf",
+                "snippet": "BRCA1 mutation carriers identifies novel loci associated with breast and ovarian cancer risk. ... Does exposure to asbestos cause ovarian cancer? A\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pdfs.semanticscholar.org"
+                }
+            },
+            {
+                "id": "web_47",
+                "type": "web",
+                "title": "RoC Background Document: Talc - National Toxicology Program",
+                "url": "https://ntp.niehs.nih.gov/sites/default/files/ntp/roc/zarchive/talc/roctalcbg20001213.pdf",
+                "snippet": "Dec 13, 2000 ... In one adequate inhalation study, rats exposed to non-asbestiform talc developed tumors of the adrenal glands and lungs (NTP 1993). Other\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "ntp.niehs.nih.gov"
+                }
+            },
+            {
+                "id": "web_49",
+                "type": "web",
+                "title": "Prevention and Early Detection - Ovarian Cancers - NCBI Bookshelf",
+                "url": "https://www.ncbi.nlm.nih.gov/books/NBK367614/",
+                "snippet": "High- and Moderate-Risk Gene Mutations. BRCA1 and BRCA2 are the most recognizable of the genes that increase the risk of ovarian cancer. These genes were\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_51",
+                "type": "web",
+                "title": "Volume 4, Chapter 27. Epidemiologic Perspective of Ovarian Cancer",
+                "url": "https://www.glowm.com/resources/glowm/cd/pages/v4/v4c027.html",
+                "snippet": "... cancer no increased risk for ovarian cancer with the use of perineal talc. ... levels greater than 200 mg/dL are at increased risk for ovarian cancer.",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.glowm.com"
+                }
+            },
+            {
+                "id": "web_53",
+                "type": "web",
+                "title": "Natural history of ovarian cancer - ecancer",
+                "url": "https://ecancer.org/en/journal/article/465-natural-history-of-ovarian-cancer",
+                "snippet": "BRCA 1 and BRCA 2 mutations: Risk for ovarian cancer from 27\u201344%, compared ... Exposure to asbestos, talc, or radiation. 9. Migration from adjacent\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "ecancer.org"
+                }
+            },
+            {
+                "id": "web_55",
+                "type": "web",
+                "title": "Focus on epithelial ovarian cancer - Cell Press",
+                "url": "https://www.cell.com/cancer-cell/fulltext/S1535-6108(04)00002-9",
+                "snippet": "The highest level of risk for ovarian cancer is associated with germline mutations in BRCA1, BRCA2, and the HNPCC genes (Narod and Boyd, 2002; Brown et al.,\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cell.com"
+                }
+            },
+            {
+                "id": "web_48",
+                "type": "web",
+                "title": "Screening assessment talc - Canada.ca",
+                "url": "https://www.canada.ca/en/environment-climate-change/services/evaluating-existing-substances/screening-assessment-talc.html",
+                "snippet": "Apr 22, 2021 ... 2020) to compare talc particles from commercially available powders to those found ... BRCA1 or BRCA2 Mutation. JAMA. 296:185-192. Fine LJ\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.canada.ca"
+                }
+            },
+            {
+                "id": "web_50",
+                "type": "web",
+                "title": "Environmental Factors Inducing Human Cancers - PMC - NIH",
+                "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3521879/",
+                "snippet": "... exposures than others. People with BRCA1, BRCA2 and p53 genetic alterations render those individuals less able to suppress the growth of cancer cells (2).",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pmc.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_52",
+                "type": "web",
+                "title": "Geographic co-occurrence of mesothelioma and ovarian cancer ...",
+                "url": "https://stacks.cdc.gov/view/cdc/84335/cdc_84335_DS1.pdf?",
+                "snippet": "Jan 1, 2021 ... related to genetic mutations including BRCA1, BRCA2, and Lynch syndrome. ... informed choices about reducing their exposure to asbestos.",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "stacks.cdc.gov"
+                }
+            },
+            {
+                "id": "web_54",
+                "type": "web",
+                "title": "Ovarian cancer in a former asbestos textile factory worker",
+                "url": "https://aoemj.org/journal/view.php?doi=10.1186/s40557-018-0277-1",
+                "snippet": "Nov 16, 2018 ... Many studies on lung cancer, and mesothelioma caused by asbestos exposure have been conducted, but there was no case report of ovarian cancer\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "aoemj.org"
+                }
+            },
+            {
+                "id": "web_56",
+                "type": "web",
+                "title": "RoC Background Document: Talc - National Toxicology Program",
+                "url": "https://ntp.niehs.nih.gov/sites/default/files/ntp/roc/zarchive/talc/roctalcbg20001213.pdf",
+                "snippet": "Dec 13, 2000 ... In one adequate inhalation study, rats exposed to non-asbestiform talc developed tumors of the adrenal glands and lungs (NTP 1993). Other\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "ntp.niehs.nih.gov"
+                }
+            },
+            {
+                "id": "web_58",
+                "type": "web",
+                "title": "Cancer Facts & Figures 2018 - American Cancer Society",
+                "url": "https://www.cancer.org/content/dam/cancer-org/research/cancer-facts-and-statistics/annual-cancer-facts-and-figures/2018/cancer-facts-and-figures-2018.pdf",
+                "snippet": "Nov 21, 2025 ... While BRCA1 and BRCA2 mutations are rare (much less than 1%) in the ... There is no safe level of exposure to secondhand smoke. (SHS)\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cancer.org"
+                }
+            },
+            {
+                "id": "web_60",
+                "type": "web",
+                "title": "Decoding the Link Between Talcum Powder and Ovarian Cancer",
+                "url": "https://www.mdpi.com/2077-0383/14/16/5746",
+                "snippet": "... mutations in the BRCA1 and BRCA2 genes, which significantly ... Talc particles found in multiple pelvic organs of exposed OC patients; absent in controls\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.mdpi.com"
+                }
+            },
+            {
+                "id": "web_62",
+                "type": "web",
+                "title": "Cancer facts and figures, 2023 by American Cancer Society",
+                "url": "https://www.cancer.org/content/dam/cancer-org/research/cancer-facts-and-statistics/annual-cancer-facts-and-figures/2023/2023-cancer-facts-and-figures.pdf",
+                "snippet": "mutations (e.g., BRCA1 or BRCA2 or those related to. Lynch syndrome). Other ... of asbestos exposure in construction workers using pleural malignant\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cancer.org"
+                }
+            },
+            {
+                "id": "web_64",
+                "type": "web",
+                "title": "British Gynaecological Cancer Society (BGCS) ovarian, tubal and ...",
+                "url": "https://www.ejog.org/article/S0301-2115(24)00314-2/fulltext",
+                "snippet": "Jun 20, 2024 ... Most participants had BRCA mutations, either in their ... Association between BRCA1 and BRCA2 mutations and survival in women with invasive\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.ejog.org"
+                }
+            },
+            {
+                "id": "web_57",
+                "type": "web",
+                "title": "Screening assessment talc - Canada.ca",
+                "url": "https://www.canada.ca/en/environment-climate-change/services/evaluating-existing-substances/screening-assessment-talc.html",
+                "snippet": "Apr 22, 2021 ... 2020) to compare talc particles from commercially available powders to those found ... BRCA1 or BRCA2 Mutation. JAMA. 296:185-192. Fine LJ\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.canada.ca"
+                }
+            },
+            {
+                "id": "web_59",
+                "type": "web",
+                "title": "Environmental Factors Inducing Human Cancers - PMC - NIH",
+                "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3521879/",
+                "snippet": "... exposures than others. People with BRCA1, BRCA2 and p53 genetic alterations render those individuals less able to suppress the growth of cancer cells (2).",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pmc.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_61",
+                "type": "web",
+                "title": "Geographic co-occurrence of mesothelioma and ovarian cancer ...",
+                "url": "https://stacks.cdc.gov/view/cdc/84335/cdc_84335_DS1.pdf?",
+                "snippet": "Jan 1, 2021 ... related to genetic mutations including BRCA1, BRCA2, and Lynch syndrome. ... informed choices about reducing their exposure to asbestos.",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "stacks.cdc.gov"
+                }
+            },
+            {
+                "id": "web_63",
+                "type": "web",
+                "title": "Ovarian cancer in a former asbestos textile factory worker",
+                "url": "https://aoemj.org/journal/view.php?doi=10.1186/s40557-018-0277-1",
+                "snippet": "Nov 16, 2018 ... Many studies on lung cancer, and mesothelioma caused by asbestos exposure have been conducted, but there was no case report of ovarian cancer\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "aoemj.org"
+                }
+            },
+            {
+                "id": "web_65",
+                "type": "web",
+                "title": "Mesothelioma: Scientific clues for prevention, diagnosis, and therapy",
+                "url": "https://acsjournals.onlinelibrary.wiley.com/doi/10.3322/caac.21572",
+                "snippet": "Jul 8, 2019 ... The discovery that germline BRCA1-asssociated protein 1 (BAP1) mutations cause mesothelioma and other cancers (BAP1 cancer syndrome) elucidated\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "acsjournals.onlinelibrary.wiley.com"
+                }
+            },
+            {
+                "id": "web_67",
+                "type": "web",
+                "title": "Cancer Facts & Figures 2018 - American Cancer Society",
+                "url": "https://www.cancer.org/content/dam/cancer-org/research/cancer-facts-and-statistics/annual-cancer-facts-and-figures/2018/cancer-facts-and-figures-2018.pdf",
+                "snippet": "Nov 21, 2025 ... While BRCA1 and BRCA2 mutations are rare (much less than 1%) in the ... There is no safe level of exposure to secondhand smoke. (SHS)\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cancer.org"
+                }
+            },
+            {
+                "id": "web_69",
+                "type": "web",
+                "title": "Decoding the Link Between Talcum Powder and Ovarian Cancer",
+                "url": "https://www.mdpi.com/2077-0383/14/16/5746",
+                "snippet": "... mutations in the BRCA1 and BRCA2 genes, which significantly ... Talc particles found in multiple pelvic organs of exposed OC patients; absent in controls\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.mdpi.com"
+                }
+            },
+            {
+                "id": "web_71",
+                "type": "web",
+                "title": "Cancer facts and figures, 2023 by American Cancer Society",
+                "url": "https://www.cancer.org/content/dam/cancer-org/research/cancer-facts-and-statistics/annual-cancer-facts-and-figures/2023/2023-cancer-facts-and-figures.pdf",
+                "snippet": "mutations (e.g., BRCA1 or BRCA2 or those related to. Lynch syndrome). Other ... of asbestos exposure in construction workers using pleural malignant\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cancer.org"
+                }
+            },
+            {
+                "id": "web_73",
+                "type": "web",
+                "title": "British Gynaecological Cancer Society (BGCS) ovarian, tubal and ...",
+                "url": "https://www.ejog.org/article/S0301-2115(24)00314-2/fulltext",
+                "snippet": "Jun 20, 2024 ... Most participants had BRCA mutations, either in their ... Association between BRCA1 and BRCA2 mutations and survival in women with invasive\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.ejog.org"
+                }
+            },
+            {
+                "id": "web_66",
+                "type": "web",
+                "title": "Epidemiologic and Genetic Factors Associated with Ovarian Cancer",
+                "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC2891150/",
+                "snippet": "Ethnicity does play a role in incidence, as women of Ashkenazi Jewish descent are at greater risk for BRCA1/2 mutations, which gives them an over-representation\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pmc.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_68",
+                "type": "web",
+                "title": "Epidemiology of ovarian cancer: a review",
+                "url": "https://www.cancerbiomed.org/content/14/1/9",
+                "snippet": "Feb 1, 2017 ... ... are affected, and at an early age of onset. Rare high penetrant mutations in the BRCA1 and BRCA2 genes greatly increase lifetime risk\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cancerbiomed.org"
+                }
+            },
+            {
+                "id": "web_70",
+                "type": "web",
+                "title": "Role of BRCA1 and BRCA2 mutations in pancreatic cancer - NIH",
+                "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1942153/",
+                "snippet": "Talc, asbestos exposure, Breastfeeding. PCOS, Parity (childbearing) ... is associated with a markedly increased lifetime risk of pancreatic cancer.",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pmc.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_72",
+                "type": "web",
+                "title": "Epidemiology of ovarian cancer: a review - Semantic Scholar",
+                "url": "https://pdfs.semanticscholar.org/82e7/2e09c4249dfc7c66ecc22c499061785a3fa5.pdf",
+                "snippet": "BRCA1 mutation carriers identifies novel loci associated with breast and ovarian cancer risk. ... Does exposure to asbestos cause ovarian cancer? A\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "pdfs.semanticscholar.org"
+                }
+            },
+            {
+                "id": "web_74",
+                "type": "web",
+                "title": "RoC Background Document: Talc - National Toxicology Program",
+                "url": "https://ntp.niehs.nih.gov/sites/default/files/ntp/roc/zarchive/talc/roctalcbg20001213.pdf",
+                "snippet": "Dec 13, 2000 ... Exposure to talc containing asbestiform fibers is reasonably anticipated to be a human carcinogen based on findings of elevated lung cancer\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "ntp.niehs.nih.gov"
+                }
+            },
+            {
+                "id": "web_76",
+                "type": "web",
+                "title": "Prevention and Early Detection - Ovarian Cancers - NCBI Bookshelf",
+                "url": "https://www.ncbi.nlm.nih.gov/books/NBK367614/",
+                "snippet": "High- and Moderate-Risk Gene Mutations. BRCA1 and BRCA2 are the most recognizable of the genes that increase the risk of ovarian cancer. These genes were\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.ncbi.nlm.nih.gov"
+                }
+            },
+            {
+                "id": "web_78",
+                "type": "web",
+                "title": "Volume 4, Chapter 27. Epidemiologic Perspective of Ovarian Cancer",
+                "url": "https://www.glowm.com/resources/glowm/cd/pages/v4/v4c027.html",
+                "snippet": "... cancer no increased risk for ovarian cancer with the use of perineal talc. ... levels greater than 200 mg/dL are at increased risk for ovarian cancer.",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.glowm.com"
+                }
+            },
+            {
+                "id": "web_80",
+                "type": "web",
+                "title": "Natural history of ovarian cancer - ecancer",
+                "url": "https://ecancer.org/en/journal/article/465-natural-history-of-ovarian-cancer",
+                "snippet": "BRCA 1 and BRCA 2 mutations: Risk for ovarian cancer from 27\u201344%, compared ... Exposure to asbestos, talc, or radiation. 9. Migration from adjacent\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "ecancer.org"
+                }
+            },
+            {
+                "id": "web_82",
+                "type": "web",
+                "title": "Focus on epithelial ovarian cancer - Cell Press",
+                "url": "https://www.cell.com/cancer-cell/fulltext/S1535-6108(04)00002-9",
+                "snippet": "The highest level of risk for ovarian cancer is associated with germline mutations in BRCA1, BRCA2, and the HNPCC genes (Narod and Boyd, 2002; Brown et al.,\u00a0...",
+                "metadata": {
+                    "published_date": "2026-02-03",
+                    "source": "www.cell.com"
+                }
+            }
+        ]
+    }
+}
