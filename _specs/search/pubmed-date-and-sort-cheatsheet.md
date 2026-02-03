@@ -8,24 +8,40 @@ Quick reference for working with PubMed's E-utilities API date filtering and sor
 
 ### Date Types (Field Tags)
 
-PubMed tracks multiple dates for each article. Choose the right one for your use case:
+PubMed tracks multiple dates for each article. These are the date types available for searching:
 
 | Date Type | Field Tag | What It Means | Use When |
 |-----------|-----------|---------------|----------|
-| **Publication Date** | `DP` | When the article was published in the journal | Default - most common for research monitoring |
-| **Completion Date** | `DCOM` | When PubMed finished processing/indexing the record | Looking for recently completed records |
-| **Entry Date** | `EDAT` | When the record first entered PubMed | Finding truly new entries to the database |
-| **Last Revised** | `LR` | When the record was last updated in PubMed | Tracking updates to existing articles |
+| **Publication Date** | `[dp]` | Combined electronic + print date (see note below) | Default - most common for research monitoring |
+| **Electronic Publication** | `[epdat]` | When article went online (e-publication) | Finding articles by online availability date |
+| **Print Publication** | `[ppdat]` | Official journal issue date (print) | Finding articles by print issue date |
+| **Entry Date** | `[edat]` | When record was added to PubMed | Finding newly indexed articles; used for "Most Recent" sort |
+| **Create Date** | `[crdt]` | When PubMed record was first created | Usually same as entry date |
+| **MeSH Date** | `[mhda]` | When citation was indexed with MeSH terms | Finding newly indexed MEDLINE articles |
+| **Completion Date** | `[dcom]` | When MEDLINE indexing was completed | Looking for recently completed records |
+| **Modification Date** | `[lr]` | When record was last updated | Tracking updates, corrections, retractions |
+
+#### Publication Date `[dp]` Behavior
+
+Publication Date combines electronic and print dates intelligently:
+- If electronic date comes **before** print → `[dp]` matches BOTH dates
+- If electronic date comes **after** print → `[dp]` matches only print date
+
+**Example**: Article online Jan 7, print issue Feb 1
+- Searching `[dp]` for January → FINDS the article (via electronic date)
+- Searching `[epdat]` for January → FINDS the article
+- Searching `[ppdat]` for January → Does NOT find the article
 
 **Our Implementation**:
 ```python
 # In pubmed_service.py
 date_field_map = {
-    "completion": "DCOM",
-    "publication": "DP",
+    "publication": "DP",   # Default - combined electronic + print
     "entry": "EDAT",
+    "completion": "DCOM",
     "revised": "LR"
 }
+# Note: We don't currently expose [epdat], [ppdat], [crdt], or [mhda]
 ```
 
 ### Date Format
@@ -186,17 +202,28 @@ search_articles(
 | **Rate limit** | 3 req/sec | 10 req/sec with API key |
 | **Max results per request** | 10,000 | Use `retstart` for pagination |
 
-### Date Coverage Gaps
+### Date Coverage Gaps and Timing
 
-**Completion Date (`DCOM`)** is not always available:
+**Electronic vs Print Publication:**
+- Many articles are available online weeks/months before print issue
+- Example: Online Jan 7, Print issue Feb 1
+- `[dp]` will match January search (uses earlier date)
+- This is why search results may show "February" articles in January results if we display print date
+
+**Completion Date (`[dcom]`)** is not always available:
 - Older records may not have completion dates
 - Some record types don't get completion dates
 - **Fallback**: Use publication date
 
-**Entry Date (`EDAT`)** timing:
+**Entry Date (`[edat]`)** timing:
 - May be days/weeks after publication
 - Depends on journal indexing speed
-- Preprints vs final publications have different timing
+- Used by PubMed for "Most Recent" sort order
+
+**MeSH Date (`[mhda]`)** timing:
+- Set when MeSH terms are added (article becomes MEDLINE)
+- Until then, equals Entry Date
+- Can be months after entry for some articles
 
 ---
 
@@ -288,17 +315,26 @@ articles, metadata = search_articles(
 ```
 START
   ↓
-Do you want articles by publication date?
-  ├─ YES → date_type="publication" (most common)
+Do you want articles by when they became available?
+  ├─ YES → date_type="publication" [dp] (most common)
+  │        Note: This matches electronic date if earlier than print
   └─ NO → Continue
        ↓
-    Do you want newly indexed articles (regardless of pub date)?
-      ├─ YES → date_type="entry"
+    Do you need ONLY electronic publication date?
+      ├─ YES → [epdat] (not in our implementation yet)
       └─ NO → Continue
            ↓
-        Do you want recently updated/corrected articles?
-          ├─ YES → date_type="revised"
-          └─ NO → date_type="completion"
+        Do you need ONLY print publication date?
+          ├─ YES → [ppdat] (not in our implementation yet)
+          └─ NO → Continue
+               ↓
+            Do you want newly indexed articles (regardless of pub date)?
+              ├─ YES → date_type="entry" [edat]
+              └─ NO → Continue
+                   ↓
+                Do you want recently updated/corrected articles?
+                  ├─ YES → date_type="revised" [lr]
+                  └─ NO → date_type="completion" [dcom]
 ```
 
 **Which sort should I use?**
@@ -312,6 +348,13 @@ Do you want the NEWEST articles?
 ```
 
 ---
+
+## Related Documentation
+
+**Internal docs:**
+- [Article Date Field Analysis](../../backend/docs/article_date_field_analysis.md) - How PubMed dates map to our data structures
+- [Article Date Population Map](../../backend/docs/article_date_population_map.md) - Where dates flow through the codebase
+- [PubMed Date Fields Reference](../../backend/docs/pubmed_date_fields.md) - XML structure details
 
 ## Additional Resources
 

@@ -88,13 +88,18 @@ PubDate can have varying precision:
 
 ## Search Date Tags
 
-| Tag | Field | Behavior |
-|-----|-------|----------|
-| `[dp]` | Publication Date | Matches **both** ArticleDate and PubDate when ArticleDate is earlier |
-| `[edat]` | Entrez Date | When added to PubMed; used for "Most Recent" sort |
-| `[crdt]` | Create Date | When record was first created |
+All date types available for PubMed searching:
+
+| Tag | Name | Behavior |
+|-----|------|----------|
+| `[dp]` | Publication Date | Matches **both** ArticleDate and PubDate when ArticleDate is earlier; matches only PubDate if ArticleDate is later |
 | `[epdat]` | Electronic Publication | ArticleDate only |
 | `[ppdat]` | Print Publication | PubDate only |
+| `[edat]` | Entry Date | When added to PubMed; used for "Most Recent" sort |
+| `[crdt]` | Create Date | When PubMed record was first created (usually same as entry) |
+| `[mhda]` | MeSH Date | When citation was indexed with MeSH terms |
+| `[dcom]` | Completion Date | When MEDLINE indexing was completed |
+| `[lr]` | Modification Date | When record was last updated |
 
 ### Key Behavior: `[dp]` Dual Matching
 
@@ -117,13 +122,15 @@ When ArticleDate is **later** than PubDate:
 mindate=2023/01/01&maxdate=2023/12/31&datetype=pdat
 ```
 
-Date types: `pdat` (publication), `edat` (entrez), `mdat` (modification)
+Date types for `datetype` parameter: `pdat` (publication), `edat` (entrez), `mdat` (modification)
 
 ### Inline Search Syntax
 
 ```
 ("2023/01/01"[dp] : "2023/12/31"[dp])
 ```
+
+Can use any of the search tags: `[dp]`, `[epdat]`, `[ppdat]`, `[edat]`, `[crdt]`, `[mhda]`, `[dcom]`, `[lr]`
 
 ---
 
