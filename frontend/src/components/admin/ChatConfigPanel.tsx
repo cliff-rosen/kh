@@ -1326,14 +1326,6 @@ export function ChatConfigPanel() {
                                             </div>
                                         )}
 
-                                        {/* Tool usage - read only */}
-                                        <div className="text-gray-600 dark:text-gray-400">
-                                            <div className="font-bold text-gray-800 dark:text-gray-200">**Tool usage:**</div>
-                                            <div>- `get_help()` - List all help categories</div>
-                                            <div>- `get_help(category="...")` - List topics in a category with summaries</div>
-                                            <div>- `get_help(category="...", topic="...")` - Get full content for a specific topic</div>
-                                        </div>
-
                                         {/* Available Help Topics header */}
                                         <div className="font-bold text-gray-800 dark:text-gray-200">**Available Help Topics:**</div>
 

@@ -277,13 +277,7 @@ def get_help_section_for_role(
     help_narrative = narrative if narrative is not None else DEFAULT_HELP_NARRATIVE
     parts.append(help_narrative)
 
-    # 2. Tool usage
-    parts.append("""**Tool usage:**
-- `get_help()` - List all help categories
-- `get_help(category="...")` - List topics in a category with summaries
-- `get_help(category="...", topic="...")` - Get full content for a specific topic""")
-
-    # 3. TOC
+    # 2. TOC (tool usage comes from the tool definition in CAPABILITIES)
     toc = get_help_toc_for_role(role, preamble, category_labels, summary_overrides)
     if toc:
         parts.append("**Available Help Topics:**\n" + toc)
