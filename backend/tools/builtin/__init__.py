@@ -10,6 +10,7 @@ from tools.builtin import reports
 from tools.builtin import conversation
 from tools.builtin import web
 from tools.builtin import help
+from tools.builtin import deep_research
 
 # Add more tool modules here as they are created:
 # from tools.builtin import research

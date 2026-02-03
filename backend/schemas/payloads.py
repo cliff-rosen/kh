@@ -1294,3 +1294,58 @@ register_payload_type(PayloadType(
         }
     }
 ))
+
+
+# =============================================================================
+# Deep Research Payloads
+# =============================================================================
+
+def _summarize_deep_research_result(data: Dict[str, Any]) -> str:
+    """Summarize deep research result."""
+    status = data.get("status", "unknown")
+    iterations = data.get("iterations_used", 0)
+    sources = len(data.get("sources", []))
+    return f"Deep research: {status} ({iterations} iterations, {sources} sources)"
+
+
+register_payload_type(PayloadType(
+    name="deep_research_result",
+    description="Result from deep research tool with synthesized answer and citations",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_deep_research_result,
+    schema={
+        "type": "object",
+        "properties": {
+            "trace_id": {"type": "string", "description": "Trace ID for research execution"},
+            "answer": {"type": "string", "description": "Synthesized answer with inline citations"},
+            "sources": {
+                "type": "array",
+                "description": "Sources used in the answer",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "type": {"type": "string", "enum": ["pubmed", "web"]},
+                        "title": {"type": "string"},
+                        "url": {"type": "string"},
+                        "snippet": {"type": "string"}
+                    }
+                }
+            },
+            "checklist_coverage": {
+                "type": "object",
+                "description": "Coverage of checklist items",
+                "properties": {
+                    "satisfied": {"type": "array", "items": {"type": "string"}},
+                    "partial": {"type": "array", "items": {"type": "string"}},
+                    "gaps": {"type": "array", "items": {"type": "string"}}
+                }
+            },
+            "iterations_used": {"type": "integer", "description": "Number of research iterations performed"},
+            "status": {"type": "string", "enum": ["completed", "max_iterations_reached", "error"]},
+            "limitations": {"type": "array", "items": {"type": "string"}, "description": "Known limitations"}
+        },
+        "required": ["trace_id", "answer", "sources", "status"]
+    }
+))
