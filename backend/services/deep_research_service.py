@@ -26,7 +26,8 @@ from pydantic import BaseModel, Field
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agents.prompts.llm import call_llm, LLMResult
+from agents.prompts.llm import call_llm
+from schemas.llm import DEFAULT_MODEL_CONFIG
 from services.pubmed_service import search_articles as search_pubmed
 from services.search_service import SearchService
 from services.tool_trace_service import ToolTraceService
@@ -500,6 +501,7 @@ Refine this question for research."""
                 "question": question,
                 "context": context or "No additional context provided"
             },
+            model_config=DEFAULT_MODEL_CONFIG,
             response_schema=RefinedQuestion
         )
 
@@ -528,6 +530,7 @@ Generate a checklist of what information is needed for a complete answer."""
             system_message=system_message,
             user_message=user_message,
             values={"question": refined_question},
+            model_config=DEFAULT_MODEL_CONFIG,
             response_schema=Checklist
         )
 
@@ -573,6 +576,7 @@ Generate 1-2 PubMed queries and 1-2 web search queries to fill the gaps."""
                 "knowledge_summary": knowledge_summary or "Nothing found yet",
                 "needed_items": needed_items
             },
+            model_config=DEFAULT_MODEL_CONFIG,
             response_schema=SearchQueries
         )
 
@@ -620,6 +624,7 @@ Extract relevant facts and note which checklist items they address."""
                 "needed_items": needed_items,
                 "results": results_text
             },
+            model_config=DEFAULT_MODEL_CONFIG,
             response_schema=ProcessedResults
         )
 
@@ -666,6 +671,7 @@ Evaluate completeness of each checklist item."""
                 "checklist": checklist_text,
                 "knowledge": knowledge_summary
             },
+            model_config=DEFAULT_MODEL_CONFIG,
             response_schema=CompletenessCheck
         )
 
@@ -711,6 +717,7 @@ Synthesize a comprehensive answer with citations."""
                 "checklist": checklist_text,
                 "knowledge": knowledge_summary
             },
+            model_config=DEFAULT_MODEL_CONFIG,
             response_schema=SynthesizedAnswer
         )
 

@@ -39,7 +39,7 @@ import logging
 from agents.prompts.base_prompt_caller import BasePromptCaller
 from config.llm_models import supports_reasoning_effort
 from schemas.llm import ChatMessage, MessageRole
-from schemas.llm import ModelConfig
+from schemas.llm import ModelConfig, DEFAULT_MODEL_CONFIG
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -138,7 +138,7 @@ async def call_llm(
         - For structured mode, result.data is a dict
     """
     # Apply defaults
-    config = model_config or ModelConfig()
+    config = model_config or DEFAULT_MODEL_CONFIG
     opts = options or LLMOptions()
 
     # Detect single vs batch mode
