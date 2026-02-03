@@ -39,6 +39,15 @@ class FeedbackType(str, PyEnum):
     IRRELEVANT = "irrelevant"
     IMPORTANT = "important"
 
+
+class ToolTraceStatus(str, PyEnum):
+    """Status of a tool trace execution"""
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
 class ReportFrequency(str, PyEnum):
     """Frequency of report generation"""
     DAILY = "daily"
@@ -759,6 +768,65 @@ class HelpContentOverride(Base):
     updated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
 
 
+class ToolTrace(Base):
+    """
+    Generic trace storage for long-running tool executions.
+
+    Provides a unified trace infrastructure for tools like deep_research, batch_analysis, etc.
+    Each tool stores its specific data in JSON fields (input_params, state, result, metrics).
+
+    Usage:
+    - Tool creates trace at start with input_params
+    - Updates progress/state during execution
+    - Completes with result and metrics, or fails with error_message
+
+    The state field is updated incrementally during execution and can be used to:
+    - Resume interrupted executions
+    - Show detailed progress in UI
+    - Debug and audit tool behavior
+    """
+    __tablename__ = "tool_traces"
+
+    id = Column(String(36), primary_key=True)  # UUID
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.org_id"), nullable=True)
+
+    # What tool created this trace
+    tool_name = Column(String(100), nullable=False, index=True)  # e.g., "deep_research"
+
+    # Input (tool-specific)
+    input_params = Column(JSON, default=dict)  # Parameters passed to the tool
+
+    # Execution state
+    status = Column(
+        Enum(ToolTraceStatus, values_callable=lambda x: [e.value for e in x], name='tooltracestatus'),
+        default=ToolTraceStatus.PENDING,
+        nullable=False,
+        index=True
+    )
+    progress = Column(Float, default=0.0)  # 0.0 to 1.0
+    current_stage = Column(String(100))  # Human-readable current stage
+
+    # Tool-specific state (updated during execution)
+    state = Column(JSON, default=dict)
+
+    # Output
+    result = Column(JSON)  # Final result (tool-specific structure)
+    error_message = Column(Text)
+
+    # Timing
+    created_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime)
+    completed_at = Column(DateTime)
+
+    # Metrics (tool-specific)
+    metrics = Column(JSON, default=dict)
+
+    # Relationships
+    user = relationship("User", back_populates="tool_traces")
+    organization = relationship("Organization")
+
+
 # Add relationships to User model
 User.research_streams = relationship("ResearchStream", back_populates="user", foreign_keys="ResearchStream.user_id")
 User.created_streams = relationship("ResearchStream", foreign_keys="ResearchStream.created_by")
@@ -769,3 +837,4 @@ User.report_schedule = relationship("ReportSchedule", back_populates="user", use
 User.feedback = relationship("UserFeedback", back_populates="user")
 User.conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
 User.events = relationship("UserEvent", back_populates="user", cascade="all, delete-orphan")
+User.tool_traces = relationship("ToolTrace", back_populates="user", cascade="all, delete-orphan")

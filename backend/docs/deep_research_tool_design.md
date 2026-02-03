@@ -370,31 +370,40 @@ async def search_sources(pubmed_queries: List[str], web_queries: List[str]):
     return results
 ```
 
-### Database Model
+### Database Model - Generic Tool Trace
+
+A single `tool_traces` table for all long-running tools that need execution traces.
 
 ```python
-class ResearchTrace(Base):
-    __tablename__ = "research_traces"
+class ToolTrace(Base):
+    """
+    Generic trace storage for long-running tools.
+
+    Each tool stores its specific data in the JSON fields (input_params, state, result, metrics).
+    This provides a unified trace infrastructure while allowing tool-specific flexibility.
+    """
+    __tablename__ = "tool_traces"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     org_id = Column(Integer, ForeignKey("organizations.org_id"))
 
-    # Input
-    question = Column(Text, nullable=False)
-    context = Column(Text)
-    max_iterations = Column(Integer, default=10)
+    # What tool created this trace
+    tool_name = Column(String(100), nullable=False, index=True)  # e.g., "deep_research"
 
-    # Research state
-    refined_question = Column(Text)
-    checklist = Column(JSON)  # [{id, description, satisfied, evidence}]
-    knowledge_base = Column(JSON)  # {facts: [], sources: [], gaps: []}
-    iterations = Column(JSON)  # [{iteration, queries, results_summary, checklist_status}]
+    # Input (tool-specific)
+    input_params = Column(JSON)  # Parameters passed to the tool
+
+    # Execution state
+    status = Column(String(50), default='pending', index=True)  # pending, in_progress, completed, failed, cancelled
+    progress = Column(Float, default=0.0)  # 0.0 to 1.0
+    current_stage = Column(String(100))  # Human-readable current stage
+
+    # Tool-specific state (updated during execution)
+    state = Column(JSON, default=dict)  # Tool's internal state
 
     # Output
-    final_answer = Column(Text)
-    sources = Column(JSON)
-    status = Column(String(50), default='pending')  # pending, in_progress, completed, failed
+    result = Column(JSON)  # Final result (tool-specific structure)
     error_message = Column(Text)
 
     # Timing
@@ -402,22 +411,73 @@ class ResearchTrace(Base):
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
 
-    # Metrics
-    total_pubmed_queries = Column(Integer, default=0)
-    total_web_queries = Column(Integer, default=0)
-    total_sources_found = Column(Integer, default=0)
+    # Metrics (tool-specific)
+    metrics = Column(JSON, default=dict)
+
+# Indexes
+Index('idx_tool_traces_user_tool', ToolTrace.user_id, ToolTrace.tool_name)
+Index('idx_tool_traces_status', ToolTrace.status)
+```
+
+**For deep_research, the JSON fields would contain:**
+
+```python
+# input_params
+{
+    "question": "What are the latest treatments for mesothelioma?",
+    "context": "Focus on immunotherapy approaches",
+    "max_iterations": 10
+}
+
+# state (updated during execution)
+{
+    "refined_question": "What are the current immunotherapy...",
+    "checklist": [
+        {"id": "1", "description": "Current approved treatments", "satisfied": True, "evidence": "..."},
+        {"id": "2", "description": "Clinical trial results", "satisfied": False}
+    ],
+    "knowledge_base": {
+        "facts": ["Pembrolizumab approved 2020...", ...],
+        "sources": [{"id": "src_1", "type": "pubmed", "pmid": "12345", ...}],
+        "gaps": ["Long-term survival data"]
+    },
+    "iterations": [
+        {"iteration": 1, "queries": [...], "results_count": 15, "checklist_progress": "2/5"}
+    ]
+}
+
+# result
+{
+    "answer": "Based on current research...",
+    "sources": [...],
+    "checklist_coverage": {"satisfied": 4, "partial": 1, "unsatisfied": 0}
+}
+
+# metrics
+{
+    "total_iterations": 3,
+    "pubmed_queries": 5,
+    "web_queries": 4,
+    "sources_processed": 42,
+    "llm_calls": 12
+}
 ```
 
 ### Service Structure
 
 ```
 backend/
-├── models.py                          # Add ResearchTrace
-├── tools/
-│   └── builtin/
-│       └── deep_research.py           # Tool registration + executor
+├── models.py                          # Add ToolTrace model
 ├── services/
-│   └── deep_research_service.py       # Core orchestration:
+│   ├── tool_trace_service.py          # Generic trace CRUD:
+│   │                                   #   - create_trace(tool_name, user_id, input_params)
+│   │                                   #   - update_progress(trace_id, stage, progress, state)
+│   │                                   #   - complete_trace(trace_id, result, metrics)
+│   │                                   #   - fail_trace(trace_id, error_message)
+│   │                                   #   - get_trace(trace_id)
+│   │                                   #   - list_traces(user_id, tool_name)
+│   │
+│   └── deep_research_service.py       # Research-specific orchestration:
 │                                       #   - refine_question()
 │                                       #   - generate_checklist()
 │                                       #   - generate_queries()
@@ -425,8 +485,11 @@ backend/
 │                                       #   - process_results()
 │                                       #   - check_completeness()
 │                                       #   - synthesize_answer()
+├── tools/
+│   └── builtin/
+│       └── deep_research.py           # Tool registration + async generator executor
 └── migrations/
-    └── add_research_traces.py
+    └── add_tool_traces.py
 ```
 
 ## Open Questions
