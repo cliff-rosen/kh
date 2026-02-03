@@ -486,42 +486,19 @@ export function ConversationList() {
     );
 }
 
-// Full detail panel for a selected message
+// Simplified detail panel for a selected message
 function MessageDetailPanel({ message }: { message: Message }) {
     const extras = message.extras || {};
-
-    // Support both old diagnostics format and new trace format
     const trace = extras.trace;
     const legacyDiagnostics = extras.diagnostics;
     const hasDiagnostics = !!trace || !!legacyDiagnostics;
-
-    // For raw output, check both formats
-    const hasRawOutput = !!trace?.final_text || !!legacyDiagnostics?.raw_llm_response;
-    const hasIterations = trace?.iterations && trace.iterations.length > 0;
-    const hasToolCalls = extras.tool_history && extras.tool_history.length > 0;
-    const hasExtras = !!extras.custom_payload ||
-                      (extras.suggested_values && extras.suggested_values.length > 0) ||
-                      (extras.suggested_actions && extras.suggested_actions.length > 0);
-
-    const tabs = [
-        { id: 'input' as const, label: 'LLM Input', show: hasDiagnostics },
-        { id: 'iterations' as const, label: `Iterations (${trace?.iterations?.length || 0})`, show: hasIterations },
-        { id: 'raw' as const, label: 'Raw Output', show: hasRawOutput },
-        { id: 'tools' as const, label: `Tool Calls (${extras.tool_history?.length || 0})`, show: hasToolCalls },
-        { id: 'extras' as const, label: 'Extras', show: hasExtras },
-    ].filter(t => t.show);
-
-    // Default to first available tab
-    const [activeTab, setActiveTab] = useState<'input' | 'iterations' | 'raw' | 'tools' | 'extras'>(
-        tabs.length > 0 ? tabs[0].id : 'input'
-    );
 
     // State for diagnostics panel (rich trace viewer)
     const [showDiagnosticsPanel, setShowDiagnosticsPanel] = useState(false);
 
     return (
         <div className="space-y-4">
-            {/* Message Header */}
+            {/* Message Header with View Trace button */}
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -541,14 +518,14 @@ function MessageDetailPanel({ message }: { message: Message }) {
                             <div className="text-xs text-gray-500">{new Date(message.created_at).toLocaleString()}</div>
                         </div>
                     </div>
-                    {/* View Trace button - only shown for new trace format */}
-                    {trace && (
+                    {/* View Trace button */}
+                    {hasDiagnostics && (
                         <button
                             onClick={() => setShowDiagnosticsPanel(true)}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors shadow-sm"
                         >
                             <BugAntIcon className="h-4 w-4" />
-                            View Trace
+                            View Full Trace
                         </button>
                     )}
                 </div>
@@ -562,310 +539,218 @@ function MessageDetailPanel({ message }: { message: Message }) {
                 />
             )}
 
-            {/* Tabs */}
+            {/* Quick Metrics Bar (for traces) */}
+            {trace && (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <div className={`rounded-lg p-3 ${
+                        trace.outcome === 'success' ? 'bg-green-50 dark:bg-green-900/20' :
+                        trace.outcome === 'error' ? 'bg-red-50 dark:bg-red-900/20' :
+                        'bg-yellow-50 dark:bg-yellow-900/20'
+                    }`}>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Outcome</div>
+                        <div className={`font-semibold text-sm ${
+                            trace.outcome === 'success' ? 'text-green-700 dark:text-green-300' :
+                            trace.outcome === 'error' ? 'text-red-700 dark:text-red-300' :
+                            'text-yellow-700 dark:text-yellow-300'
+                        }`}>{trace.outcome}</div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Iterations</div>
+                        <div className="font-semibold text-sm text-gray-900 dark:text-gray-100">{trace.total_iterations}</div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Tokens In</div>
+                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace.total_input_tokens.toLocaleString()}</div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Tokens Out</div>
+                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace.total_output_tokens.toLocaleString()}</div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Duration</div>
+                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{(trace.total_duration_ms / 1000).toFixed(2)}s</div>
+                    </div>
+                </div>
+            )}
+
+            {/* Message Content */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-                {tabs.length > 0 && (
-                    <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
-                        {tabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                                    activeTab === tab.id
-                                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-b-2 border-blue-500'
-                                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                }`}
-                            >
-                                {tab.label}
-                            </button>
+                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Message Content</h4>
+                </div>
+                <div className="p-4">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100 font-sans">
+                        {message.content}
+                    </pre>
+                </div>
+            </div>
+
+            {/* Suggested Values */}
+            {extras.suggested_values && extras.suggested_values.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-cyan-50 dark:bg-cyan-900/20">
+                        <h4 className="text-sm font-medium text-cyan-700 dark:text-cyan-300">
+                            Suggested Values ({extras.suggested_values.length})
+                        </h4>
+                    </div>
+                    <div className="p-4">
+                        <div className="flex flex-wrap gap-2">
+                            {extras.suggested_values.map((val, idx) => (
+                                <div key={idx} className="px-3 py-2 bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 rounded-lg">
+                                    <div className="text-xs font-medium text-cyan-800 dark:text-cyan-200">{val.label}</div>
+                                    <div className="text-sm font-mono text-cyan-600 dark:text-cyan-400">{val.value}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Suggested Actions */}
+            {extras.suggested_actions && extras.suggested_actions.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-pink-50 dark:bg-pink-900/20">
+                        <h4 className="text-sm font-medium text-pink-700 dark:text-pink-300">
+                            Suggested Actions ({extras.suggested_actions.length})
+                        </h4>
+                    </div>
+                    <div className="p-4">
+                        <div className="flex flex-wrap gap-2">
+                            {extras.suggested_actions.map((action, idx) => (
+                                <div key={idx} className="px-3 py-2 bg-pink-50 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 rounded-lg">
+                                    <div className="text-xs font-medium text-pink-800 dark:text-pink-200">{action.label}</div>
+                                    <div className="text-sm font-mono text-pink-600 dark:text-pink-400">
+                                        {action.action}
+                                        {action.handler && <span className="text-pink-400 dark:text-pink-500 ml-1">({action.handler})</span>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Custom Payload */}
+            {extras.custom_payload && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-orange-50 dark:bg-orange-900/20">
+                        <h4 className="text-sm font-medium text-orange-700 dark:text-orange-300">Custom Payload</h4>
+                    </div>
+                    <div className="p-4">
+                        <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto">
+                            {JSON.stringify(extras.custom_payload, null, 2)}
+                        </pre>
+                    </div>
+                </div>
+            )}
+
+            {/* Tool History Summary (if no trace but has tool_history) */}
+            {!trace && extras.tool_history && extras.tool_history.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-purple-50 dark:bg-purple-900/20">
+                        <h4 className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                            Tool Calls ({extras.tool_history.length})
+                        </h4>
+                    </div>
+                    <div className="p-4 space-y-3">
+                        {extras.tool_history.map((tool, idx) => (
+                            <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                                <div className="font-mono text-sm text-purple-600 dark:text-purple-400 mb-2">
+                                    {idx + 1}. {tool.tool_name}
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 text-xs">
+                                    <div>
+                                        <div className="text-gray-500 dark:text-gray-400 mb-1">Input</div>
+                                        <pre className="bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto text-gray-900 dark:text-gray-100">
+                                            {JSON.stringify(tool.input, null, 2)}
+                                        </pre>
+                                    </div>
+                                    <div>
+                                        <div className="text-gray-500 dark:text-gray-400 mb-1">Output</div>
+                                        <pre className="bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto max-h-24 overflow-y-auto whitespace-pre-wrap text-gray-900 dark:text-gray-100">
+                                            {tool.output.substring(0, 300)}{tool.output.length > 300 ? '...' : ''}
+                                        </pre>
+                                    </div>
+                                </div>
+                            </div>
                         ))}
                     </div>
-                )}
+                </div>
+            )}
 
-                <div className="p-4">
-                    {/* No tabs available (user messages) */}
-                    {tabs.length === 0 && (
-                        <div className="prose dark:prose-invert max-w-none">
-                            <pre className="whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
-                                {message.content}
-                            </pre>
+            {/* Legacy Diagnostics Info (minimal, just link to trace viewer) */}
+            {legacyDiagnostics && !trace && (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <div className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Legacy Diagnostics</div>
+                            <div className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                                Model: {legacyDiagnostics.model} | Max Tokens: {legacyDiagnostics.max_tokens}
+                            </div>
                         </div>
-                    )}
+                        <button
+                            onClick={() => setShowDiagnosticsPanel(true)}
+                            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded-lg transition-colors"
+                        >
+                            <BugAntIcon className="h-4 w-4" />
+                            View Details
+                        </button>
+                    </div>
+                </div>
+            )}
 
-                    {/* LLM Input Tab - supports both old diagnostics and new trace format */}
-                    {activeTab === 'input' && hasDiagnostics && (
-                        <div className="space-y-4">
-                            {/* Model Config */}
+            {/* Legacy Diagnostics Panel - wrap in compatible format */}
+            {showDiagnosticsPanel && legacyDiagnostics && !trace && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Legacy Diagnostics</h3>
+                            <button
+                                onClick={() => setShowDiagnosticsPanel(false)}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                            >
+                                <XMarkIcon className="h-5 w-5 text-gray-500" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Model</div>
-                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace?.model || legacyDiagnostics?.model}</div>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{legacyDiagnostics.model}</div>
                                 </div>
                                 <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Max Tokens</div>
-                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace?.max_tokens || legacyDiagnostics?.max_tokens}</div>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{legacyDiagnostics.max_tokens}</div>
                                 </div>
                                 <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Temperature</div>
-                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace?.temperature ?? legacyDiagnostics?.temperature ?? 'N/A'}</div>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{legacyDiagnostics.temperature ?? 'N/A'}</div>
                                 </div>
                                 <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Max Iterations</div>
-                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace?.max_iterations ?? legacyDiagnostics?.max_iterations ?? 'N/A'}</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Tools</div>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{legacyDiagnostics.tools?.length || 0}</div>
                                 </div>
                             </div>
-
-                            {/* Trace metrics (new format only) */}
-                            {trace && (
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Outcome</div>
-                                        <div className="font-mono text-sm text-green-700 dark:text-green-300">{trace.outcome}</div>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Iterations</div>
-                                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace.total_iterations}</div>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Tokens</div>
-                                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace.total_input_tokens} in / {trace.total_output_tokens} out</div>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Duration</div>
-                                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace.total_duration_ms}ms</div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Tools */}
-                            {((trace?.tools && trace.tools.length > 0) || (legacyDiagnostics?.tools && legacyDiagnostics.tools.length > 0)) && (
+                            {legacyDiagnostics.system_prompt && (
                                 <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                        Available Tools ({trace?.tools?.length || legacyDiagnostics?.tools?.length || 0})
-                                    </div>
-                                    <div className="flex flex-wrap gap-1">
-                                        {(trace?.tools || []).map((tool, idx) => (
-                                            <span key={idx} className="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-xs font-mono">
-                                                {tool.name}
-                                            </span>
-                                        ))}
-                                        {(!trace && legacyDiagnostics?.tools || []).map((tool, idx) => (
-                                            <span key={idx} className="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-xs font-mono">
-                                                {tool}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Context */}
-                            {(trace?.context || legacyDiagnostics?.context) && (
-                                <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Context</div>
-                                    <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-48 overflow-y-auto">
-                                        {JSON.stringify(trace?.context || legacyDiagnostics?.context, null, 2)}
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">System Prompt</div>
+                                    <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
+                                        {legacyDiagnostics.system_prompt}
                                     </pre>
                                 </div>
                             )}
-
-                            {/* System Prompt */}
-                            <div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                    System Prompt ({(trace?.system_prompt || legacyDiagnostics?.system_prompt)?.length || 0} chars)
-                                </div>
-                                <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap">
-                                    {trace?.system_prompt || legacyDiagnostics?.system_prompt}
-                                </pre>
-                            </div>
-
-                            {/* Initial Messages (new format) or Message History (old format) */}
-                            {trace?.initial_messages && trace.initial_messages.length > 0 ? (
+                            {legacyDiagnostics.raw_llm_response && (
                                 <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                        Initial Messages ({trace.initial_messages.length}) - stored conversation before tool exchange
-                                    </div>
-                                    <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-64 overflow-y-auto">
-                                        {JSON.stringify(trace.initial_messages, null, 2)}
-                                    </pre>
-                                </div>
-                            ) : legacyDiagnostics?.messages && legacyDiagnostics.messages.length > 0 ? (
-                                <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Message History ({legacyDiagnostics.messages.length} messages)</div>
-                                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                                        {legacyDiagnostics.messages.map((msg, idx) => (
-                                            <div key={idx} className="bg-gray-50 dark:bg-gray-900 p-2 rounded text-xs">
-                                                <span className="font-semibold text-gray-600 dark:text-gray-400">{msg.role}:</span>
-                                                <span className="ml-2 text-gray-800 dark:text-gray-200">{msg.content?.substring(0, 200)}{msg.content?.length > 200 ? '...' : ''}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : null}
-                        </div>
-                    )}
-
-                    {/* Iterations Tab (new trace format only) */}
-                    {activeTab === 'iterations' && trace?.iterations && (
-                        <div className="space-y-4">
-                            {trace.iterations.map((iter, idx) => (
-                                <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                                    <div className="bg-gray-50 dark:bg-gray-700/50 p-3 flex justify-between items-center">
-                                        <div className="flex items-center gap-3">
-                                            <span className="font-semibold text-gray-900 dark:text-white">Iteration {iter.iteration}</span>
-                                            <span className={`px-2 py-0.5 rounded text-xs ${
-                                                iter.stop_reason === 'end_turn' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                                iter.stop_reason === 'tool_use' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                                                'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                            }`}>
-                                                {iter.stop_reason}
-                                            </span>
-                                            {iter.tool_calls?.length > 0 && (
-                                                <span className="text-xs text-gray-500">{iter.tool_calls.length} tool calls</span>
-                                            )}
-                                        </div>
-                                        <div className="text-xs text-gray-500">
-                                            {iter.usage?.input_tokens || 0} in / {iter.usage?.output_tokens || 0} out | {iter.api_call_ms}ms
-                                        </div>
-                                    </div>
-                                    <div className="p-3 space-y-3 bg-white dark:bg-gray-800">
-                                        <div>
-                                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Messages to Model ({iter.messages_to_model?.length || 0})</div>
-                                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-2 rounded overflow-x-auto max-h-32 overflow-y-auto">
-                                                {JSON.stringify(iter.messages_to_model, null, 2)}
-                                            </pre>
-                                        </div>
-                                        <div>
-                                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Response Content</div>
-                                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-2 rounded overflow-x-auto max-h-32 overflow-y-auto">
-                                                {JSON.stringify(iter.response_content, null, 2)}
-                                            </pre>
-                                        </div>
-                                        {iter.tool_calls && iter.tool_calls.length > 0 && (
-                                            <div>
-                                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Tool Calls</div>
-                                                {iter.tool_calls.map((tc, tcIdx) => (
-                                                    <div key={tcIdx} className="bg-blue-50 dark:bg-blue-900/30 p-2 rounded mb-2 text-xs">
-                                                        <div className="font-mono text-blue-700 dark:text-blue-300 mb-1">{tc.tool_name} ({tc.execution_ms}ms)</div>
-                                                        <div className="grid grid-cols-2 gap-2 mt-2">
-                                                            <div>
-                                                                <div className="text-gray-500 dark:text-gray-400 mb-1">Input</div>
-                                                                <pre className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-900 p-1 rounded overflow-x-auto">
-                                                                    {JSON.stringify(tc.tool_input || tc.input_from_model, null, 2)}
-                                                                </pre>
-                                                            </div>
-                                                            <div>
-                                                                <div className="text-gray-500 dark:text-gray-400 mb-1">Output to Model</div>
-                                                                <pre className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-900 p-1 rounded overflow-x-auto max-h-24 overflow-y-auto whitespace-pre-wrap">
-                                                                    {tc.output_to_model?.substring(0, 500)}{tc.output_to_model?.length > 500 ? '...' : ''}
-                                                                </pre>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Raw Output Tab - supports both formats */}
-                    {activeTab === 'raw' && hasRawOutput && (
-                        <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                {trace ? 'Final Text' : 'Raw LLM Response'} ({(trace?.final_text || legacyDiagnostics?.raw_llm_response)?.length || 0} chars)
-                            </div>
-                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
-                                {trace?.final_text || legacyDiagnostics?.raw_llm_response}
-                            </pre>
-                        </div>
-                    )}
-
-                    {/* Tool Calls Tab */}
-                    {activeTab === 'tools' && extras.tool_history && extras.tool_history.length > 0 && (
-                        <div className="space-y-4">
-                            {extras.tool_history.map((tool, idx) => (
-                                <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
-                                    <div className="font-semibold text-purple-600 dark:text-purple-400 mb-3">
-                                        {idx + 1}. {tool.tool_name}
-                                    </div>
-                                    <div className="space-y-3">
-                                        <div>
-                                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Input</div>
-                                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto">
-                                                {JSON.stringify(tool.input, null, 2)}
-                                            </pre>
-                                        </div>
-                                        <div>
-                                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Output</div>
-                                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
-                                                {tool.output}
-                                            </pre>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Extras Tab */}
-                    {activeTab === 'extras' && (
-                        <div className="space-y-6">
-                            {/* Custom Payload */}
-                            {extras.custom_payload && (
-                                <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Custom Payload</div>
-                                    <pre className="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
-                                        {JSON.stringify(extras.custom_payload, null, 2)}
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Raw LLM Response</div>
+                                    <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
+                                        {legacyDiagnostics.raw_llm_response}
                                     </pre>
                                 </div>
                             )}
-
-                            {/* Suggested Values */}
-                            {extras.suggested_values && extras.suggested_values.length > 0 && (
-                                <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Suggested Values ({extras.suggested_values.length})</div>
-                                    <div className="space-y-1">
-                                        {extras.suggested_values.map((val, idx) => (
-                                            <div key={idx} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 p-2 rounded">
-                                                <span className="font-medium text-sm text-gray-900 dark:text-gray-100">{val.label}</span>
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">→</span>
-                                                <code className="text-xs text-gray-800 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 px-1 rounded">{val.value}</code>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Suggested Actions */}
-                            {extras.suggested_actions && extras.suggested_actions.length > 0 && (
-                                <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Suggested Actions ({extras.suggested_actions.length})</div>
-                                    <div className="space-y-1">
-                                        {extras.suggested_actions.map((action, idx) => (
-                                            <div key={idx} className="bg-gray-50 dark:bg-gray-900 p-2 rounded">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-medium text-sm text-gray-900 dark:text-gray-100">{action.label}</span>
-                                                    <code className="text-xs text-gray-800 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 px-1 rounded">{action.action}</code>
-                                                    {action.handler && (
-                                                        <span className="text-xs text-gray-500 dark:text-gray-400">({action.handler})</span>
-                                                    )}
-                                                </div>
-                                                {action.data && (
-                                                    <pre className="text-xs mt-1 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-1 rounded overflow-x-auto">
-                                                        {JSON.stringify(action.data, null, 2)}
-                                                    </pre>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }
