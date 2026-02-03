@@ -181,7 +181,20 @@ class CanonicalWebpage(BaseModel):
 
 class CanonicalPubMedArticle(BaseModel):
     """
-    Canonical PubMed Article schema - the definitive structure for academic articles.
+    PubMed-specific article schema - TRANSIENT INTERMEDIATE type.
+
+    Purpose: Validates PubMed data before conversion to CanonicalResearchArticle.
+
+    Lifecycle:
+        PubMedArticle (parsing) -> CanonicalPubMedArticle -> CanonicalResearchArticle
+
+    Usage:
+        - Created in pubmed_service.py, routers/tools.py, routers/tablizer.py
+        - Immediately converted via pubmed_to_research_article()
+        - All downstream code uses CanonicalResearchArticle
+
+    The metadata dict preserves PubMed-specific fields (article_date, pub_date,
+    entry_date, comp_date, date_revised) that get mapped to CanonicalResearchArticle fields.
     """
     pmid: str = Field(description="PubMed ID")
     title: str = Field(description="Article title")
@@ -197,8 +210,17 @@ class CanonicalPubMedArticle(BaseModel):
 
 class CanonicalScholarArticle(BaseModel):
     """
-    Canonical Google Scholar Article schema - the definitive structure for Google Scholar
-    search results across the entire system.
+    Google Scholar-specific article schema - TRANSIENT INTERMEDIATE type.
+
+    Purpose: Validates Scholar data before conversion to CanonicalResearchArticle.
+
+    Lifecycle:
+        GoogleScholarArticle (parsing) -> CanonicalScholarArticle -> CanonicalResearchArticle
+
+    Usage:
+        - Created in google_scholar_service.py
+        - Immediately converted via scholar_to_research_article()
+        - All downstream code uses CanonicalResearchArticle
     """
     title: str = Field(description="Article title")
     link: Optional[str] = Field(default=None, description="Direct link to the article")
@@ -323,71 +345,15 @@ class CanonicalClinicalTrial(BaseModel):
 
 
 # ============================================================================
-# BACKEND-ONLY TYPES
+# BACKEND-ONLY TYPES (ACTIVE)
 # ============================================================================
 
-
-class CanonicalExtractedFeature(BaseModel):
-    """
-    Canonical Extracted Feature schema - the definitive structure for extracted
-    feature values across the entire system.
-    (Backend-only: used for internal processing)
-    """
-    feature_id: str = Field(description="ID of the feature definition")
-    value: Any = Field(description="Extracted feature value")
-    confidence: Optional[float] = Field(None, description="Extraction confidence (0-1)")
-    extraction_method: Literal['ai', 'manual', 'computed'] = Field(description="How the feature was extracted")
-    extracted_at: str = Field(description="ISO timestamp when feature was extracted")
-    error_message: Optional[str] = Field(None, description="Error message if extraction failed")
-
-
-class CanonicalPubMedExtraction(BaseModel):
-    """
-    Canonical PubMed Extraction schema - the definitive structure for extracted features from articles.
-    """
-    item_id: str = Field(description="Unique identifier for the original article")
-    original_article: CanonicalPubMedArticle = Field(description="Original PubMed article")
-    extraction: Dict[str, Any] = Field(description="Extracted features/data fields")
-    extraction_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Extraction processing metadata")
-
-class CanonicalScoredArticle(BaseModel):
-    """
-    Canonical Scored Article schema - the definitive structure for scored PubMed articles.
-    """
-    article_with_features: CanonicalPubMedExtraction = Field(description="Article with extracted features")
-    total_score: float = Field(description="Total calculated score")
-    score_breakdown: Dict[str, float] = Field(description="Breakdown of score components")
-    percentile_rank: Optional[float] = Field(default=None, description="Percentile rank among all scored articles")
-    scoring_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Scoring methodology metadata")
-
-class CanonicalNewsletter(BaseModel):
-    """
-    Canonical Newsletter schema - the definitive structure for newsletter objects.
-    """
-    id: str = Field(description="Newsletter unique identifier")
-    title: str = Field(description="Newsletter title")
-    content: str = Field(description="Newsletter content")
-    source: str = Field(description="Newsletter source/publisher")
-    publish_date: datetime = Field(description="Publication date")
-    subject_line: Optional[str] = Field(default=None, description="Email subject line")
-    categories: List[str] = Field(default=[], description="Newsletter categories/tags")
-    articles: List[Dict[str, Any]] = Field(default=[], description="Individual articles within newsletter")
-    summary: Optional[str] = Field(default=None, description="Newsletter summary")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional newsletter metadata")
-
-class CanonicalDailyNewsletterRecap(BaseModel):
-    """
-    Canonical Daily Newsletter Recap schema - the definitive structure for daily recap objects.
-    """
-    date: str = Field(description="Recap date (ISO format)")
-    title: str = Field(description="Recap title")
-    summary: str = Field(description="Daily summary content")
-    newsletter_count: int = Field(description="Number of newsletters processed")
-    key_topics: List[str] = Field(default=[], description="Key topics covered")
-    sentiment_score: Optional[float] = Field(default=None, description="Overall sentiment score")
-    top_articles: List[Dict[str, Any]] = Field(default=[], description="Most important articles")
-    statistics: Optional[Dict[str, Any]] = Field(default=None, description="Processing statistics")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional recap metadata")
+# Note: The following types were removed as unused:
+# - CanonicalExtractedFeature (never imported outside this file)
+# - CanonicalPubMedExtraction (never imported outside this file)
+# - CanonicalScoredArticle (never imported outside this file)
+# - CanonicalNewsletter (never imported outside this file)
+# - CanonicalDailyNewsletterRecap (never imported outside this file)
 
 
 # ============================================================================
@@ -513,10 +479,6 @@ def get_canonical_model(type_name: str) -> type[BaseModel]:
         'pubmed_article': CanonicalPubMedArticle,
         'scholar_article': CanonicalScholarArticle,
         'research_article': CanonicalResearchArticle,
-        'newsletter': CanonicalNewsletter,
-        'daily_newsletter_recap': CanonicalDailyNewsletterRecap,
-        'pubmed_extraction': CanonicalPubMedExtraction,
-        'scored_article': CanonicalScoredArticle,
         'clinical_trial': CanonicalClinicalTrial
     }
     
@@ -527,7 +489,7 @@ def get_canonical_model(type_name: str) -> type[BaseModel]:
 
 def list_canonical_types() -> List[str]:
     """Get a list of all available canonical types."""
-    return ['email', 'search_result', 'webpage', 'pubmed_article', 'scholar_article', 'research_article', 'newsletter', 'daily_newsletter_recap', 'pubmed_extraction', 'scored_article', 'clinical_trial']
+    return ['email', 'search_result', 'webpage', 'pubmed_article', 'scholar_article', 'research_article', 'clinical_trial']
 
 def validate_canonical_data(type_name: str, data: Dict[str, Any]) -> Dict[str, Any]:
     """
