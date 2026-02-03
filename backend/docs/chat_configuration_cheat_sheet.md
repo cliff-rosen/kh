@@ -1,369 +1,406 @@
 # Chat Configuration Cheat Sheet
 
-A quick reference guide for configuring the chat system and avoiding common pitfalls.
+A guide for administrators to configure, monitor, and troubleshoot the chat system.
 
 ---
 
-## Configuration Hierarchy
+## How Chat Configuration Works
 
-Configuration flows from global to specific, with each level adding or overriding:
+The chat assistant's behavior is controlled by layered settings that combine at runtime:
 
 ```
-GLOBAL PREAMBLE (what KH is, your role)
+GLOBAL PREAMBLE (platform-wide identity and rules)
     ↓
-PAGE PERSONA (who the assistant is on this page)
+PAGE PERSONA (behavior on Reports, Streams, Tablizer, etc.)
     ↓
-TAB CONFIG (tab-specific tools/payloads)
+STREAM INSTRUCTIONS (domain-specific guidance for each research stream)
     ↓
-STREAM INSTRUCTIONS (domain-specific guidance)
+HELP CONTENT (documentation the assistant can retrieve)
     ↓
-CONTEXT (current page state, loaded data)
-    ↓
-CAPABILITIES (available tools)
-    ↓
-HELP TOC (reference documentation)
+TOOLS (what actions the assistant can perform)
 ```
 
----
-
-## The Five Configuration Levers
-
-| Lever | Scope | Where to Configure | Purpose |
-|-------|-------|-------------------|---------|
-| **Global Preamble** | All pages | `chat_config` (scope='global') | What KH is, assistant's general role |
-| **Page Persona** | Per page | `chat_page_config/<page>.py` | How assistant behaves on this page |
-| **Stream Instructions** | Per stream | Stream settings UI | Domain-specific guidance |
-| **Tools** | Page/tab | `chat_page_config/<page>.py` | What actions the LLM can take |
-| **Help Content** | Global | `backend/help/*.yaml` | Documentation the LLM can retrieve |
+Each layer adds context. When a user chats on the Reports page for a CAR-T stream, the assistant receives: global preamble + reports persona + CAR-T instructions + help content + report tools.
 
 ---
 
-## Quick Reference: Where Things Live
+## Admin Panel: Chat Config Tab
 
-| What | Location | Format |
-|------|----------|--------|
-| Page configs | `backend/services/chat_page_config/<page>.py` | Python |
-| Tool definitions | `backend/tools/builtin/<category>.py` | Python |
-| Tool registry | `backend/tools/registry.py` | Python |
-| Payload types | `backend/schemas/payloads.py` | Python |
-| Help content | `backend/help/*.yaml` | YAML |
-| Help registry | `backend/services/help_registry.py` | Python |
-| Chat service | `backend/services/chat_stream_service.py` | Python |
+Access via **Admin → Chat Config**. Six configuration tabs:
 
----
+### Tab 1: System
 
-## Page Persona Configuration
+**What you control:**
+- **Global Preamble** — The foundation of all chat behavior. Defines what KH is, the assistant's role, and universal rules (tone, verbosity, etc.)
+- **Max Tool Iterations** — How many tool-call loops allowed per request (default: 10, max: 20)
 
-The persona defines who the assistant is and how it behaves **on a specific page**.
+**When to edit the preamble:**
+- Assistant is too verbose → Add "Be concise. Avoid over-explaining."
+- Assistant is too complimentary → Add "Don't praise the user or KH."
+- Assistant hallucinates → Add "If unsure, say so. Don't guess."
+- Assistant asks too many questions → Add "Make reasonable interpretations for ambiguous requests. Don't ask for clarification unless truly necessary."
 
-### Example (from `reports.py`):
+**Example preamble additions:**
+```
+## Response Style
+- Be direct and concise
+- Don't compliment the user or praise KH
+- State your interpretation of ambiguous requests rather than asking
+- If you can't do something reliably, say so instead of attempting it
+```
 
-```python
-REPORTS_PERSONA = """## Reports Page
+### Tab 2: Pages
 
-On this page, users explore research intelligence reports.
+**What you control:**
+- **Custom Persona** for each page (Reports, Streams, Tablizer, Article Viewer, etc.)
 
-**Your tools let you:**
-- List and navigate reports in a research stream
-- Get report summaries and article details
+**What you can view:**
+- Available tools per page/tab
+- Available payloads (data types)
+- Context builder status
 
-**Page-specific guidance:**
-- Be specific about article PMIDs so users can find them
+**When to edit page personas:**
+- Assistant doesn't understand what users do on this page
+- Assistant offers irrelevant suggestions
+- Assistant uses tools inappropriately for this page
+
+**Example persona for Reports page:**
+```
+## Reports Page
+
+Users explore research reports containing curated articles.
+
+Your tools let you:
+- Navigate reports and articles
+- Get summaries and highlights
+- Search within reports
+
+Guidance:
+- Always cite PMIDs so users can find articles
 - If an article modal is open, focus on that article
-"""
-
-register_page(
-    page="reports",
-    context_builder=build_context,
-    persona=REPORTS_PERSONA,
-    payloads=["report_list", "report_summary", ...],
-)
+- Don't offer to do things outside report exploration
 ```
 
-### Persona Best Practices
+### Tab 3: Streams
 
-1. **Start with page context** - Tell the LLM what users do on this page
-2. **List available capabilities** - What tools/actions are available
-3. **Give page-specific guidance** - How to handle common scenarios
-4. **Keep it focused** - Don't repeat global instructions
+**What you control:**
+- **Chat Instructions** for each research stream
 
----
+**When to add stream instructions:**
+- Stream covers a specialized domain with unique terminology
+- Certain topics should be prioritized or de-prioritized
+- Domain experts have specific interpretation needs
 
-## Stream Instructions Configuration
-
-Stream instructions customize LLM behavior for a **specific research domain**.
-
-### Where to Set
-
-Users configure via the Stream Settings UI → Chat Instructions field.
-
-### What to Include
-
-```markdown
+**Example stream instructions:**
+```
 This stream monitors CAR-T cell therapy research.
 
-## Key Topics
-- Manufacturing improvements
-- Persistence and exhaustion
-- Solid tumor applications
+Key Topics: Manufacturing, persistence, solid tumors
 
-## Terminology Notes
-- "Response" usually means clinical response, not immune response
-- Watch for industry vs academic perspective differences
+Terminology:
+- "Response" = clinical response (not immune response)
+- "Exhaustion" = T-cell exhaustion, a key research focus
 
-## Priorities
-- Highlight drug interactions and contraindications
-- Note biomarker or genetic targets mentioned
+Priorities:
+- Note any safety signals or adverse events
+- Highlight manufacturing improvements
 ```
 
-### Stream Instructions Best Practices
+### Tab 4: Help
 
-1. **Domain context** - What this stream is about
-2. **Key topics** - What areas matter most
-3. **Terminology** - Domain-specific meanings
-4. **Interpretation notes** - How to read articles in this field
+**What you control:**
+- Help content organized by category (Getting Started, Reports, Streams, etc.)
+- Topic narratives and summaries
+- TOC preamble (what appears at top of help)
+- Role-based visibility (member, org_admin, platform_admin)
+
+**When to edit help:**
+- Users ask questions the assistant can't answer
+- Field meanings are unclear (add to Field Reference)
+- Domain terms need definition (add to Glossary)
+- Features have changed
+
+**Key categories:**
+| Category | Purpose |
+|----------|---------|
+| `field-reference` | What fields mean (dates, scores, inclusion status) |
+| `glossary` | Domain terms and KH-specific concepts |
+| `getting-started` | Onboarding and first steps |
+| `reports` | How to use Reports page |
+| `streams` | How to configure streams |
+
+### Tab 5: Tools
+
+**What you can view:**
+- All available tools grouped by category
+- Tool descriptions and parameters
+- Which tools are global vs page-specific
+
+**Note:** Tool definitions require code changes. This tab is read-only for understanding what's available.
+
+### Tab 6: Payloads
+
+**What you can view:**
+- Data structures the assistant can send/receive
+- Payload schemas and properties
+
+**Note:** Payload definitions require code changes. This tab is read-only.
 
 ---
 
-## Tool Configuration
+## Using Chat Diagnostics
 
-### Global vs Page-Specific Tools
+### In-Chat Diagnostics (Bug Icon)
 
-| `is_global` | Behavior |
-|-------------|----------|
-| `True` | Available on ALL pages automatically |
-| `False` | Only available when added to page/tab config |
+When viewing a chat conversation, messages with diagnostic data show a **bug icon**. Click it to open the diagnostics panel with three tabs:
 
-### Adding Tools to a Page
+#### Messages Tab
+Shows what happened step-by-step:
+- **System message** sent to the model (the full prompt)
+- **Each iteration** of the conversation:
+  - Messages sent to model
+  - Model's response
+  - Tool calls made (name, inputs, outputs, timing)
 
-```python
-register_page(
-    page="edit_stream",
-    tools=["validate_schema"],  # Page-wide tools
-    tabs={
-        "semantic": TabConfig(
-            tools=["run_semantic_analysis"],  # Tab-specific
-        ),
-    }
-)
-```
+**Use this to answer:**
+- What prompt did the assistant receive?
+- Which tools did it call?
+- What did each tool return?
+- Did it misinterpret the tool output?
 
----
+#### Config Tab
+Shows the request settings:
+- Model used (which Claude version)
+- Max tokens and temperature
+- Full system prompt
+- Available tools and their schemas
 
-## Help Content Configuration
+**Use this to answer:**
+- Was the right tool available?
+- Was the prompt adequate?
+- Were the tool descriptions clear?
 
-### YAML File Structure
+#### Metrics Tab
+Shows performance data:
+- Total iterations used
+- Token usage (input/output per iteration)
+- Execution time
+- Outcome (success, error, max_iterations_reached)
 
-```yaml
-# backend/help/reports.yaml
-sections:
-  - category: reports
-    topic: viewing
-    title: Viewing Reports
-    summary: How to navigate and view reports
-    roles: [member, org_admin, platform_admin]
-    order: 10
-    content: |
-      ## Viewing a Report
+**Use this to answer:**
+- Did it hit the iteration limit?
+- Is token usage reasonable?
+- How long did it take?
 
-      Navigate to Reports page and select...
-```
+### Admin Conversation History
 
-### Key Fields
+Access via **Admin → Conversations**. View all user conversations across the platform.
 
-| Field | Purpose |
+**Features:**
+- Filter by user
+- See message counts and timestamps
+- Click any conversation to view full history
+- Click "View Full Trace" on messages to see diagnostics
+
+**Message badges indicate:**
+| Badge | Meaning |
 |-------|---------|
-| `category` | Feature area (reports, streams, tools) |
-| `topic` | Specific topic within category |
-| `title` | Short title for display |
-| `summary` | Brief description (shown in TOC) |
-| `roles` | Who can see this (member, org_admin, platform_admin) |
-| `content` | Full markdown documentation |
-
-### Help Categories (in order)
-
-1. `general` - General app help
-2. `getting-started` - Onboarding guides
-3. `field-reference` - Field semantics (dates, filters, inclusion)
-4. `glossary` - Term definitions
-5. `reports` - Report features
-6. `article-viewer` - Article viewing
-7. `tablizer` - Tablizer app
-8. `streams` - Stream management
-9. `tools` - Tool documentation
-10. `operations` - Admin operations
+| `trace` / `diagnostics` (green) | Full diagnostic data available |
+| `N tool calls` (purple) | Number of tools called |
+| `payload` (orange) | Contains structured data |
+| `N values` (cyan) | Suggested form values |
+| `N actions` (pink) | Suggested UI actions |
 
 ---
 
-## Common Pitfalls & Anti-Patterns
+## Troubleshooting Guide
 
-### Pitfall 1: Ambiguity Handling
+When chat goes wrong, diagnose systematically:
 
-| Anti-Pattern | Problem | Fix |
-|--------------|---------|-----|
-| Always asking for clarification | Annoying, feels unhelpful | Make reasonable interpretation for marginal cases |
-| Never asking for clarification | May answer wrong question | Ask when truly ambiguous |
-| Guessing without stating | User doesn't know interpretation | Always state your interpretation |
-| Listing too many options | Overwhelming | Max 3-4 options |
+### Problem: Wrong Tool Called
 
-**Good pattern for marginal ambiguity:**
+**Symptoms:** Assistant uses inappropriate tool for the task
+
+**Diagnosis:**
+1. Open diagnostics → Messages tab
+2. Look at which tool was called and why
+3. Check the system prompt — does it give clear guidance on when to use which tool?
+
+**Fixes:**
+- Edit **page persona** to clarify when to use which tool
+- Edit **global preamble** to add general tool-selection rules
+- Check **tool descriptions** (view in Tools tab) — are they clear?
+
+### Problem: Tool Returned Wrong Data
+
+**Symptoms:** Tool was called correctly but returned unexpected results
+
+**Diagnosis:**
+1. Open diagnostics → Messages tab
+2. Find the tool call, examine inputs and outputs
+3. Were the inputs reasonable? Was the output what you expected?
+
+**Fixes:**
+- This usually requires a code fix to the tool
+- Document the issue with the specific inputs/outputs from diagnostics
+
+### Problem: Assistant Misinterpreted Results
+
+**Symptoms:** Tool worked correctly but assistant drew wrong conclusions
+
+**Diagnosis:**
+1. Open diagnostics → Messages tab
+2. Check what the tool returned vs what the assistant said
+3. Is there ambiguity in how the data should be interpreted?
+
+**Fixes:**
+- Add **help content** explaining how to interpret this data
+- Edit **page persona** with interpretation guidance
+- Add **stream instructions** for domain-specific interpretation
+
+### Problem: Prompt Was Inadequate
+
+**Symptoms:** Assistant didn't know something it should have
+
+**Diagnosis:**
+1. Open diagnostics → Config tab
+2. Read the full system prompt
+3. Is the needed information present?
+
+**Fixes:**
+- Edit **global preamble** for universal knowledge
+- Edit **page persona** for page-specific knowledge
+- Add **help content** for retrievable documentation
+- Add **stream instructions** for domain knowledge
+
+### Problem: Too Verbose / Too Complimentary / Too Boastful
+
+**Symptoms:** Response style issues
+
+**Diagnosis:**
+1. Check the global preamble — are style rules present?
+2. Check the page persona — any conflicting guidance?
+
+**Fixes:**
+Add explicit style rules to **global preamble**:
 ```
-"I'm interpreting this as [X]. [Answer]. If you meant [Y], let me know."
+## Response Style
+- Be concise. One paragraph unless more is needed.
+- Don't praise the user ("Great question!")
+- Don't boast about KH capabilities
+- Don't over-explain your reasoning
+- If uncertain, say so briefly
 ```
 
-**Good pattern for high ambiguity:**
+### Problem: Hallucination / Made-Up Results
+
+**Symptoms:** Assistant claims things that aren't true
+
+**Diagnosis:**
+1. Open diagnostics → Messages tab
+2. Did it call a tool? What did the tool return?
+3. Did it make up data that wasn't in the tool response?
+
+**Fixes:**
+- Add to **global preamble**: "Only state facts from tool results. If you don't have data, say so."
+- Add to **page persona**: Specific guidance on what can/can't be assumed
+- Review **help content** — is there outdated information?
+
+### Problem: Asks Too Many Clarifying Questions
+
+**Symptoms:** Simple requests get met with questions instead of answers
+
+**Diagnosis:**
+1. Was the user's request actually ambiguous?
+2. Check the preamble — is there guidance on ambiguity handling?
+
+**Fixes:**
+Add to **global preamble**:
 ```
-"I can help with this a few ways:
-1. [Option A]
-2. [Option B]
-Which would be most helpful?"
+## Handling Ambiguity
+- For marginal ambiguity: Make a reasonable interpretation, state it, and answer
+- Only ask for clarification when truly necessary (multiple valid interpretations with very different outcomes)
+- Never ask more than one clarifying question at a time
+- Max 2-3 options if you must ask
 ```
 
-### Pitfall 2: Tool Misuse
+### Problem: Over-Eager / Doesn't Understand Task
 
-| Anti-Pattern | Problem | Fix |
-|--------------|---------|-----|
-| Chaining 4+ tools | Fragile, error-prone | Say tools aren't adequate for task |
-| Querying data for semantic questions | Slow, may be wrong | Check help documentation first |
-| Using generic search for specific lookups | Inefficient | Add specific lookup tools |
-| Guessing at undocumented tool behavior | May return wrong answer | Acknowledge what you don't know |
+**Symptoms:** Assistant jumps to action without understanding what's needed
 
-**Signs to defer (tell user tools aren't adequate):**
-- Task requires >3-4 chained tool calls
-- Each step depends on parsing previous results
-- The "plan" feels like a Rube Goldberg machine
-- You're not confident the result will be correct
+**Diagnosis:**
+1. Open diagnostics → Messages tab
+2. Did it rush to call tools without reasoning?
+3. Was the user's intent clear?
 
-**Good deferral pattern:**
+**Fixes:**
+Add to **global preamble**:
 ```
-"That's a great question, but I don't have the right tools to answer it reliably.
-I can [what you CAN do], but [what you CAN'T do] would require [missing capability].
-Would [simpler alternative] help?"
+## Before Acting
+- Ensure you understand what the user wants
+- If the request is complex, briefly state your plan before executing
+- Don't attempt tasks you're not confident you can complete correctly
 ```
 
-### Pitfall 3: Missing Semantic Documentation
+### Problem: Hit Max Iterations
 
-| Gap | Consequence | Fix |
-|-----|-------------|-----|
-| No field reference docs | LLM can't answer "what does X mean?" | Add to `field-reference.yaml` |
-| No glossary | LLM guesses at domain terms | Add to `glossary.yaml` |
-| Help content outdated | LLM gives wrong guidance | Update help when features change |
+**Symptoms:** Response ends abruptly, diagnostics show `outcome: max_iterations_reached`
 
-**Every user-visible field must document:**
-- What the field means
-- Possible values and their meanings
-- Edge cases and special handling
-- Relationships to other fields
+**Diagnosis:**
+1. Check Metrics tab — how many iterations were used?
+2. Check Messages tab — what was it trying to do?
+3. Was it stuck in a loop?
 
-### Pitfall 4: Query Classification Errors
+**Fixes:**
+- Increase **max tool iterations** in System tab (if task legitimately needs more)
+- If stuck in loop: likely a tool or prompt issue — check the pattern
+- Add guidance to **page persona** about when to give up on complex tasks
 
-| Type | Example | Right Approach |
-|------|---------|----------------|
-| Navigation | "How do I create a stream?" | Use `get_help` tool |
-| Analysis | "Which articles mention CRISPR?" | Use data tools |
-| Ambiguous | "Tell me about the dates" | Clarify: semantics vs values |
+---
 
-**Navigation signals:** "how to", "what does X mean", UI questions
-**Analysis signals:** article content, summarize, compare, patterns
+## Quick Diagnosis Checklist
 
-### Pitfall 5: Response Quality
+When investigating a chat issue:
 
-| Anti-Pattern | Problem | Fix |
-|--------------|---------|-----|
-| Guessing at semantics | May be wrong | Verify against help docs |
-| Over-explaining implementation | User doesn't care | Focus on user-level meaning |
-| Giving data without context | Numbers are meaningless | Explain what the data means |
-| Verbose responses | Hard to scan | Be concise, use formatting |
+1. **Open the conversation** in Admin → Conversations
+2. **Find the problematic message** and click "View Full Trace"
+3. **Check Messages tab:**
+   - What prompt was sent?
+   - What tools were called?
+   - What did tools return?
+   - Where did reasoning go wrong?
+4. **Check Config tab:**
+   - Were the right tools available?
+   - Was the prompt complete?
+5. **Check Metrics tab:**
+   - Did it hit limits?
+   - Performance issues?
+6. **Identify the fix:**
+   - Prompt issue → Edit preamble, persona, or help
+   - Tool issue → Document for dev team
+   - Missing knowledge → Add help content
 
 ---
 
 ## Configuration Checklist
 
-### When Adding a New Page
+### Before Release
 
-- [ ] Create `chat_page_config/<page>.py`
-- [ ] Define `build_context()` function
-- [ ] Write page persona
-- [ ] List page-wide payloads
-- [ ] List page-wide tools (if any non-global needed)
-- [ ] Define tabs with tab-specific payloads/tools
-- [ ] Register with `register_page()`
+- [ ] Global preamble includes style rules (concise, no flattery, no boasting)
+- [ ] Global preamble includes ambiguity handling guidance
+- [ ] Each page has appropriate persona
+- [ ] Key streams have domain instructions
+- [ ] Help content covers common questions
+- [ ] Field Reference documents all user-visible fields
+- [ ] Glossary defines domain terms
+- [ ] Test with common user queries
+- [ ] Review conversation history for issues
 
-### When Adding a New Tool
+### When Issues Arise
 
-- [ ] Create tool in `tools/builtin/<category>.py`
-- [ ] Define clear input schema with descriptions
-- [ ] Write executor function
-- [ ] Set `is_global` appropriately
-- [ ] Define `payload_type` if returning structured data
-- [ ] Add anti-patterns (when NOT to use)
-- [ ] Add to page config if `is_global=False`
-
-### When Adding Help Content
-
-- [ ] Create/update `backend/help/<category>.yaml`
-- [ ] Include category, topic, title, summary
-- [ ] Set appropriate roles
-- [ ] Write complete content with examples
-- [ ] Document field semantics explicitly
-
-### When Changing Features
-
-- [ ] Update help content to match new behavior
-- [ ] Update field reference if fields changed
-- [ ] Update glossary if terms changed
-- [ ] Update page persona if capabilities changed
-- [ ] Test with navigation queries ("How do I...")
-
----
-
-## Testing Chat Configuration
-
-### Navigation Query Test Cases
-
-```
-"How do I create a new stream?"
-"What does filter_score mean?"
-"Are report dates inclusive or exclusive?"
-"How do I add an article to a report?"
-```
-
-**Expected:** LLM uses `get_help` tool, provides accurate guidance
-
-### Analysis Query Test Cases
-
-```
-"How many articles are in this report?"
-"Which articles mention gene therapy?"
-"Summarize the findings on drug resistance"
-"Compare these two reports"
-```
-
-**Expected:** LLM uses data tools, provides relevant analysis
-
-### Ambiguous Query Test Cases
-
-```
-"Tell me about the dates" → Should clarify (semantics vs values)
-"Why was this article included?" → Should answer specific case, offer general
-"What's wrong with this?" → Should ask what seems wrong
-```
-
-### Success Criteria
-
-| Criterion | Measure |
-|-----------|---------|
-| Correct mode selection | Uses docs for navigation, tools for analysis |
-| Answer accuracy | Matches ground truth |
-| Ambiguity handling | Appropriate clarification or interpretation |
-| Graceful degradation | Defers when tools inadequate |
-
----
-
-## Related Documentation
-
-- [Chat Architecture](../../_specs/chat/chat-architecture.md) - Full system design
-- [Adding Chat to Page](../../_specs/chat/adding-chat-to-page.md) - Step-by-step guide
-- [Critical Success Factors](./chat_system_critical_success_factors.md) - Detailed pitfalls
-- [System Prompt Design](./system_prompt_design.md) - Prompt structure
-- [Chat Improvement Plan](./chat_system_improvement_plan.md) - Known gaps
+- [ ] Reproduce the issue
+- [ ] Open diagnostics for the problematic message
+- [ ] Identify: prompt issue, tool issue, or knowledge gap
+- [ ] Make targeted fix (preamble, persona, help, or stream instructions)
+- [ ] Test the fix
+- [ ] Monitor conversation history for recurrence
