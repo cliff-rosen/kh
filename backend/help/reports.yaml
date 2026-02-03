@@ -25,11 +25,61 @@ sections:
       Reports are generated automatically based on the stream's schedule (daily, weekly, etc.).
 
   - category: reports
+    topic: how-generated
+    title: How Reports Are Generated
+    summary: Pipeline logic, de-duplication (each PMID appears in ONE report only), date filtering
+    roles: [member, org_admin, platform_admin]
+    order: 11
+    content: |
+      Reports are generated through an automated pipeline that finds, filters, and organizes new articles.
+
+      ## The Report Pipeline
+
+      ```
+      1. Query PubMed     → Find articles matching stream criteria
+      2. Date Filter      → Keep only articles in the report's date range
+      3. Semantic Filter  → Score relevance, keep articles above threshold
+      4. De-duplicate     → Remove articles already in prior reports
+      5. Summarize        → Generate AI summaries and categorize
+      6. Compile Report   → Create the final report
+      ```
+
+      ## Key Behavior: Incremental Reports
+
+      **Each article (PMID) appears in exactly ONE report per stream.**
+
+      The system de-duplicates against all prior reports in the stream. This means:
+      - Reports are always incremental - they show only NEW articles
+      - An article won't repeat even if it still matches the date range
+      - To find an older article, look in earlier reports
+
+      ## Date Range Behavior
+
+      The report's date range (start_date to end_date) filters by publication date:
+      - Both dates are **inclusive**
+      - Uses electronic publication date when available (before print date)
+      - Articles published within this window are candidates for the report
+
+      ## Semantic Filtering
+
+      Not every article in the date range makes it into the report:
+      - Each article is scored for relevance (0.0 to 1.0)
+      - Articles below the threshold are excluded
+      - Curators can override: manually include low-scoring or exclude high-scoring articles
+
+      ## Why This Matters
+
+      When users ask questions like:
+      - "Is this PMID in multiple reports?" → **No**, each PMID appears once
+      - "Why don't I see article X in this report?" → It may be in an earlier report, or filtered out
+      - "How do I find all articles on topic Y?" → Search across reports, or use compare_reports
+
+  - category: reports
     topic: views-member
     title: Report View Modes
     summary: Different ways to view report articles (All Articles, By Category)
     roles: [member]
-    order: 11
+    order: 12
     content: |
       Reports offer different view modes to help you explore articles:
 
@@ -54,7 +104,7 @@ sections:
     title: Report View Modes
     summary: Different ways to view report articles (All Articles, By Category, Tablizer)
     roles: [org_admin, platform_admin]
-    order: 11
+    order: 12
     content: |
       Reports offer different view modes to help you explore articles:
 
@@ -86,7 +136,7 @@ sections:
     title: Card Display Formats
     summary: Compact, Abstract, and AI Summary display options
     roles: [member, org_admin, platform_admin]
-    order: 12
+    order: 13
     content: |
       Control how much detail shows for each article card:
 
@@ -115,7 +165,7 @@ sections:
     title: Opening Articles
     summary: How to open articles in the Article Viewer
     roles: [member, org_admin, platform_admin]
-    order: 13
+    order: 14
     content: |
       Click any article card to open it in the Article Viewer.
 
@@ -133,7 +183,7 @@ sections:
     title: Using Chat with Reports
     summary: How to ask questions about report content
     roles: [member, org_admin, platform_admin]
-    order: 14
+    order: 15
     content: |
       The chat assistant can help you understand and explore report content.
 
