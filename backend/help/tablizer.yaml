@@ -1,189 +1,145 @@
 sections:
   - category: tablizer
     topic: overview
-    title: Tablizer View Overview
-    summary: Table view for analyzing report articles with AI-powered columns
+    title: Tablizer View
+    summary: Table view for report articles with AI-powered analysis columns
     roles: [org_admin, platform_admin]
     order: 10
     content: |
-      Tablizer is a table view for analyzing articles within a report using custom AI columns.
+      Tablizer displays report articles in a table format with the ability to add AI-powered analysis columns.
 
       **Accessing Tablizer:**
-      From any report, click the "Tablizer" button in the report header.
+      Click the "Tablizer" button in the report header to switch to table view.
 
-      **What Tablizer Does:**
-      - Displays report articles in a sortable, filterable table
-      - Add AI columns to categorize or extract information from articles
-      - Filter to find specific subsets of articles
-      - Export results with AI analysis included
-
-      **Available Columns:**
+      **What You See:**
+      A table showing all articles in the current report with columns for:
       - PMID, Title, Journal, Publication Date
-      - AI Summary, Abstract (toggle visibility)
-      - Categories assigned by the report
-      - Custom AI columns you add
+      - Categories (as assigned by the report)
+      - Abstract or AI Summary (toggle in Columns menu)
+
+      **What You Can Do:**
+      - Add AI columns to categorize or extract information
+      - Filter rows using the search box
+      - Sort by clicking column headers
+      - Show/hide columns
+      - Export to CSV
 
   - category: tablizer
     topic: ai-columns
-    title: Adding AI Columns
-    summary: Create custom AI-powered columns to analyze articles
+    title: AI Columns
+    summary: Add custom columns that use AI to analyze each article
     roles: [org_admin, platform_admin]
     order: 20
     content: |
-      AI columns let you analyze articles with custom criteria.
+      AI columns analyze each article and populate values automatically.
 
-      **Adding an AI Column:**
+      **To Add an AI Column:**
       1. Click "Add AI Column"
-      2. Enter a column name
-      3. Choose the output type
-      4. Write your criteria or question
-      5. Click "Add"
+      2. Enter a name for the column
+      3. Select the output type (Boolean, Text, or Number)
+      4. Write your question or criteria
+      5. Click Add
 
-      The AI processes each article and populates the column with results.
-
-      **Column Types:**
-
-      **Boolean (Yes/No)**
-      Ask yes/no questions. Results show as colored badges.
-      Examples:
+      **Boolean Columns (Yes/No):**
+      Ask yes/no questions. Results appear as colored Yes/No badges.
       - "Is this a clinical trial?"
-      - "Does this study involve human subjects?"
-      - "Is this about [specific drug or condition]?"
+      - "Does this involve human subjects?"
+      - "Is this about [specific drug]?"
 
-      **Text**
+      Quick filter buttons (All/Yes/No) appear for Boolean columns.
+
+      **Text Columns:**
       Extract specific information from each article.
-      Examples:
       - "What is the study design?"
       - "What population was studied?"
-      - "What is the primary endpoint?"
-      - "Summarize the main finding in one sentence"
+      - "What is the primary finding?"
 
-      **Number**
+      **Number Columns:**
       Extract numeric values.
-      Examples:
       - "What is the sample size?"
-      - "How many months of follow-up?"
+      - "How many patients were enrolled?"
 
   - category: tablizer
     topic: ai-results
-    title: Understanding AI Results
-    summary: Confidence scores, reasoning, and how to interpret AI column values
+    title: AI Column Results
+    summary: Understanding confidence scores and reasoning
     roles: [org_admin, platform_admin]
     order: 25
     content: |
-      Each AI column result includes:
+      Each AI result includes three parts:
 
-      **The Value:**
-      - Boolean: Yes or No (shown as colored badge)
-      - Text: The extracted information
-      - Number: The numeric value
+      **Value:** The answer (Yes/No, extracted text, or number)
 
-      **Confidence Score:**
-      How confident the AI is in its answer (0-100%).
-      - High confidence: AI found clear evidence
-      - Low confidence: Answer is uncertain or inferred
+      **Confidence:** How certain the AI is (0-100%)
+      - High confidence means clear evidence was found
+      - Low confidence means the answer is uncertain
 
-      **Reasoning:**
-      The AI's explanation for its answer.
-      - Toggle visibility with the chat bubble icon in the column header
-      - Hover over a cell to see reasoning in a tooltip
-      - Exported CSV includes reasoning for each row
+      **Reasoning:** Why the AI gave that answer
+      - Click the chat bubble icon in the column header to show reasoning
+      - Reasoning is included when you export to CSV
 
       **Tips:**
-      - Check reasoning when confidence is low
+      - Review reasoning when confidence is low
       - Boolean columns are most reliable for filtering
-      - Text columns work best with specific, focused questions
+      - Be specific with your questions for better results
 
   - category: tablizer
-    topic: filtering
+    topic: filtering-sorting
     title: Filtering and Sorting
-    summary: Find specific articles using filters and sorting
+    summary: Narrow down and organize the article list
     roles: [org_admin, platform_admin]
     order: 30
     content: |
-      Tablizer provides multiple ways to narrow down articles.
-
-      **Text Search:**
-      Use the search box to filter across all visible columns.
-      Matches title, journal, abstract, AI summary, and AI column values.
+      **Filter Box:**
+      Type in the search box to filter rows. Matches against all visible columns.
 
       **Boolean Quick Filters:**
-      When you add a Boolean AI column, quick filter buttons appear:
-      - **All** - Show all articles
-      - **Yes** - Show only articles where the AI answered "Yes"
-      - **No** - Show only articles where the AI answered "No"
+      For each Boolean AI column, buttons appear:
+      - All: Show all articles
+      - Yes: Show only Yes results
+      - No: Show only No results
 
-      Multiple Boolean columns can be filtered simultaneously.
-
-      **Column Sorting:**
-      Click any column header to sort:
-      - First click: Sort ascending
-      - Second click: Sort descending
-      - Third click: Clear sort
+      **Sorting:**
+      Click a column header to sort by that column.
+      Click again to reverse. Click a third time to clear.
 
       **Column Visibility:**
-      Click "Columns" to show/hide specific columns.
-      Hidden columns are still searchable.
+      Click "Columns" to show/hide columns.
 
   - category: tablizer
     topic: export
-    title: Exporting Results
-    summary: Export filtered articles with AI analysis
+    title: Exporting Data
+    summary: Export filtered results to CSV or copy IDs
     roles: [org_admin, platform_admin]
     order: 40
     content: |
-      Export your analysis for use in other tools.
-
       **Export CSV:**
-      Click "Export" to download a CSV file containing:
+      Click "Export" to download a CSV with:
       - All visible columns
-      - All filtered rows (or all rows if no filter active)
-      - AI column values with confidence and reasoning
+      - Current filtered rows
+      - AI column values, confidence, and reasoning
 
       **Copy IDs:**
-      Click "Copy X IDs" to copy PMIDs of filtered articles to clipboard.
-      Useful for searching in PubMed or other tools.
-
-      **What's Included in Export:**
-      For each AI column, the CSV includes three columns:
-      - The value (Yes/No, text, or number)
-      - Confidence percentage
-      - Reasoning explanation
-
-      **Tips:**
-      - Apply filters before exporting to get specific subsets
-      - Use Boolean AI columns to identify articles of interest, then export just those
-      - Text AI columns pre-extract information you'd otherwise need to read for manually
+      Click "Copy X IDs" to copy PMIDs to clipboard.
 
   - category: tablizer
-    topic: use-cases
-    title: Example Use Cases
-    summary: Common workflows for analyzing report articles
+    topic: examples
+    title: Example Workflows
+    summary: Common ways to use Tablizer
     roles: [org_admin, platform_admin]
     order: 50
     content: |
-      **Categorize by Study Type:**
-      1. Add Boolean column: "Is this a randomized controlled trial?"
-      2. Filter to Yes to see only RCTs
-      3. Export the filtered list
+      **Find Clinical Trials:**
+      1. Add Boolean column: "Is this a clinical trial?"
+      2. Click "Yes" filter button
+      3. Review or export the filtered list
 
-      **Extract Key Data:**
-      1. Add Text column: "What is the primary endpoint?"
-      2. Add Text column: "What is the study population?"
-      3. Sort by publication date
-      4. Export for a structured summary
+      **Extract Study Details:**
+      1. Add Text column: "What is the study design?"
+      2. Add Text column: "What is the sample size?"
+      3. Export to CSV for a structured summary
 
-      **Find Specific Articles:**
-      1. Add Boolean column: "Does this article discuss [your topic]?"
+      **Focus on Specific Topics:**
+      1. Add Boolean column: "Does this discuss [your topic]?"
       2. Filter to Yes
-      3. Review the matching articles
-
-      **Quantify Studies:**
-      1. Add Number column: "What is the sample size?"
-      2. Sort descending to find largest studies
-      3. Use text search to further narrow
-
-      **Quality Assessment:**
-      1. Add Boolean column: "Is this a systematic review or meta-analysis?"
-      2. Add Boolean column: "Does this include a control group?"
-      3. Filter and cross-reference to find high-quality evidence
+      3. Review matching articles
