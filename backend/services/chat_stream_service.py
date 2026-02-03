@@ -591,7 +591,6 @@ SUGGESTED_ACTIONS:
 
         narrative = None
         preamble = None
-        category_labels = {}
         summary_overrides = {}
 
         try:
@@ -606,9 +605,6 @@ SUGGESTED_ACTIONS:
                     narrative = config.content
                 elif config.scope_key == "toc-preamble" and config.content:
                     preamble = config.content
-                elif config.scope_key and config.scope_key.startswith("category-label:") and config.content:
-                    category = config.scope_key.replace("category-label:", "")
-                    category_labels[category] = config.content
 
             # Load summary overrides from help_content_override table
             result = await self.db.execute(
@@ -628,7 +624,6 @@ SUGGESTED_ACTIONS:
                 role=user_role,
                 narrative=narrative,
                 preamble=preamble,
-                category_labels=category_labels if category_labels else None,
                 summary_overrides=summary_overrides if summary_overrides else None
             )
         except Exception as e:

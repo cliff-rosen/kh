@@ -98,14 +98,12 @@ class HelpTOCPreview(BaseModel):
 class HelpTOCConfig(BaseModel):
     """TOC configuration for customizing help display in system prompts."""
     preamble: str
-    category_labels: Dict[str, str]
     narrative: str  # Explains when/why to use the help tool
 
 
 class HelpTOCConfigUpdate(BaseModel):
     """Update for TOC config."""
     preamble: Optional[str] = None
-    category_labels: Optional[Dict[str, str]] = None
     narrative: Optional[str] = None
 
 
@@ -484,7 +482,6 @@ async def preview_help_toc(
         toc = get_help_toc_for_role(
             role,
             preamble=config['preamble'],
-            category_labels=config['category_labels'],
             summary_overrides=config.get('summary_overrides', {})
         )
         previews.append(HelpTOCPreview(role=role, toc=toc or "(empty)"))
@@ -618,8 +615,6 @@ async def update_topic_summary(
 
 async def get_toc_config_from_db(db: AsyncSession) -> Dict[str, Any]:
     """Get TOC config from database, falling back to defaults."""
-    import json
-
     # Load all help-related ChatConfig entries at once
     result = await db.execute(
         select(ChatConfig).where(ChatConfig.scope == "help")
@@ -632,16 +627,6 @@ async def get_toc_config_from_db(db: AsyncSession) -> Dict[str, Any]:
     # Get narrative
     narrative = help_configs.get("narrative") or DEFAULT_HELP_NARRATIVE
 
-    # Get category labels
-    labels_content = help_configs.get("category-labels")
-    if labels_content:
-        try:
-            category_labels = json.loads(labels_content)
-        except json.JSONDecodeError:
-            category_labels = dict(DEFAULT_CATEGORY_LABELS)
-    else:
-        category_labels = dict(DEFAULT_CATEGORY_LABELS)
-
     # Get summary overrides from help_content_override table
     summary_result = await db.execute(select(HelpContentOverride))
     summary_overrides = {
@@ -653,7 +638,6 @@ async def get_toc_config_from_db(db: AsyncSession) -> Dict[str, Any]:
     return {
         'preamble': preamble,
         'narrative': narrative,
-        'category_labels': category_labels,
         'summary_overrides': summary_overrides,
     }
 
@@ -669,13 +653,11 @@ async def get_help_toc_config(
     Returns:
     - narrative: Text explaining when/why to use the help tool
     - preamble: Text shown before the TOC listing
-    - category_labels: Custom labels for each category
     """
     config = await get_toc_config_from_db(db)
     return HelpTOCConfig(
         preamble=config['preamble'],
-        narrative=config['narrative'],
-        category_labels=config['category_labels']
+        narrative=config['narrative']
     )
 
 
@@ -690,7 +672,6 @@ async def update_help_toc_config(
 
     All fields are optional - only provided fields are updated.
     """
-    import json
     from datetime import datetime
 
     try:
@@ -738,29 +719,6 @@ async def update_help_toc_config(
                     updated_by=current_user.user_id
                 ))
 
-        # Update category labels if provided
-        if update.category_labels is not None:
-            labels_result = await db.execute(
-                select(ChatConfig).where(
-                    ChatConfig.scope == "help",
-                    ChatConfig.scope_key == "category-labels"
-                )
-            )
-            existing = labels_result.scalars().first()
-            labels_json = json.dumps(update.category_labels)
-
-            if existing:
-                existing.content = labels_json
-                existing.updated_at = datetime.utcnow()
-                existing.updated_by = current_user.user_id
-            else:
-                db.add(ChatConfig(
-                    scope="help",
-                    scope_key="category-labels",
-                    content=labels_json,
-                    updated_by=current_user.user_id
-                ))
-
         await db.commit()
         logger.info(f"User {current_user.email} updated help TOC config")
 
@@ -780,7 +738,7 @@ async def reset_help_toc_config(
     """
     Reset TOC configuration to defaults (platform admin only).
 
-    Resets narrative, preamble, and category labels to their defaults.
+    Resets narrative and preamble to their defaults.
     """
     try:
         # Delete all help-scoped config entries (narrative, preamble, labels)

@@ -512,13 +512,11 @@ export interface HelpTOCPreview {
 export interface HelpTOCConfig {
   preamble: string;
   narrative: string;  // Explains when/why to use the help tool
-  category_labels: Record<string, string>;
 }
 
 export interface HelpTOCConfigUpdate {
   preamble?: string | null;
   narrative?: string | null;  // Explains when/why to use the help tool
-  category_labels?: Record<string, string> | null;
 }
 
 // Topic summary types for inline editing

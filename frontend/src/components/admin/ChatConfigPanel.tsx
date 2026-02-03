@@ -330,11 +330,6 @@ export function ChatConfigPanel() {
             } else if (editingField === 'preamble') {
                 const updated = await adminApi.updateHelpTocConfig({ preamble: editingValue });
                 setTocConfig(updated);
-            } else if (editingField.startsWith('label:')) {
-                const category = editingField.replace('label:', '');
-                const newLabels = { ...tocConfig.category_labels, [category]: editingValue };
-                const updated = await adminApi.updateHelpTocConfig({ category_labels: newLabels });
-                setTocConfig(updated);
             } else if (editingField.startsWith('summary:')) {
                 const [category, topic] = editingField.replace('summary:', '').split('/');
                 await adminApi.updateHelpSummary(category, topic, editingValue);
@@ -351,7 +346,7 @@ export function ChatConfigPanel() {
     };
 
     const resetAllLlmConfig = async () => {
-        if (!confirm('Reset all LLM configuration to defaults? This will reset the narrative, preamble, category names, and all topic summaries.')) return;
+        if (!confirm('Reset all LLM configuration to defaults? This will reset the narrative, preamble, and all topic summaries.')) return;
         setIsSavingField(true);
         try {
             await adminApi.resetHelpTocConfig();
@@ -1371,7 +1366,7 @@ export function ChatConfigPanel() {
                                         )}
 
                                         {/* Categories and topics */}
-                                        {tocConfig && topicSummaries && Object.entries(topicSummaries.categories).map(([category, topics]) => {
+                                        {topicSummaries && Object.entries(topicSummaries.categories).map(([category, topics]) => {
                                             // Filter topics by selected role
                                             const visibleTopics = topics.filter(t =>
                                                 selectedPreviewRole === 'platform_admin' || t.roles.includes(selectedPreviewRole)
@@ -1379,47 +1374,11 @@ export function ChatConfigPanel() {
 
                                             if (visibleTopics.length === 0) return null;
 
-                                            const categoryLabel = tocConfig.category_labels[category] || category;
-
                                             return (
                                                 <div key={category} className="space-y-1">
-                                                    {/* Category name - editable */}
-                                                    <div className="group relative">
-                                                        {editingField === `label:${category}` ? (
-                                                            <div className="space-y-2">
-                                                                <input
-                                                                    type="text"
-                                                                    value={editingValue}
-                                                                    onChange={(e) => setEditingValue(e.target.value)}
-                                                                    className="px-3 py-1 border-2 border-purple-500 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-mono font-bold"
-                                                                    autoFocus
-                                                                />
-                                                                <div className="flex gap-2">
-                                                                    <button
-                                                                        onClick={saveEditing}
-                                                                        disabled={isSavingField}
-                                                                        className="px-2 py-0.5 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded disabled:opacity-50"
-                                                                    >
-                                                                        Save
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={cancelEditing}
-                                                                        disabled={isSavingField}
-                                                                        className="px-2 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                                                                    >
-                                                                        Cancel
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <div
-                                                                onClick={() => startEditing(`label:${category}`, categoryLabel)}
-                                                                className="cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded px-2 py-1 -mx-2 border border-transparent hover:border-purple-300 dark:hover:border-purple-700 inline-block"
-                                                            >
-                                                                <span className="font-bold text-gray-800 dark:text-gray-200">**{categoryLabel}**:</span>
-                                                                <PencilSquareIcon className="h-3 w-3 text-purple-500 opacity-0 group-hover:opacity-100 inline ml-2" />
-                                                            </div>
-                                                        )}
+                                                    {/* Category ID - read only */}
+                                                    <div className="text-gray-700 dark:text-gray-300">
+                                                        {category}:
                                                     </div>
 
                                                     {/* Topics with summaries */}

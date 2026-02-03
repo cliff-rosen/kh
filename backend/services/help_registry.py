@@ -135,7 +135,6 @@ def _load_help_content() -> None:
 def get_help_toc_for_role(
     role: str,
     preamble: Optional[str] = None,
-    category_labels: Optional[Dict[str, str]] = None,
     summary_overrides: Optional[Dict[str, str]] = None
 ) -> str:
     """
@@ -145,7 +144,6 @@ def get_help_toc_for_role(
     Args:
         role: User role (member, org_admin, platform_admin)
         preamble: Optional custom preamble text (uses default if None)
-        category_labels: Optional dict of category -> display label overrides
         summary_overrides: Optional dict of 'category/topic' -> summary overrides
 
     Returns:
@@ -180,21 +178,15 @@ def get_help_toc_for_role(
     # Use provided preamble or default
     toc_preamble = preamble if preamble is not None else DEFAULT_TOC_PREAMBLE
 
-    # Merge default labels with any overrides
-    labels = dict(DEFAULT_CATEGORY_LABELS)
-    if category_labels:
-        labels.update(category_labels)
-
     # Summary overrides dict (or empty)
     summaries = summary_overrides or {}
 
-    # Format as grouped TOC
+    # Format as grouped TOC - use category IDs (not display labels) for clarity in API calls
     lines = [toc_preamble, ""]
 
     for category in sorted(by_category.keys(), key=lambda c: (category_order.get(c, 99), c)):
         sections = by_category[category]
-        label = labels.get(category, category.title())
-        lines.append(f"**{label}**:")
+        lines.append(f"{category}:")
         for section in sections:
             # Use overridden summary if available, otherwise default
             summary = summaries.get(section.id, section.summary)
@@ -236,12 +228,10 @@ def get_toc_config() -> Dict[str, Any]:
 
     Returns dict with:
     - preamble: The TOC intro text
-    - category_labels: Dict of category -> display label
     - narrative: The help narrative text
     """
     return {
         'preamble': DEFAULT_TOC_PREAMBLE,
-        'category_labels': dict(DEFAULT_CATEGORY_LABELS),
         'narrative': DEFAULT_HELP_NARRATIVE,
     }
 
@@ -250,7 +240,6 @@ def get_help_section_for_role(
     role: str,
     narrative: Optional[str] = None,
     preamble: Optional[str] = None,
-    category_labels: Optional[Dict[str, str]] = None,
     summary_overrides: Optional[Dict[str, str]] = None
 ) -> str:
     """
@@ -258,14 +247,12 @@ def get_help_section_for_role(
 
     Combines:
     - Narrative (explains when/why to use help)
-    - Tool usage instructions
-    - Table of contents
+    - Table of contents (with category IDs and topic summaries)
 
     Args:
         role: User role for filtering sections
         narrative: Optional custom narrative (uses default if None)
         preamble: Optional custom TOC preamble (uses default if None)
-        category_labels: Optional category label overrides
         summary_overrides: Optional topic summary overrides
 
     Returns:
@@ -278,7 +265,7 @@ def get_help_section_for_role(
     parts.append(help_narrative)
 
     # 2. TOC (tool usage comes from the tool definition in CAPABILITIES)
-    toc = get_help_toc_for_role(role, preamble, category_labels, summary_overrides)
+    toc = get_help_toc_for_role(role, preamble, summary_overrides)
     if toc:
         parts.append("**Available Help Topics:**\n" + toc)
 
