@@ -259,6 +259,8 @@ export default function ArticleViewerModal({
                     pmid: article.pmid as string,
                     pmc_id: null,
                     full_text: null,
+                    source: null,
+                    links: null,
                     error: 'Failed to fetch full text'
                 }
             }));
