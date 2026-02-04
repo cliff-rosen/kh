@@ -348,6 +348,7 @@ class PubMedArticle():
         self.medium = kwargs['medium']
         self.pmc_id = kwargs.get('pmc_id', '')
         self.doi = kwargs.get('doi', '')
+        self.full_text = kwargs.get('full_text', '')  # Full text from PMC if fetched
 
     def __str__(self) -> str:
         line = "===================================================\n"        
@@ -697,20 +698,34 @@ class PubMedService:
                 logger.error(f"Error in PubMed search: {e}", exc_info=True)
                 raise
     
-    async def get_articles_from_ids(self, ids: List[str]) -> List[PubMedArticle]:
+    async def get_articles_from_ids(
+        self,
+        ids: List[str],
+        include_full_text: bool = False
+    ) -> List[PubMedArticle]:
         """
         Fetch full article data from PubMed IDs (public wrapper, async).
 
         Args:
             ids: List of PubMed IDs
+            include_full_text: If True, also fetch full text from PMC for articles that have a PMC ID
 
         Returns:
             List of PubMedArticle objects
         """
-        return await self._get_articles_from_ids(ids)
+        return await self._get_articles_from_ids(ids, include_full_text=include_full_text)
 
-    async def _get_articles_from_ids(self, ids: List[str]) -> List[PubMedArticle]:
-        """Fetch full article data from PubMed IDs (async)."""
+    async def _get_articles_from_ids(
+        self,
+        ids: List[str],
+        include_full_text: bool = False
+    ) -> List[PubMedArticle]:
+        """Fetch full article data from PubMed IDs (async).
+
+        Args:
+            ids: List of PubMed IDs
+            include_full_text: If True, also fetch full text from PMC for articles with PMC IDs
+        """
         BATCH_SIZE = 100
         articles = []
         batch_size = BATCH_SIZE
@@ -765,7 +780,8 @@ class PubMedService:
                         pmid_node = article_node.find('.//PMID')
                         pmid = pmid_node.text if pmid_node is not None else 'unknown'
                         logger.error(f"Error parsing article PMID {pmid}: {e}", exc_info=True)
-                        dropped_pmids.append(pmid)
+                        if pmid:
+                            dropped_pmids.append(pmid)
 
                 # Parse book articles (PubmedBookArticle) - e.g., StatPearls chapters
                 for book_node in root.findall(".//PubmedBookArticle"):
@@ -773,7 +789,6 @@ class PubMedService:
                         article = PubMedArticle.from_book_xml(ET.tostring(book_node))
                         articles.append(article)
                         batch_parsed_pmids.add(article.PMID)
-                        logger.debug(f"Parsed book article PMID {article.PMID}: '{article.title}'")
                     except Exception as e:
                         pmid_node = book_node.find('.//PMID')
                         pmid = pmid_node.text if pmid_node is not None else 'unknown'
@@ -798,7 +813,42 @@ class PubMedService:
 
         logger.info(f"Fetch complete: requested {len(ids)}, returned {len(articles)}, dropped {len(dropped_pmids)}")
 
+        # Fetch full text for articles with PMC IDs if requested
+        if include_full_text:
+            articles_with_pmc = [a for a in articles if a.pmc_id]
+            if articles_with_pmc:
+                logger.info(f"Fetching full text for {len(articles_with_pmc)} articles with PMC IDs")
+                await self._fetch_full_text_for_articles(articles_with_pmc)
+
         return articles
+
+    async def _fetch_full_text_for_articles(self, articles: List[PubMedArticle]) -> None:
+        """Fetch full text from PMC for a list of articles that have PMC IDs.
+
+        Updates the articles in place with their full_text attribute.
+        """
+        # Fetch full text concurrently but with some rate limiting
+        import asyncio
+
+        async def fetch_one(article: PubMedArticle) -> None:
+            try:
+                full_text = await self.get_pmc_full_text(article.pmc_id)
+                if full_text:
+                    article.full_text = full_text
+                    logger.info(f"Fetched full text for PMID {article.PMID} ({len(full_text)} chars)")
+                else:
+                    logger.warning(f"No full text returned for PMID {article.PMID} (PMC {article.pmc_id})")
+            except Exception as e:
+                logger.error(f"Error fetching full text for PMID {article.PMID}: {e}")
+
+        # Process in batches to avoid overwhelming the PMC API
+        BATCH_SIZE = 5
+        for i in range(0, len(articles), BATCH_SIZE):
+            batch = articles[i:i + BATCH_SIZE]
+            await asyncio.gather(*[fetch_one(article) for article in batch])
+            # Small delay between batches to be nice to the API
+            if i + BATCH_SIZE < len(articles):
+                await asyncio.sleep(0.5)
 
     async def get_full_text_links(self, pmid: str) -> List[Dict[str, Any]]:
         """
