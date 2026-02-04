@@ -40,8 +40,10 @@ class ArticleService:
             authors=article.authors or [],
             abstract=article.abstract or article.summary or "",
             journal=article.journal or "",
-            publication_year=article.year,
-            publication_date=article.publication_date.isoformat() if article.publication_date else None,
+            # Honest date fields
+            pub_year=article.pub_year,
+            pub_month=article.pub_month,
+            pub_day=article.pub_day,
             doi=article.doi,
             url=f"https://pubmed.ncbi.nlm.nih.gov/{article.pmid}/" if article.pmid else article.url,
             keywords=[],
@@ -122,7 +124,7 @@ class ArticleService:
                 title=wip_article.title,
                 url=wip_article.url,
                 authors=wip_article.authors,
-                publication_date=wip_article.publication_date,
+                publication_date=wip_article.publication_date,  # Legacy field
                 summary=wip_article.summary,
                 abstract=wip_article.abstract,
                 full_text=wip_article.full_text,
@@ -133,7 +135,11 @@ class ArticleService:
                 volume=wip_article.volume,
                 issue=wip_article.issue,
                 pages=wip_article.pages,
-                year=wip_article.year,
+                year=wip_article.year,  # Legacy field
+                # New honest date fields
+                pub_year=wip_article.pub_year,
+                pub_month=wip_article.pub_month,
+                pub_day=wip_article.pub_day,
                 fetch_count=1,
             )
             self.db.add(article)

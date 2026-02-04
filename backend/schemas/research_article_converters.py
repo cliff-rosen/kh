@@ -74,32 +74,21 @@ def legacy_article_to_canonical_pubmed(article: 'PubMedArticle') -> CanonicalPub
 def pubmed_to_research_article(pubmed_article: CanonicalPubMedArticle) -> CanonicalResearchArticle:
     """
     Convert a CanonicalPubMedArticle to the unified CanonicalResearchArticle format.
-    
+
     Args:
         pubmed_article: PubMed article to convert
-        
+
     Returns:
         Unified research article format
     """
-    # Extract publication year from date if available
-    publication_year = None
-    if pubmed_article.publication_date and pubmed_article.publication_date.strip():
-        try:
-            # Handle both full dates (2023-01-01) and just years (2023)
-            year_str = pubmed_article.publication_date.split('-')[0].strip()
-            if year_str:
-                publication_year = int(year_str)
-        except (ValueError, IndexError):
-            pass
-    
     # Extract all dates from metadata if available
     metadata = pubmed_article.metadata or {}
-    
+
     # Log debug info about date extraction
     import logging
     logger = logging.getLogger(__name__)
     logger.info(f"Converting PubMed article {pubmed_article.pmid}")
-  
+
     result = CanonicalResearchArticle(
         id=f"pubmed_{pubmed_article.pmid}",  # Use consistent ID format
         source="pubmed",
@@ -109,13 +98,14 @@ def pubmed_to_research_article(pubmed_article: CanonicalPubMedArticle) -> Canoni
         abstract=pubmed_article.abstract,
         snippet=None,  # PubMed has abstracts, not snippets
         journal=pubmed_article.journal,
-        publication_date=metadata.get('pub_date') or pubmed_article.publication_date,
-        publication_year=publication_year,
-        # Populate all 4 date fields from metadata (convert empty strings to None)
+        # Honest date fields
+        pub_year=pubmed_article.pub_year,
+        pub_month=pubmed_article.pub_month,
+        pub_day=pubmed_article.pub_day,
+        # PubMed-specific date fields from metadata (convert empty strings to None)
         date_completed=metadata.get('comp_date') if metadata.get('comp_date') else None,
         date_revised=metadata.get('date_revised') if metadata.get('date_revised') else None,
         date_entered=metadata.get('entry_date') if metadata.get('entry_date') else None,
-        date_published=metadata.get('pub_date') if metadata.get('pub_date') else pubmed_article.publication_date,
         doi=pubmed_article.doi,
         url=f"https://pubmed.ncbi.nlm.nih.gov/{pubmed_article.pmid}/" if pubmed_article.pmid else None,
         pdf_url=None,  # PubMed doesn't provide direct PDF links
@@ -134,18 +124,18 @@ def pubmed_to_research_article(pubmed_article: CanonicalPubMedArticle) -> Canoni
         indexed_at=None,
         retrieved_at=datetime.utcnow().isoformat()
     )
-    
+
     return result
 
 
 def scholar_to_research_article(scholar_article: 'GoogleScholarArticle', position: Optional[int] = None) -> CanonicalResearchArticle:
     """
     Convert a GoogleScholarArticle to the unified CanonicalResearchArticle format.
-    
+
     Args:
         scholar_article: Google Scholar article to convert (new GoogleScholarArticle class)
         position: Position in search results (optional)
-        
+
     Returns:
         Unified research article format
     """
@@ -157,8 +147,10 @@ def scholar_to_research_article(scholar_article: 'GoogleScholarArticle', positio
         abstract=(getattr(scholar_article, 'abstract', None) or scholar_article.snippet),
         snippet=scholar_article.snippet,
         journal=scholar_article.journal,  # GoogleScholarArticle extracts this
-        publication_date=None,  # Scholar doesn't provide structured dates
-        publication_year=scholar_article.year,
+        # Honest date fields - Scholar only provides year
+        pub_year=scholar_article.year,
+        pub_month=None,  # Scholar doesn't provide month
+        pub_day=None,  # Scholar doesn't provide day
         doi=scholar_article.doi,  # GoogleScholarArticle extracts DOI
         url=scholar_article.link,
         pdf_url=scholar_article.pdf_link,

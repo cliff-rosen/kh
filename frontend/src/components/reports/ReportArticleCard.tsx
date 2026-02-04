@@ -1,6 +1,7 @@
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { ReportArticle } from '../../types';
 import { CardFormat } from './ReportHeader';
+import { formatArticleDate } from '../../utils/dateUtils';
 
 export interface ReportArticleCardProps {
     article: ReportArticle;
@@ -35,8 +36,8 @@ export default function ReportArticleCard({
                     )}
                     <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-500">
                         {article.journal && <span>{article.journal}</span>}
-                        {article.publication_date && (
-                            <span>• {new Date(article.publication_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                        {article.pub_year && (
+                            <span>• {formatArticleDate(article.pub_year, article.pub_month, article.pub_day)}</span>
                         )}
                         {article.pmid && <span>• PMID: {article.pmid}</span>}
                     </div>

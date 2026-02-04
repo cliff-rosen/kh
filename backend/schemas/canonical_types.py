@@ -61,28 +61,28 @@ class CanonicalResearchArticle(BaseModel):
     This provides a consistent interface for the research workbench regardless of the data source.
     """
     model_config = ConfigDict(extra='forbid')
-    
-    # Core identification fields  
+
+    # Core identification fields
     id: Optional[str] = Field(default=None, description="Unique identifier (e.g., PMID for PubMed, URL for Scholar)")
     source: str = Field(description="Data source (e.g., 'pubmed', 'google_scholar')")
     title: str = Field(description="Article title")
-    
-    # Legacy fields for backward compatibility with existing session data
-    # TODO: Remove these once all sessions are migrated to proper field names
-    year: Optional[int] = Field(default=None, description="DEPRECATED: Use publication_year instead")
-    pmid: Optional[str] = Field(default=None, description="DEPRECATED: Use id instead for PubMed articles")
-    
+
+    # PubMed ID (for PubMed articles)
+    pmid: Optional[str] = Field(default=None, description="PubMed ID for PubMed articles")
+
     # Core metadata
     authors: List[str] = Field(default=[], description="List of author names")
-    publication_date: Optional[str] = Field(default=None, description="Publication date (ISO format preferred)")
-    publication_year: Optional[int] = Field(default=None, description="Publication year")
     journal: Optional[str] = Field(default=None, description="Journal or publication venue name")
-    
+
+    # Honest date fields - only populated with actual precision available
+    pub_year: Optional[int] = Field(default=None, description="Publication year (always present from source)")
+    pub_month: Optional[int] = Field(default=None, description="Publication month (1-12, when available)")
+    pub_day: Optional[int] = Field(default=None, description="Publication day (1-31, when available)")
+
     # PubMed-specific date fields (always populated for PubMed articles)
     date_completed: Optional[str] = Field(default=None, description="Date record was completed (YYYY-MM-DD)")
     date_revised: Optional[str] = Field(default=None, description="Date record was last revised (YYYY-MM-DD)")
     date_entered: Optional[str] = Field(default=None, description="Date entered into PubMed (YYYY-MM-DD)")
-    date_published: Optional[str] = Field(default=None, description="Publication date with full precision (YYYY-MM-DD)")
     
     # Article content
     abstract: Optional[str] = Field(default=None, description="Full abstract text")
@@ -202,7 +202,10 @@ class CanonicalPubMedArticle(BaseModel):
     abstract: str = Field(description="Article abstract")
     authors: List[str] = Field(default=[], description="List of author names")
     journal: str = Field(description="Journal name")
-    publication_date: Optional[str] = Field(default=None, description="Publication date")
+    # Honest date fields - only populated with actual precision available
+    pub_year: Optional[int] = Field(default=None, description="Publication year (always present from PubMed)")
+    pub_month: Optional[int] = Field(default=None, description="Publication month (1-12, when available)")
+    pub_day: Optional[int] = Field(default=None, description="Publication day (1-31, when available)")
     doi: Optional[str] = Field(default=None, description="Digital Object Identifier")
     keywords: List[str] = Field(default=[], description="Article keywords")
     mesh_terms: List[str] = Field(default=[], description="MeSH terms")

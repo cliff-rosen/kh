@@ -94,7 +94,9 @@ async def search_pubmed(
                         abstract=article.abstract or "[No abstract available]",
                         authors=article.authors.split(', ') if article.authors else [],
                         journal=article.journal or "[Unknown journal]",
-                        publication_date=article.pub_date if article.pub_date else None,
+                        pub_year=article.pub_year,
+                        pub_month=article.pub_month,
+                        pub_day=article.pub_day,
                         keywords=[],
                         mesh_terms=[],
                         metadata={
@@ -516,13 +518,16 @@ def _prepare_article(article: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(authors, list):
         authors = ", ".join(authors)
 
+    # Build publication year string from pub_year field
+    pub_year = article.get("pub_year", "")
+
     return {
         "id": article.get("pmid") or article.get("id", ""),
         "title": article.get("title", ""),
         "abstract": article.get("abstract", ""),
         "authors": authors,
         "journal": article.get("journal", ""),
-        "publication_date": article.get("publication_date", ""),
+        "publication_year": str(pub_year) if pub_year else "",
     }
 
 

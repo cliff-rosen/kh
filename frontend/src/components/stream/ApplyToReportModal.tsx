@@ -53,6 +53,7 @@ import { PromptTemplate } from '../../types/research-stream';
 import { showErrorToast } from '../../lib/errorToast';
 import StanceAnalysisDisplay from '../ui/StanceAnalysisDisplay';
 import { StanceAnalysisResult } from '../../types/document_analysis';
+import { getYearString } from '../../utils/dateUtils';
 
 type PromptType = 'article_summary' | 'category_summary' | 'executive_summary' | 'stance_analysis';
 
@@ -516,7 +517,7 @@ export default function ApplyToReportModal({
                                                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
                                                         {article.pmid && <span>PMID: {article.pmid}</span>}
                                                         {article.journal && <span>{article.journal}</span>}
-                                                        {article.year && <span>{article.year}</span>}
+                                                        {article.pub_year && <span>{getYearString(article.pub_year)}</span>}
                                                     </div>
                                                 </div>
                                                 {article.current_summary ? (
@@ -730,7 +731,7 @@ export default function ApplyToReportModal({
                                                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
                                                         {article.pmid && <span>PMID: {article.pmid}</span>}
                                                         {article.journal && <span>{article.journal}</span>}
-                                                        {article.year && <span>{article.year}</span>}
+                                                        {article.pub_year && <span>{getYearString(article.pub_year)}</span>}
                                                     </div>
                                                 </div>
                                                 {article.current_stance ? (

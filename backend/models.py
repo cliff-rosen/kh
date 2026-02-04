@@ -304,10 +304,15 @@ class WipArticle(Base):
     title = Column(String(500), nullable=False)
     url = Column(String(1000))
     authors = Column(JSON, default=list)
-    publication_date = Column(Date)
+    publication_date = Column(Date)  # LEGACY: May have fabricated precision
     abstract = Column(Text)
     summary = Column(Text)
     full_text = Column(Text)
+
+    # Honest date fields - only populated with actual precision available
+    pub_year = Column(Integer, nullable=True)  # Publication year (always present from source)
+    pub_month = Column(Integer, nullable=True)  # Publication month (1-12, when available)
+    pub_day = Column(Integer, nullable=True)  # Publication day (1-31, when available)
 
     # PubMed-specific fields
     pmid = Column(String(20), index=True)
@@ -316,7 +321,7 @@ class WipArticle(Base):
     volume = Column(String(50))
     issue = Column(String(50))
     pages = Column(String(50))
-    year = Column(String(4))
+    year = Column(String(4))  # LEGACY: Use pub_year instead
 
     # Source-specific identifier (e.g., PubMed ID, Semantic Scholar ID, etc.)
     source_specific_id = Column(String(255), index=True)
@@ -361,7 +366,7 @@ class Article(Base):
     title = Column(String(500), nullable=False)
     url = Column(String(1000))
     authors = Column(JSON, default=list)  # List of author names
-    publication_date = Column(Date)
+    publication_date = Column(Date)  # LEGACY: May have fabricated precision
     summary = Column(Text)  # Original summary
     ai_summary = Column(Text)  # AI-generated summary
     full_text = Column(Text)  # Full article text
@@ -371,11 +376,16 @@ class Article(Base):
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     fetch_count = Column(Integer, default=1)  # How many times we've seen this
 
+    # Honest date fields - only populated with actual precision available
+    pub_year = Column(Integer, nullable=True)  # Publication year (always present from source)
+    pub_month = Column(Integer, nullable=True)  # Publication month (1-12, when available)
+    pub_day = Column(Integer, nullable=True)  # Publication day (1-31, when available)
+
     # PubMed-specific fields
     pmid = Column(String(20), index=True)  # PubMed ID
     abstract = Column(Text)  # Full abstract text
     comp_date = Column(Date)  # Completion date
-    year = Column(String(4))  # Publication year
+    year = Column(String(4))  # LEGACY: Use pub_year instead
     journal = Column(String(255))  # Journal name
     volume = Column(String(50))  # Journal volume
     issue = Column(String(50))  # Journal issue

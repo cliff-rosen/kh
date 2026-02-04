@@ -3,6 +3,7 @@ import { CheckCircleIcon, XCircleIcon, MagnifyingGlassIcon, ArrowPathIcon, Clipb
 import { CheckIcon } from '@heroicons/react/24/solid';
 import { toolsApi, PubMedIdCheckResponse } from '../../lib/api/toolsApi';
 import { copyToClipboard } from '../../lib/utils/clipboard';
+import { getYearString } from '../../utils/dateUtils';
 
 // Canned queries for quick selection
 const CANNED_QUERIES = [
@@ -445,9 +446,7 @@ export default function PubMedIdChecker() {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                                                    {result.article?.publication_date
-                                                        ? new Date(result.article.publication_date).getFullYear()
-                                                        : '-'}
+                                                    {getYearString(result.article?.pub_year) || '-'}
                                                 </div>
                                             </td>
                                         </tr>

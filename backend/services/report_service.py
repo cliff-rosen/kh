@@ -52,7 +52,9 @@ class WipArticleAnalytics:
     presentation_categories: List[str]
     authors: List[str]
     journal: Optional[str]
-    year: Optional[int]
+    pub_year: Optional[int]
+    pub_month: Optional[int]
+    pub_day: Optional[int]
     pmid: Optional[str]
     doi: Optional[str]
     abstract: Optional[str]
@@ -343,7 +345,7 @@ class CurrentArticleSummaryItem:
     title: str
     pmid: Optional[str]
     journal: Optional[str]
-    year: Optional[int]
+    pub_year: Optional[int]
     current_summary: Optional[str]
 
 
@@ -428,7 +430,7 @@ class CurrentStanceAnalysisItem:
     title: str
     pmid: Optional[str]
     journal: Optional[str]
-    year: Optional[int]
+    pub_year: Optional[int]
     current_stance: Optional[Dict[str, Any]]
 
 
@@ -1103,7 +1105,7 @@ class ReportService:
                     title=article.title or 'Untitled',
                     authors=article.authors[:3] if article.authors else None,
                     journal=article.journal or None,
-                    publication_date=str(article.year) if article.year else None,
+                    pub_year=article.pub_year,
                     summary=assoc.ai_summary or (article.abstract[:300] + '...' if article.abstract and len(article.abstract) > 300 else article.abstract),
                     url=article.url or (f"https://pubmed.ncbi.nlm.nih.gov/{article.pmid}/" if article.pmid else None),
                     pmid=article.pmid,
@@ -1952,7 +1954,9 @@ class ReportService:
                     presentation_categories=cats,
                     authors=wip.authors or [],
                     journal=wip.journal,
-                    year=wip.year,
+                    pub_year=wip.pub_year,
+                    pub_month=wip.pub_month,
+                    pub_day=wip.pub_day,
                     pmid=wip.pmid,
                     doi=wip.doi,
                     abstract=wip.abstract,
@@ -2383,7 +2387,7 @@ class ReportService:
                 title=assoc.article.title or "Untitled",
                 pmid=assoc.article.pmid,
                 journal=assoc.article.journal,
-                year=assoc.article.year,
+                pub_year=assoc.article.pub_year,
                 current_summary=assoc.ai_summary,
             )
             for assoc in associations
@@ -3042,7 +3046,7 @@ class ReportService:
                     title=assoc.article.title or "Untitled",
                     pmid=assoc.article.pmid,
                     journal=assoc.article.journal,
-                    year=assoc.article.year,
+                    pub_year=assoc.article.pub_year,
                     current_stance=current_stance,
                 ))
 

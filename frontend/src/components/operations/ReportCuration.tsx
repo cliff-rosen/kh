@@ -52,6 +52,7 @@ import {
     CurationCategory,
 } from '../../lib/api/curationApi';
 import RetrievalConfigModal from '../shared/RetrievalConfigModal';
+import { getYearString } from '../../utils/dateUtils';
 
 type ArticleTab = 'included' | 'filtered_out' | 'curated';
 
@@ -1025,7 +1026,7 @@ export default function ReportCuration() {
                                                         </h4>
                                                     )}
                                                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                        {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
+                                                        {article.authors?.join(', ')} &bull; {article.journal} &bull; {getYearString(article.pub_year)}
                                                         {article.pmid && (
                                                             <span className="ml-2 text-gray-400">PMID: {article.pmid}</span>
                                                         )}
@@ -1212,7 +1213,7 @@ function ReportPreviewContent({
                                     {idx + 1}. {article.title}
                                 </h3>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
+                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {getYearString(article.pub_year)}
                                 </p>
                                 {article.ai_summary && (
                                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -1241,7 +1242,7 @@ function ReportPreviewContent({
                                     {idx + 1}. {article.title}
                                 </h3>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
+                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {getYearString(article.pub_year)}
                                 </p>
                             </div>
                         ))}
@@ -1749,7 +1750,7 @@ function IncludedArticleCard({
                                     </h4>
                                 )}
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
+                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {getYearString(article.pub_year)}
                                     {article.pmid && (
                                         <span className="ml-2 text-gray-400">PMID: {article.pmid}</span>
                                     )}
@@ -2037,7 +2038,7 @@ function FilteredArticleCard({
                                     </h4>
                                 )}
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
+                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {getYearString(article.pub_year)}
                                     {article.pmid && (
                                         <span className="ml-2 text-gray-400">PMID: {article.pmid}</span>
                                     )}

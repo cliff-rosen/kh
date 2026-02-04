@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MagnifyingGlassIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { toolsApi, PubMedQueryTestResponse } from '../../lib/api/toolsApi';
+import { formatArticleDate } from '../../utils/dateUtils';
 
 export default function PubMedSearch() {
     const [query, setQuery] = useState('');
@@ -240,9 +241,7 @@ export default function PubMedSearch() {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="text-sm text-gray-600 dark:text-gray-400">
-                                                        {article.publication_date
-                                                            ? new Date(article.publication_date).toLocaleDateString()
-                                                            : '-'}
+                                                        {formatArticleDate(article.pub_year, article.pub_month, article.pub_day) || '-'}
                                                     </div>
                                                 </td>
                                             </tr>

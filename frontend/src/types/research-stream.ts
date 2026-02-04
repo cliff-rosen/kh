@@ -203,7 +203,10 @@ export interface WipArticle {
     title: string;
     authors: string[];
     journal: string | null;
-    year: string | null;
+    // Honest date fields - only populated with actual precision available
+    pub_year?: number | null;   // Publication year
+    pub_month?: number | null;  // Publication month (1-12, when available)
+    pub_day?: number | null;    // Publication day (1-31, when available)
     pmid: string | null;
     abstract: string | null;
     is_duplicate: boolean;

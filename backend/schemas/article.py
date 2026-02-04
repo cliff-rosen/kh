@@ -16,7 +16,6 @@ class Article(BaseModel):
     title: str
     url: Optional[str] = None
     authors: List[str] = []
-    publication_date: Optional[date] = None
     summary: Optional[str] = None
     ai_summary: Optional[str] = None
     full_text: Optional[str] = None
@@ -26,11 +25,15 @@ class Article(BaseModel):
     last_updated: datetime
     fetch_count: int = 1
 
+    # Honest date fields - only populated with actual precision available
+    pub_year: Optional[int] = None  # Publication year (always present from source)
+    pub_month: Optional[int] = None  # Publication month (1-12, when available)
+    pub_day: Optional[int] = None  # Publication day (1-31, when available)
+
     # PubMed-specific fields
     pmid: Optional[str] = None
     abstract: Optional[str] = None
     comp_date: Optional[date] = None
-    year: Optional[str] = None
     journal: Optional[str] = None
     volume: Optional[str] = None
     issue: Optional[str] = None

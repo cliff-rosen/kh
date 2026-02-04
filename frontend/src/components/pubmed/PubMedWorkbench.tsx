@@ -22,6 +22,7 @@ import { CanonicalResearchArticle } from '../../types/canonical_types';
 import { tablizerApi } from '../../lib/api/tablizerApi';
 import { trackEvent } from '../../lib/api/trackingApi';
 import { copyToClipboard } from '../../lib/utils/clipboard';
+import { getYearString } from '../../utils/dateUtils';
 
 const INITIAL_FETCH_LIMIT = 20;  // Initial articles to fetch (fast)
 const AI_FETCH_LIMIT = 500;      // Max articles to fetch for AI processing
@@ -508,7 +509,7 @@ const PubMedWorkbench = forwardRef<PubMedWorkbenchRef, PubMedWorkbenchProps>(fun
             articles: allArticles.slice(0, 15).map(a => ({
                 pmid: a.pmid || '',
                 title: a.title || '',
-                year: a.publication_date?.substring(0, 4) || '',
+                year: getYearString(a.pub_year),
                 journal: a.journal || ''
             }))
         };

@@ -23,6 +23,7 @@ import { PayloadHandler } from '../../types/chat';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import StanceAnalysisDisplay, { getStanceInfo } from '../ui/StanceAnalysisDisplay';
 import ArticleNotes from './ArticleNotes';
+import { formatArticleDate, getYearString } from '../../utils/dateUtils';
 
 type WorkspaceTab = 'analysis' | 'notes' | 'links';
 
@@ -46,8 +47,9 @@ function normalizeArticle(article: ViewerArticle) {
             doi: article.doi,
             abstract: article.abstract,
             url: article.url,
-            year: article.year,
-            publication_date: article.publication_date,
+            pub_year: article.pub_year,
+            pub_month: article.pub_month,
+            pub_day: article.pub_day,
             ai_summary: article.ai_summary,
             ai_enrichments: article.ai_enrichments,
             relevance_score: article.relevance_score,
@@ -64,8 +66,9 @@ function normalizeArticle(article: ViewerArticle) {
         doi: article.doi,
         abstract: article.abstract,
         url: article.url,
-        year: article.publication_year?.toString(),
-        publication_date: article.publication_date,
+        pub_year: article.pub_year,
+        pub_month: article.pub_month,
+        pub_day: article.pub_day,
         ai_summary: undefined,
         ai_enrichments: article.ai_enrichments,
         relevance_score: article.relevance_score,
@@ -148,8 +151,9 @@ export default function ArticleViewerModal({
                 title: article.title,
                 authors: article.authors,
                 journal: article.journal,
-                year: article.year || (article.publication_date ? article.publication_date.split('-')[0] : undefined),
-                publication_date: article.publication_date,
+                pub_year: article.pub_year,
+                pub_month: article.pub_month,
+                pub_day: article.pub_day,
                 url: article.url,
                 abstract: article.abstract,
                 ai_summary: article.ai_summary,
@@ -311,19 +315,13 @@ export default function ArticleViewerModal({
         setAnalysisError(null);
 
         try {
-            const pubYear = article.year
-                ? parseInt(article.year, 10)
-                : article.publication_date
-                    ? parseInt(article.publication_date.split('-')[0], 10)
-                    : undefined;
-
             const result = await documentAnalysisApi.analyzeStance({
                 article: {
                     title: article.title,
                     abstract: article.abstract,
                     authors: article.authors,
                     journal: article.journal,
-                    publication_year: pubYear,
+                    publication_year: article.pub_year,
                     pmid: article.pmid,
                     doi: article.doi
                 },
@@ -511,7 +509,7 @@ export default function ArticleViewerModal({
                                                         {truncateTitle(normalized.title, 50)}
                                                     </div>
                                                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                        {normalized.year || (normalized.publication_date ? normalized.publication_date.split('-')[0] : '')} {normalized.journal && `• ${normalized.journal.substring(0, 15)}`}
+                                                        {getYearString(normalized.pub_year)} {normalized.journal && `• ${normalized.journal.substring(0, 15)}`}
                                                     </div>
                                                 </button>
                                             );
@@ -541,11 +539,9 @@ export default function ArticleViewerModal({
                                 {article.journal && (
                                     <span className="text-gray-700 dark:text-gray-300 font-medium">{article.journal}</span>
                                 )}
-                                {(article.publication_date || article.year) && (
+                                {article.pub_year && (
                                     <span className="text-gray-500 dark:text-gray-400">
-                                        {article.publication_date
-                                            ? new Date(article.publication_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-                                            : article.year}
+                                        {formatArticleDate(article.pub_year, article.pub_month, article.pub_day)}
                                     </span>
                                 )}
                                 {article.pmid && (

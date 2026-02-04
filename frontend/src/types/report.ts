@@ -31,12 +31,14 @@ export interface ReportArticle {
     title: string;
     authors: string[];
     journal?: string;
-    publication_date?: string;
     pmid?: string;
     doi?: string;
     abstract?: string;
     url?: string;
-    year?: string;
+    // Honest date fields - only populated with actual precision available
+    pub_year?: number;   // Publication year (always present from source)
+    pub_month?: number;  // Publication month (1-12, when available)
+    pub_day?: number;    // Publication day (1-31, when available)
     // Association metadata
     relevance_score?: number;
     relevance_rationale?: string;

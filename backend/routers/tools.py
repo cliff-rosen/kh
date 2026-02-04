@@ -200,7 +200,9 @@ async def check_pubmed_ids(
                         abstract=article.abstract or "[No abstract available]",
                         authors=article.authors.split(', ') if article.authors else [],
                         journal=article.journal or "[Unknown journal]",
-                        publication_date=article.pub_date if article.pub_date else None,
+                        pub_year=article.pub_year,
+                        pub_month=article.pub_month,
+                        pub_day=article.pub_day,
                         keywords=[],
                         mesh_terms=[],
                         metadata={

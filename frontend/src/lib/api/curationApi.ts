@@ -47,7 +47,10 @@ export interface CurationIncludedArticle {
     title: string;
     authors: string[];
     journal: string | null;
-    year: number | null;
+    // Honest date fields
+    pub_year?: number | null;
+    pub_month?: number | null;
+    pub_day?: number | null;
     abstract: string | null;
     url: string | null;
     // Association data (how article appears in this report)
@@ -77,7 +80,10 @@ export interface CurationFilteredArticle {
     title: string;
     authors: string[];
     journal: string | null;
-    year: number | null;
+    // Honest date fields
+    pub_year?: number | null;
+    pub_month?: number | null;
+    pub_day?: number | null;
     abstract: string | null;
     url: string | null;
     filter_score: number | null;
@@ -479,7 +485,10 @@ export interface CurrentArticleSummaryItem {
     title: string;
     pmid: string | null;
     journal: string | null;
-    year: number | null;
+    // Honest date fields
+    pub_year?: number | null;
+    pub_month?: number | null;
+    pub_day?: number | null;
     current_summary: string | null;
 }
 
@@ -753,7 +762,10 @@ export interface CurrentStanceAnalysisItem {
     title: string;
     pmid: string | null;
     journal: string | null;
-    year: number | null;
+    // Honest date fields
+    pub_year?: number | null;
+    pub_month?: number | null;
+    pub_day?: number | null;
     current_stance: Record<string, unknown> | null;
 }
 

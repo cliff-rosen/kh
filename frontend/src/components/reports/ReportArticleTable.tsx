@@ -2,6 +2,7 @@ import { useCallback, useMemo, forwardRef } from 'react';
 import { Tablizer, TableColumn, TablizerRef, AIColumnInfo } from '../tools/Tablizer';
 import { ReportArticle } from '../../types';
 import { CardFormat } from './ReportHeader';
+import { formatArticleDate } from '../../utils/dateUtils';
 
 // ============================================================================
 // Types
@@ -39,6 +40,11 @@ const REPORT_COLUMNS: TableColumn[] = [
 // Main Component
 // ============================================================================
 
+// Extended article type with computed publication_date for display
+interface DisplayArticle extends ReportArticle {
+    publication_date?: string;
+}
+
 const ReportArticleTable = forwardRef<TablizerRef, ReportArticleTableProps>(function ReportArticleTable({
     articles,
     title,
@@ -47,6 +53,15 @@ const ReportArticleTable = forwardRef<TablizerRef, ReportArticleTableProps>(func
     onColumnsChange,
     onRowClick
 }, ref) {
+
+    // Transform articles to add computed publication_date field for display
+    const displayArticles: DisplayArticle[] = useMemo(() =>
+        articles.map(article => ({
+            ...article,
+            publication_date: formatArticleDate(article.pub_year, article.pub_month, article.pub_day)
+        })),
+        [articles]
+    );
 
     // Sync column visibility with cardFormat
     const columns = useMemo(() =>
@@ -73,9 +88,9 @@ const ReportArticleTable = forwardRef<TablizerRef, ReportArticleTableProps>(func
     }, [onCardFormatChange]);
 
     return (
-        <Tablizer<ReportArticle>
+        <Tablizer<DisplayArticle>
             ref={ref}
-            data={articles}
+            data={displayArticles}
             idField="pmid"
             columns={columns}
             title={title}
@@ -83,7 +98,7 @@ const ReportArticleTable = forwardRef<TablizerRef, ReportArticleTableProps>(func
             itemType="article"
             onColumnsChange={onColumnsChange}
             onColumnVisibilityChange={handleColumnVisibilityChange}
-            onRowClick={onRowClick}
+            onRowClick={onRowClick as ((articles: DisplayArticle[], index: number, isFiltered: boolean) => void) | undefined}
         />
     );
 });

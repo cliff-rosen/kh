@@ -10,7 +10,6 @@ export interface Article {
     title: string;
     url?: string;
     authors: string[];
-    publication_date?: string;
     summary?: string;
     ai_summary?: string;
     full_text?: string;
@@ -20,11 +19,15 @@ export interface Article {
     last_updated: string;
     fetch_count: number;
 
+    // Honest date fields - only populated with actual precision available
+    pub_year?: number;   // Publication year (always present from source)
+    pub_month?: number;  // Publication month (1-12, when available)
+    pub_day?: number;    // Publication day (1-31, when available)
+
     // PubMed-specific fields
     pmid?: string;
     abstract?: string;
     comp_date?: string;
-    year?: string;
     journal?: string;
     volume?: string;
     issue?: string;

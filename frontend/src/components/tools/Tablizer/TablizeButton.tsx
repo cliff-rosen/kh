@@ -1,13 +1,19 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { TableCellsIcon } from '@heroicons/react/24/outline';
 import Tablizer, { TableColumn } from './Tablizer';
 import ArticleViewerModal from '../../articles/ArticleViewerModal';
 import { CanonicalResearchArticle } from '../../../types/canonical_types';
 import { ReportArticle } from '../../../types/report';
 import { RowViewerProps } from './Tablizer';
+import { formatArticleDate } from '../../../utils/dateUtils';
 
 // Union type for articles from different sources
 type TablizableArticle = CanonicalResearchArticle | ReportArticle;
+
+// Extended type with computed publication_date for display
+interface DisplayTablizableArticle extends TablizableArticle {
+    publication_date?: string;
+}
 
 // Standard columns for articles
 const ARTICLE_COLUMNS: TableColumn[] = [
@@ -48,17 +54,26 @@ export default function TablizeButton({
 }: TablizeButtonProps) {
     const [isOpen, setIsOpen] = useState(false);
 
+    // Transform articles to add computed publication_date field for display
+    const displayArticles: DisplayTablizableArticle[] = useMemo(() =>
+        articles.map(article => ({
+            ...article,
+            publication_date: formatArticleDate(article.pub_year, article.pub_month, article.pub_day)
+        })),
+        [articles]
+    );
+
     if (isOpen) {
         return (
-            <Tablizer<TablizableArticle>
-                data={articles}
+            <Tablizer<DisplayTablizableArticle>
+                data={displayArticles}
                 idField="pmid"
                 columns={ARTICLE_COLUMNS}
                 title={title}
                 rowLabel="articles"
                 isFullScreen={true}
                 onClose={() => setIsOpen(false)}
-                RowViewer={ArticleRowViewer}
+                RowViewer={ArticleRowViewer as (props: RowViewerProps<DisplayTablizableArticle>) => React.ReactElement}
                 itemType="article"
             />
         );

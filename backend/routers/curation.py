@@ -139,7 +139,10 @@ class CurationIncludedArticle(BaseModel):
     title: str
     authors: Optional[List[str]] = None
     journal: Optional[str] = None
-    year: Optional[int] = None
+    # Honest date fields
+    pub_year: Optional[int] = None
+    pub_month: Optional[int] = None
+    pub_day: Optional[int] = None
     abstract: Optional[str] = None
     url: Optional[str] = None
     # Association data (how article appears in this report)
@@ -170,7 +173,10 @@ class CurationFilteredArticle(BaseModel):
     title: str
     authors: Optional[List[str]] = None
     journal: Optional[str] = None
-    year: Optional[int] = None
+    # Honest date fields
+    pub_year: Optional[int] = None
+    pub_month: Optional[int] = None
+    pub_day: Optional[int] = None
     abstract: Optional[str] = None
     url: Optional[str] = None
     filter_score: Optional[float] = None
@@ -442,7 +448,9 @@ async def get_curation_view(
                 title=item.article.title,
                 authors=item.article.authors,
                 journal=item.article.journal,
-                year=item.article.year,
+                pub_year=item.article.pub_year,
+                pub_month=item.article.pub_month,
+                pub_day=item.article.pub_day,
                 abstract=item.article.abstract,
                 url=item.article.url,
                 ranking=item.association.ranking,
@@ -472,7 +480,9 @@ async def get_curation_view(
                 title=wip.title,
                 authors=wip.authors,
                 journal=wip.journal,
-                year=wip.year,
+                pub_year=wip.pub_year,
+                pub_month=wip.pub_month,
+                pub_day=wip.pub_day,
                 abstract=wip.abstract,
                 url=wip.url,
                 filter_score=wip.filter_score,
@@ -1225,7 +1235,7 @@ async def regenerate_article_summary(
             "title": article.title or "Untitled",
             "authors": summary_service.format_authors(article.authors),
             "journal": article.journal or "Unknown",
-            "year": str(article.year) if article.year else "Unknown",
+            "year": str(article.pub_year) if article.pub_year else "Unknown",
             "abstract": article.abstract or "",
             "filter_reason": association.wip_article.filter_score_reason if association.wip_article else "",
             "stream_name": stream.stream_name if stream else "",
@@ -1336,7 +1346,7 @@ class CurrentArticleSummaryItem(BaseModel):
     title: str
     pmid: Optional[str] = None
     journal: Optional[str] = None
-    year: Optional[int] = None
+    pub_year: Optional[int] = None
     current_summary: Optional[str] = None
 
 
@@ -1381,7 +1391,7 @@ async def get_current_article_summaries(
                     title=a.title,
                     pmid=a.pmid,
                     journal=a.journal,
-                    year=a.year,
+                    pub_year=a.pub_year,
                     current_summary=a.current_summary,
                 )
                 for a in result.articles
@@ -1911,7 +1921,7 @@ class CurrentStanceAnalysisItem(BaseModel):
     title: str
     pmid: Optional[str] = None
     journal: Optional[str] = None
-    year: Optional[int] = None
+    pub_year: Optional[int] = None
     current_stance: Optional[Dict[str, Any]] = None
 
 
@@ -1991,7 +2001,7 @@ async def get_current_stance_analysis(
                     title=a.title,
                     pmid=a.pmid,
                     journal=a.journal,
-                    year=a.year,
+                    pub_year=a.pub_year,
                     current_stance=a.current_stance,
                 )
                 for a in result.articles

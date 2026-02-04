@@ -207,12 +207,12 @@ class RetrievalTestingService:
                 abstract=pm_article.abstract,
                 journal=pm_article.journal,
                 authors=pm_article.authors.split(', ') if isinstance(pm_article.authors, str) else [],
-                publication_date=pm_article.pub_date,
+                pub_year=pm_article.pub_year,
+                pub_month=pm_article.pub_month,
+                pub_day=pm_article.pub_day,
                 date_completed=pm_article.comp_date,
                 date_revised=pm_article.date_revised,
                 date_entered=pm_article.entry_date,
-                date_published=pm_article.article_date,
-                publication_year=int(pm_article.year) if pm_article.year and pm_article.year.isdigit() else None,
                 url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else None
             ))
 

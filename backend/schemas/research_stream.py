@@ -321,7 +321,10 @@ class WipArticle(BaseModel):
     title: str
     authors: List[str] = []
     journal: Optional[str] = None
-    year: Optional[str] = None
+    # Honest date fields
+    pub_year: Optional[int] = None
+    pub_month: Optional[int] = None
+    pub_day: Optional[int] = None
     pmid: Optional[str] = None
     abstract: Optional[str] = None
     is_duplicate: bool = False

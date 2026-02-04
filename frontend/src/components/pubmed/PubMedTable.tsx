@@ -1,7 +1,8 @@
-import { forwardRef } from 'react';
+import { forwardRef, useMemo } from 'react';
 import { Tablizer, TableColumn, RowViewerProps, TablizerRef } from '../tools/Tablizer';
 import ArticleViewerModal from '../articles/ArticleViewerModal';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
+import { formatArticleDate } from '../../utils/dateUtils';
 
 // ============================================================================
 // Types
@@ -43,6 +44,15 @@ function ArticleRowViewer({ data, initialIndex, onClose }: RowViewerProps<Canoni
 }
 
 // ============================================================================
+// Display Article Type
+// ============================================================================
+
+// Extended article type with computed publication_date for display
+interface DisplayArticle extends CanonicalResearchArticle {
+    publication_date?: string;
+}
+
+// ============================================================================
 // Main Component
 // ============================================================================
 
@@ -52,17 +62,26 @@ const PubMedTable = forwardRef<TablizerRef, PubMedTableProps>(function PubMedTab
     onFetchMoreForAI,
     onColumnsChange
 }, ref) {
+    // Transform articles to add computed publication_date field for display
+    const displayArticles: DisplayArticle[] = useMemo(() =>
+        articles.map(article => ({
+            ...article,
+            publication_date: formatArticleDate(article.pub_year, article.pub_month, article.pub_day)
+        })),
+        [articles]
+    );
+
     return (
-        <Tablizer<CanonicalResearchArticle>
+        <Tablizer<DisplayArticle>
             ref={ref}
-            data={articles}
+            data={displayArticles}
             idField="pmid"
             columns={PUBMED_COLUMNS}
             rowLabel="articles"
-            RowViewer={ArticleRowViewer}
+            RowViewer={ArticleRowViewer as (props: RowViewerProps<DisplayArticle>) => React.ReactElement}
             itemType="article"
             onSaveToHistory={onSaveToHistory}
-            onFetchMoreForAI={onFetchMoreForAI}
+            onFetchMoreForAI={onFetchMoreForAI as (() => Promise<DisplayArticle[]>) | undefined}
             onColumnsChange={onColumnsChange}
         />
     );

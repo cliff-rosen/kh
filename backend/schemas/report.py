@@ -37,12 +37,14 @@ class ReportArticle(BaseModel):
     title: str
     authors: List[str] = []
     journal: Optional[str] = None
-    publication_date: Optional[str] = None
     pmid: Optional[str] = None
     doi: Optional[str] = None
     abstract: Optional[str] = None
     url: Optional[str] = None
-    year: Optional[str] = None
+    # Honest date fields - only populated with actual precision available
+    pub_year: Optional[int] = None  # Publication year (always present from source)
+    pub_month: Optional[int] = None  # Publication month (1-12, when available)
+    pub_day: Optional[int] = None  # Publication day (1-31, when available)
     # Association metadata
     relevance_score: Optional[float] = None
     relevance_rationale: Optional[str] = None

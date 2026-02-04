@@ -39,6 +39,7 @@ import { getReportConfig, type ReportConfigResponse } from '../../lib/api/curati
 import { reportApi } from '../../lib/api/reportApi';
 import type { ExecutionStatus, WipArticle, ExecutionDetail } from '../../types/research-stream';
 import type { ReportArticle } from '../../types/report';
+import { getYearString } from '../../utils/dateUtils';
 
 export default function ExecutionDetail() {
     const { executionId } = useParams<{ executionId: string }>();
@@ -837,7 +838,7 @@ function ReportArticleCard({ article, wipArticle }: { article: ReportArticle; wi
                         {article.authors.join(', ')}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                        {article.journal} · {article.year} · PMID: {article.pmid}
+                        {article.journal} · {getYearString(article.pub_year)} · PMID: {article.pmid}
                     </p>
                     {/* Status badges */}
                     <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -979,7 +980,7 @@ function WipArticleCard({ article, type }: { article: WipArticle; type: 'include
                         {article.authors.join(', ')}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                        {article.journal} · {article.year} · PMID: {article.pmid}
+                        {article.journal} · {getYearString(article.pub_year)} · PMID: {article.pmid}
                     </p>
 
                     {/* Status indicator */}

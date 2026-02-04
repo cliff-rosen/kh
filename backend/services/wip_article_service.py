@@ -206,12 +206,22 @@ class WipArticleService:
 
         date_parse_failures = 0
         for article in articles:
+            # Handle legacy publication_date for backward compatibility
             pub_date = None
             if article.publication_date:
                 try:
                     pub_date = datetime.fromisoformat(article.publication_date).date()
                 except (ValueError, AttributeError):
                     date_parse_failures += 1
+
+            # Use the new honest date fields if available, fall back to legacy fields
+            pub_year = article.pub_year
+            pub_month = article.pub_month
+            pub_day = article.pub_day
+
+            # Fallback: extract from publication_year if pub_year not set
+            if pub_year is None and article.publication_year:
+                pub_year = article.publication_year
 
             wip_article = WipArticle(
                 research_stream_id=research_stream_id,
@@ -221,13 +231,17 @@ class WipArticleService:
                 title=article.title,
                 url=article.url,
                 authors=article.authors or [],
-                publication_date=pub_date,
+                publication_date=pub_date,  # Legacy field
                 abstract=article.abstract,
                 full_text=article.full_text,  # Full text from PMC if fetched during search
                 pmid=article.pmid or (article.id if article.source == "pubmed" else None),
                 doi=article.doi,
                 journal=article.journal,
-                year=int(article.publication_year) if article.publication_year else None,
+                year=str(pub_year) if pub_year else None,  # Legacy field
+                # New honest date fields
+                pub_year=pub_year,
+                pub_month=pub_month,
+                pub_day=pub_day,
                 source_specific_id=article.id,
                 is_duplicate=False,
                 passed_semantic_filter=None,

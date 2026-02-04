@@ -22,7 +22,7 @@ class EmailArticle:
     pmid: Optional[str] = None
     authors: Optional[List[str]] = None
     journal: Optional[str] = None
-    publication_date: Optional[str] = None
+    pub_year: Optional[int] = None  # Publication year
     summary: Optional[str] = None
 
 
@@ -360,8 +360,8 @@ class EmailTemplateService:
                 meta_parts.append(f"{article.authors[0]} et al.")
         if article.journal:
             meta_parts.append(article.journal)
-        if article.publication_date:
-            meta_parts.append(article.publication_date)
+        if article.pub_year:
+            meta_parts.append(str(article.pub_year))
 
         meta_html = ' &bull; '.join(meta_parts) if meta_parts else ''
 

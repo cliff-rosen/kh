@@ -153,14 +153,24 @@ class PubMedArticle():
         logger.debug(f"  date_revised: {date_revised}")
         logger.debug(f"  article_date: {article_date}")
         logger.debug(f"  entry_date: {entry_date}")
-        # Get pub_date from year/month/day - always produce valid YYYY-MM-DD format
+        # Parse publication date components honestly - no fabricated precision
         # Month name to number mapping for text months
         month_map = {
-            'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
-            'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
-            'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+            'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4,
+            'may': 5, 'jun': 6, 'jul': 7, 'aug': 8,
+            'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
         }
+        pub_year: Optional[int] = None
+        pub_month: Optional[int] = None
+        pub_day: Optional[int] = None
+
         if year:
+            try:
+                pub_year = int(year)
+            except (ValueError, TypeError):
+                pass
+
+            # Build legacy pub_date string for backward compatibility
             pub_date = year
             if pubdate_node is not None:
                 month_node = pubdate_node.find(".//Month")
@@ -169,15 +179,21 @@ class PubMedArticle():
                     month_text = month_node.text.strip()
                     # Handle text months (Jan, Feb, etc.) or numeric
                     if month_text.lower()[:3] in month_map:
-                        month_num = month_map[month_text.lower()[:3]]
+                        pub_month = month_map[month_text.lower()[:3]]
+                        month_num = str(pub_month).zfill(2)
                     elif month_text.isdigit():
+                        pub_month = int(month_text)
                         month_num = month_text.zfill(2)
                     else:
-                        month_num = "01"  # Default if unrecognized
+                        month_num = "01"  # Default if unrecognized (but don't set pub_month)
                     pub_date += f"-{month_num}"
-                    # Add day (default to 01 if not present)
+                    # Add day only if actually present
                     if day_node is not None and day_node.text:
-                        pub_date += f"-{day_node.text.strip().zfill(2)}"
+                        try:
+                            pub_day = int(day_node.text.strip())
+                            pub_date += f"-{day_node.text.strip().zfill(2)}"
+                        except (ValueError, TypeError):
+                            pub_date += "-01"
                     else:
                         pub_date += "-01"
                 else:
@@ -244,7 +260,10 @@ class PubMedArticle():
                     issue=issue,
                     pages=pages,
                     pmc_id=pmc_id,
-                    doi=doi
+                    doi=doi,
+                    pub_year=pub_year,
+                    pub_month=pub_month,
+                    pub_day=pub_day
                     )
 
     @classmethod
@@ -281,9 +300,13 @@ class PubMedArticle():
             if publisher_node is not None and publisher_node.text:
                 journal += f" ({publisher_node.text})"
 
-        # Extract publication date from Book/PubDate
+        # Extract publication date from Book/PubDate - parse honestly
         year = ""
         pub_date = ""
+        pub_year: Optional[int] = None
+        pub_month: Optional[int] = None
+        pub_day: Optional[int] = None
+
         if book_node is not None:
             pubdate_node = book_node.find('.//PubDate')
             if pubdate_node is not None:
@@ -291,8 +314,16 @@ class PubMedArticle():
                 month_node = pubdate_node.find('.//Month')
                 if year_node is not None and year_node.text:
                     year = year_node.text
+                    try:
+                        pub_year = int(year)
+                    except (ValueError, TypeError):
+                        pass
                     pub_date = year
                     if month_node is not None and month_node.text:
+                        try:
+                            pub_month = int(month_node.text)
+                        except (ValueError, TypeError):
+                            pass
                         month = month_node.text.zfill(2)
                         pub_date += f"-{month}-01"
                     else:
@@ -353,7 +384,10 @@ class PubMedArticle():
             issue="",
             pages="",
             pmc_id=pmc_id,
-            doi=""
+            doi="",
+            pub_year=pub_year,
+            pub_month=pub_month,
+            pub_day=pub_day
         )
 
     def __init__(self, **kwargs: Any) -> None:
@@ -363,12 +397,12 @@ class PubMedArticle():
         self.date_revised = kwargs.get('date_revised', '')
         self.article_date = kwargs.get('article_date', '')
         self.entry_date = kwargs.get('entry_date', '')
-        self.pub_date = kwargs.get('pub_date', '')
+        self.pub_date = kwargs.get('pub_date', '')  # Legacy: full date string (may have fabricated precision)
         self.title = kwargs['title']
         self.abstract = kwargs['abstract']
         self.authors = kwargs['authors']
         self.journal = kwargs['journal']
-        self.year = kwargs['year']
+        self.year = kwargs['year']  # Legacy: string year
         self.volume = kwargs['volume']
         self.issue = kwargs['issue']
         self.pages = kwargs['pages']
@@ -376,6 +410,10 @@ class PubMedArticle():
         self.pmc_id = kwargs.get('pmc_id', '')
         self.doi = kwargs.get('doi', '')
         self.full_text = kwargs.get('full_text', '')  # Full text from PMC if fetched
+        # New honest date fields - only set if actually present in source
+        self.pub_year: Optional[int] = kwargs.get('pub_year')
+        self.pub_month: Optional[int] = kwargs.get('pub_month')
+        self.pub_day: Optional[int] = kwargs.get('pub_day')
 
     def __str__(self) -> str:
         line = "===================================================\n"        
@@ -576,7 +614,9 @@ class PubMedService:
                     abstract=article.abstract or "[No abstract available]",
                     authors=article.authors.split(', ') if article.authors else [],
                     journal=article.journal or "[Unknown journal]",
-                    publication_date=article.pub_date if article.pub_date else None,
+                    pub_year=article.pub_year,
+                    pub_month=article.pub_month,
+                    pub_day=article.pub_day,
                     keywords=[],  # Would need to extract from XML
                     mesh_terms=[],  # Would need to extract from XML
                     metadata={
@@ -588,7 +628,6 @@ class PubMedService:
                         "date_revised": article.date_revised,
                         "article_date": article.article_date,
                         "entry_date": article.entry_date,
-                        "pub_date": article.pub_date
                     }
                 )
 
