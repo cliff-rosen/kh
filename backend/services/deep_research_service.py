@@ -224,6 +224,8 @@ class ResearchContext:
         """Build final result dict."""
         return {
             "trace_id": self.trace_id,
+            "question": self.question,
+            "refined_question": self.refined_question,
             "answer": self.final_answer.answer if self.final_answer else "",
             "sources": [s.to_dict() for s in self.sources.values()],
             "checklist_coverage": {

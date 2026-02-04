@@ -9,7 +9,8 @@ import {
     MinusCircleIcon,
     DocumentTextIcon,
     GlobeAltIcon,
-    ClipboardDocumentIcon
+    ClipboardDocumentIcon,
+    QuestionMarkCircleIcon
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
@@ -36,6 +37,8 @@ export interface DeepResearchEvaluation {
 
 export interface DeepResearchResultData {
     trace_id: string;
+    question: string;
+    refined_question?: string;
     answer: string;
     sources: DeepResearchSource[];
     checklist_coverage: DeepResearchChecklistCoverage;
@@ -90,13 +93,13 @@ export default function DeepResearchResultCard({ data }: DeepResearchResultCardP
     const totalItems = satisfiedCount + partialCount + gapsCount;
 
     return (
-        <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="h-full flex flex-col min-h-0">
+            {/* Header - fixed */}
+            <div className="flex-shrink-0 flex items-center justify-between flex-wrap gap-2 mb-3">
                 <div className="flex items-center gap-2">
                     <BeakerIcon className="h-5 w-5 text-purple-500" />
                     <span className="font-medium text-gray-900 dark:text-white">
-                        Deep Research Result
+                        Deep Research
                     </span>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${status.className}`}>
                         {status.label}
@@ -116,9 +119,26 @@ export default function DeepResearchResultCard({ data }: DeepResearchResultCardP
                 </div>
             </div>
 
-            {/* Checklist Coverage Summary */}
+            {/* Question - fixed */}
+            <div className="flex-shrink-0 mb-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                <div className="flex items-start gap-2">
+                    <QuestionMarkCircleIcon className="h-5 w-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {data.question}
+                        </p>
+                        {data.refined_question && data.refined_question !== data.question && (
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                <span className="font-medium">Refined:</span> {data.refined_question}
+                            </p>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Checklist Coverage Summary - fixed */}
             {totalItems > 0 && (
-                <div className="flex items-center gap-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div className="flex-shrink-0 flex items-center gap-4 p-3 mb-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Coverage:</span>
                     <div className="flex items-center gap-3">
                         {satisfiedCount > 0 && (
@@ -143,11 +163,11 @@ export default function DeepResearchResultCard({ data }: DeepResearchResultCardP
                 </div>
             )}
 
-            {/* Answer */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            {/* Answer - grows to fill available space */}
+            <div className="flex-1 min-h-0 flex flex-col border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mb-3">
+                <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Synthesized Answer
+                        Answer
                     </span>
                     <button
                         onClick={copyAnswer}
@@ -166,16 +186,16 @@ export default function DeepResearchResultCard({ data }: DeepResearchResultCardP
                         )}
                     </button>
                 </div>
-                <div className="p-4 max-h-[400px] overflow-y-auto">
+                <div className="flex-1 min-h-0 overflow-y-auto p-4">
                     <MarkdownRenderer content={data.answer} compact />
                 </div>
             </div>
 
-            {/* Sources */}
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            {/* Sources - fixed, collapsible */}
+            <div className="flex-shrink-0 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mb-3">
                 <button
                     onClick={() => setShowSources(!showSources)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    className="w-full flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
                     <div className="flex items-center gap-3">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -204,7 +224,7 @@ export default function DeepResearchResultCard({ data }: DeepResearchResultCardP
                 </button>
 
                 {showSources && (
-                    <div className="p-4 space-y-4 max-h-[300px] overflow-y-auto">
+                    <div className="p-4 space-y-4 max-h-[250px] overflow-y-auto">
                         {/* PubMed Sources */}
                         {pubmedSources.length > 0 && (
                             <div>
@@ -290,12 +310,12 @@ export default function DeepResearchResultCard({ data }: DeepResearchResultCardP
                 )}
             </div>
 
-            {/* Limitations */}
+            {/* Limitations - fixed, collapsible */}
             {data.limitations && data.limitations.length > 0 && (
-                <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                <div className="flex-shrink-0 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mb-3">
                     <button
                         onClick={() => setShowLimitations(!showLimitations)}
-                        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        className="w-full flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                             Limitations ({data.limitations.length})
@@ -322,8 +342,8 @@ export default function DeepResearchResultCard({ data }: DeepResearchResultCardP
                 </div>
             )}
 
-            {/* Footer */}
-            <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+            {/* Footer - fixed */}
+            <p className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400 text-center">
                 Trace ID: {data.trace_id.slice(0, 8)}...
             </p>
         </div>

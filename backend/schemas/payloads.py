@@ -1318,6 +1318,8 @@ register_payload_type(PayloadType(
         "type": "object",
         "properties": {
             "trace_id": {"type": "string", "description": "Trace ID for research execution"},
+            "question": {"type": "string", "description": "Original research question"},
+            "refined_question": {"type": "string", "description": "Refined/clarified version of the question"},
             "answer": {"type": "string", "description": "Synthesized answer with inline citations"},
             "sources": {
                 "type": "array",
