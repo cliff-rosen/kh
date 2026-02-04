@@ -1,5 +1,15 @@
 """
-Articles API endpoints - fetches from local database
+Articles API endpoints - fetches from local database and PubMed
+
+ARTICLE TEXT ACCESS ENDPOINTS:
+==============================
+1. GET /{pmid} - Get article metadata + abstract from local database
+2. GET /{pmid}/full-text - Get full text from PubMed Central (only for PMC articles)
+3. GET /{pmid}/full-text-links - Get publisher links (LinkOut) for accessing full text
+
+Note: Only ~30% of PubMed articles are in PMC. For articles not in PMC:
+- /full-text returns an error
+- /full-text-links returns publisher URLs (free and subscription options)
 """
 
 import logging
@@ -69,7 +79,13 @@ async def get_article_full_text_links(
 ):
     """
     Get full text link options for an article from PubMed's LinkOut system.
-    This fetches live data from PubMed's ELink API.
+
+    This fetches live data from PubMed's ELink API and returns URLs to publisher
+    websites where the full text may be available. Links are categorized as:
+    - is_free=True: Open access, no subscription required
+    - is_free=False: May require subscription or purchase
+
+    Use this as a fallback when the article is not in PubMed Central.
     """
     try:
         links = await get_full_text_links(pmid)
@@ -88,9 +104,15 @@ async def get_article_full_text(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get the full text content of an article from PubMed Central.
-    Only works for articles that have a PMC ID.
-    Returns the full text if available, or an error message if not.
+    Get the full text content of an article from PubMed Central (PMC).
+
+    IMPORTANT: Only works for articles that have a PMC ID (~30% of PubMed).
+    Returns:
+    - full_text: The article text if available in PMC
+    - pmc_id: The PMC ID if the article is in PMC
+    - error: Message if article is not in PMC or retrieval failed
+
+    For articles NOT in PMC, use /full-text-links to get publisher URLs instead.
     """
     try:
         # First, fetch the article to get the PMC ID

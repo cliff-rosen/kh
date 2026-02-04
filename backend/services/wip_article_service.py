@@ -223,6 +223,7 @@ class WipArticleService:
                 authors=article.authors or [],
                 publication_date=pub_date,
                 abstract=article.abstract,
+                full_text=article.full_text,  # Full text from PMC if fetched during search
                 pmid=article.pmid or (article.id if article.source == "pubmed" else None),
                 doi=article.doi,
                 journal=article.journal,

@@ -9,15 +9,42 @@ from typing import List, Dict, Any, Optional
 logger = logging.getLogger(__name__)
 
 """
-DOCS
+PubMed Service - Article retrieval and full text access
+
+ARTICLE TEXT ACCESS PATTERNS:
+=============================
+There are several ways to get article text content, depending on what's needed:
+
+1. Abstract Only (Default)
+   - search_articles(query) or get_articles_from_ids([pmid])
+   - Returns metadata + abstract for all articles
+   - Fastest, always available
+
+2. Full Text from PubMed Central (PMC)
+   - search_articles(query, include_full_text=True)
+   - get_articles_from_ids([pmid], include_full_text=True)
+   - Fetches full text from PMC for articles that have PMC IDs
+   - NOT all articles are in PMC - only open access, NIH-funded, or voluntarily deposited
+   - Full text stored in article.full_text field
+
+3. Direct PMC Fetch
+   - get_pmc_full_text(pmc_id)
+   - Fetches full text directly from PMC given a PMC ID
+   - Use when you already know the PMC ID
+
+4. Full Text Links (LinkOut)
+   - get_full_text_links(pmid)
+   - Returns URLs to publisher websites (free and subscription-required)
+   - Use as fallback when article is NOT in PMC
+   - Links may require authentication/subscription to access
+
+API DOCS:
 https://www.ncbi.nlm.nih.gov/books/NBK25501/
 https://www.ncbi.nlm.nih.gov/books/NBK25499/
 
-SAMPLE CALLS
-https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=%28%28melanocortin%29%20OR%20%28natriuretic%29%20OR%20%28Dry%20eye%29%20OR%20%28Ulcerative%20colitis%29%20OR%20%28Crohn%E2%80%99s%20disease%29%20OR%20%28Retinopathy%29%20OR%20%28Retinal%20disease%29%29AND%20%28%28%222023/11/01%3E%22%5BDate%20-%20Completion%5D%20%3A%20%222023/11/30%22%5BDate%20-%20Completion%5D%29%29&retmax=10000&retmode=json
+SAMPLE CALLS:
 https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=melanocortin&retmax=10000&retmode=json
 https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=38004229&retmode=xml
-
 """
 PUBMED_API_SEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 PUBMED_API_FETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
@@ -489,10 +516,21 @@ class PubMedService:
         sort_by: str = "relevance",
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        date_type: Optional[str] = None
+        date_type: Optional[str] = None,
+        include_full_text: bool = False
     ) -> tuple[List['CanonicalResearchArticle'], Dict[str, Any]]:
         """
         Search PubMed articles (async).
+
+        Args:
+            query: Search query string
+            max_results: Maximum number of results to return
+            offset: Number of results to skip (for pagination)
+            sort_by: Sort order ("relevance" or "date")
+            start_date: Filter by start date (YYYY-MM-DD)
+            end_date: Filter by end date (YYYY-MM-DD)
+            date_type: Type of date to filter on ("publication", "completion", "entry", "revised")
+            include_full_text: If True, fetch full text from PMC for articles with PMC IDs
         """
         from schemas.canonical_types import CanonicalPubMedArticle
         from schemas.research_article_converters import pubmed_to_research_article
@@ -523,7 +561,7 @@ class PubMedService:
 
         # Get full article data for the current page
         logger.info(f"Fetching article data for {len(paginated_ids)} articles")
-        articles = await self._get_articles_from_ids(paginated_ids)
+        articles = await self._get_articles_from_ids(paginated_ids, include_full_text=include_full_text)
         logger.info(f"Retrieved {len(articles)} articles")
         
         # Convert to canonical format
@@ -557,6 +595,9 @@ class PubMedService:
                 # Convert to CanonicalResearchArticle
                 research_article = pubmed_to_research_article(canonical_pubmed)
                 research_article.search_position = offset + i + 1
+                # Pass through full_text if fetched
+                if article.full_text:
+                    research_article.full_text = article.full_text
                 canonical_articles.append(research_article)
 
             except Exception as e:

@@ -58,6 +58,7 @@ export interface CanonicalResearchArticle {
     authors: string[];
     abstract?: string;
     snippet?: string;
+    full_text?: string;  // Full article text (if available from PMC)
 
     // Publication details
     journal?: string;

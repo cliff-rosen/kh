@@ -2,6 +2,17 @@
 PubMed Tools
 
 Tools for searching and retrieving articles from PubMed.
+
+ARTICLE TEXT ACCESS PATTERNS:
+=============================
+1. search_pubmed - Returns articles with abstracts (no full text)
+2. get_pubmed_article - Returns full metadata + abstract for a specific PMID
+3. get_full_text - Returns EITHER:
+   - Full text content (if article is in PubMed Central/PMC)
+   - OR publisher links (free and subscription) as fallback
+
+Note: Only ~30% of PubMed articles are in PMC (open access, NIH-funded, or voluntarily deposited).
+For articles NOT in PMC, the get_full_text tool returns LinkOut URLs to publishers.
 """
 
 import asyncio
@@ -418,21 +429,29 @@ register_tool(ToolConfig(
     name="get_full_text",
     description="""Retrieve the full text of an article. Use this when the user wants to read the complete article, not just the abstract.
 
-This tool will:
-1. If the article is in PubMed Central (PMC): Return the full text content directly
-2. If NOT in PMC: Return a list of full-text links from publishers (both free and subscription-required)
+IMPORTANT: Only ~30% of PubMed articles are in PubMed Central (PMC). This tool handles both cases:
 
-When free publisher links are returned, you can use a web fetch tool to retrieve the content from those URLs.""",
+1. If the article IS in PMC (has a PMC ID):
+   - Returns the full text content directly
+   - Response type: pubmed_article with full_text field
+
+2. If the article is NOT in PMC:
+   - Returns a list of full-text links from publishers
+   - Links are categorized as FREE (open access) or SUBSCRIPTION REQUIRED
+   - Response type: pubmed_full_text_links
+   - You can use a web fetch tool to retrieve content from free access URLs
+
+Provide either pmc_id (if known) or pmid (tool will check if article has a PMC ID).""",
     input_schema={
         "type": "object",
         "properties": {
             "pmc_id": {
                 "type": "string",
-                "description": "The PubMed Central ID (e.g., 'PMC1234567' or just '1234567'). Preferred if known."
+                "description": "The PubMed Central ID (e.g., 'PMC1234567' or just '1234567'). Preferred if known - skips lookup step."
             },
             "pmid": {
                 "type": "string",
-                "description": "The PubMed ID. Will be used to look up the PMC ID if pmc_id is not provided."
+                "description": "The PubMed ID. Will be used to look up the PMC ID. If no PMC ID exists, returns publisher links instead."
             }
         }
     },

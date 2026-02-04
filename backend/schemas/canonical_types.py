@@ -87,6 +87,7 @@ class CanonicalResearchArticle(BaseModel):
     # Article content
     abstract: Optional[str] = Field(default=None, description="Full abstract text")
     snippet: Optional[str] = Field(default=None, description="Brief excerpt or summary")
+    full_text: Optional[str] = Field(default=None, description="Full article text (if available from source like PubMed Central)")
     
     # Identifiers and links
     doi: Optional[str] = Field(default=None, description="Digital Object Identifier")

@@ -1182,6 +1182,7 @@ class PipelineService:
                 end_date=end_date,
                 date_type="publication",
                 sort_by="relevance",
+                include_full_text=True,  # Fetch full text from PMC for articles with PMC IDs
             )
         except Exception as e:
             logger.error(
