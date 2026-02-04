@@ -41,13 +41,13 @@ PubMed tracks multiple dates for each article. Understanding these is essential 
 
 ### What's in the XML
 
-| XML Element | Location | Required? | Precision |
-|-------------|----------|-----------|-----------|
-| **PubDate** | `JournalIssue/PubDate` | **YES** | Variable (year only to full date) |
-| **ArticleDate** | `Article/ArticleDate[@DateType="Electronic"]` | No | Full date when present |
-| **DateCompleted** | `MedlineCitation/DateCompleted` | No | Full date |
-| **DateRevised** | `MedlineCitation/DateRevised` | No | Full date |
-| **History/PubMedPubDate** | `PubmedData/History/PubMedPubDate` | No | Full date when present |
+| XML Element | Full Path | Required? | Precision |
+|-------------|-----------|-----------|-----------|
+| **PubDate** | `PubmedArticle/MedlineCitation/Article/Journal/JournalIssue/PubDate` | **YES** | Variable (year only to full date) |
+| **ArticleDate** | `PubmedArticle/MedlineCitation/Article/ArticleDate[@DateType="Electronic"]` | No | Full date when present |
+| **DateCompleted** | `PubmedArticle/MedlineCitation/DateCompleted` | No | Full date |
+| **DateRevised** | `PubmedArticle/MedlineCitation/DateRevised` | No | Full date |
+| **PubMedPubDate** | `PubmedArticle/PubmedData/History/PubMedPubDate[@PubStatus="..."]` | No | Full date when present |
 
 ### History Dates (PubStatus values)
 
