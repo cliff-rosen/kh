@@ -17,6 +17,8 @@ export interface FullTextContentResponse {
     pmid: string;
     pmc_id: string | null;
     full_text: string | null;
+    source: 'database' | 'pmc' | null;  // Where the full text came from
+    links: FullTextLink[] | null;  // Fallback when no full text
     error: string | null;
 }
 
