@@ -76,7 +76,20 @@ Make Tablizer available to regular members (not just admins/internal).
 
 ---
 
-## 2.4 Chat Enhancements
+## 2.4 Library
+
+Expand beyond curated reports to a full library of article collections. Users should be able to work with:
+
+- Curated reports (existing)
+- Custom lists (user-assembled)
+- Search result lists (saved from queries)
+- Any arbitrary article list
+
+All of these should be collaborative and shareable within the organization.
+
+---
+
+## 2.5 Chat Enhancements
 
 TBD - ongoing improvements to:
 - Tools
