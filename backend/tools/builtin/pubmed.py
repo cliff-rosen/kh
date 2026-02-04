@@ -188,11 +188,15 @@ def execute_get_full_text(
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
     """
-    Retrieve the full text of an article from PubMed Central.
-    Only works for articles that have a PMC ID (free full text).
-    Returns a ToolResult with article card payload including full text.
+    Retrieve the full text of an article from PubMed Central, or provide
+    alternative full-text links if the article is not in PMC.
+
+    Returns:
+    - If PMC full text available: ToolResult with full text content
+    - If not in PMC but links exist: ToolResult with full-text links info
+    - If no options available: Error message
     """
-    from services.pubmed_service import PubMedService
+    from services.pubmed_service import PubMedService, get_full_text_links
 
     pmc_id = params.get("pmc_id", "")
     pmid = params.get("pmid", "")
@@ -213,27 +217,99 @@ def execute_get_full_text(
 
             articles = asyncio.run(service.get_articles_from_ids([pmid]))
             if not articles:
+                logger.warning(f"No article found for PMID: {pmid}")
                 return f"No article found with PMID: {pmid}"
 
             article = articles[0]
+
             if not article.pmc_id:
-                return f"Article PMID {pmid} does not have free full text available in PubMed Central. Only the abstract is available."
+                # No PMC ID - fetch full-text links as alternative with retry
+
+                # Retry logic for ELink API (can be flaky with 500 errors)
+                import time
+                links = []
+                links_error = None
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        links = asyncio.run(get_full_text_links(pmid))
+                        links_error = None  # Success
+                        break
+                    except Exception as e:
+                        links_error = str(e)
+                        logger.warning(f"ELink API error (attempt {attempt + 1}/{max_retries}): {e}")
+                        if attempt < max_retries - 1:
+                            time.sleep(1)  # Brief delay before retry
+
+                # Separate free and paid links
+                free_links = [l for l in links if l.get('is_free', False)]
+                paid_links = [l for l in links if not l.get('is_free', False)]
+
+                if links:
+                    # Build informative response with links
+                    text_parts = [
+                        f"Article PMID {pmid} is not available in PubMed Central, but full text may be available from other sources.",
+                        f"\nTitle: {article.title}",
+                        f"Journal: {article.journal}",
+                        f"DOI: {article.doi}" if article.doi else "",
+                        "\n--- Full Text Links ---"
+                    ]
+
+                    if free_links:
+                        text_parts.append(f"\nFREE ACCESS ({len(free_links)} sources):")
+                        for link in free_links:
+                            text_parts.append(f"  - {link['provider']}: {link['url']}")
+                            if link.get('categories'):
+                                text_parts.append(f"    Categories: {', '.join(link['categories'])}")
+
+                    if paid_links:
+                        text_parts.append(f"\nSUBSCRIPTION REQUIRED ({len(paid_links)} sources):")
+                        for link in paid_links:
+                            text_parts.append(f"  - {link['provider']}: {link['url']}")
+
+                    if free_links:
+                        text_parts.append("\nYou can use a web fetch tool to retrieve content from the free access links above.")
+
+                    text_result = "\n".join(text_parts)
+
+                    # Build payload with links info
+                    payload = {
+                        "type": "pubmed_full_text_links",
+                        "data": {
+                            "pmid": pmid,
+                            "title": article.title,
+                            "authors": article.authors,
+                            "journal": article.journal,
+                            "year": article.year,
+                            "doi": article.doi,
+                            "abstract": article.abstract,
+                            "pmc_available": False,
+                            "free_links": free_links,
+                            "paid_links": paid_links
+                        }
+                    }
+
+                    return ToolResult(text=text_result, payload=payload)
+                else:
+                    # No links available - distinguish between API error and genuinely no links
+                    if links_error:
+                        logger.error(f"Failed to fetch full-text links after retries: {links_error}")
+                        return f"Article PMID {pmid} is not available in PubMed Central. Could not check for alternative full-text links due to an API error. You may want to try again later, or check the publisher's website using DOI: {article.doi}" if article.doi else f"Article PMID {pmid} is not available in PubMed Central. Could not check for alternative full-text links due to an API error."
+                    else:
+                        return f"Article PMID {pmid} is not available in PubMed Central and no alternative full-text links were found. Only the abstract is available."
 
             pmc_id = article.pmc_id
         else:
-            # If PMC ID provided directly, try to get article metadata
-            # Clean the PMC ID
+            # If PMC ID provided directly, normalize format
             pmc_id = str(pmc_id).strip()
-            if pmc_id.lower().startswith("pmc"):
-                pmc_id_num = pmc_id[3:]
-            else:
-                pmc_id_num = pmc_id
+            if not pmc_id.lower().startswith("pmc"):
                 pmc_id = f"PMC{pmc_id}"
 
         # Fetch the full text
         full_text = asyncio.run(service.get_pmc_full_text(pmc_id))
 
         if not full_text:
+            logger.warning(f"No full text returned for PMC ID: {pmc_id}")
             return f"Could not retrieve full text for PMC ID: {pmc_id}. The article may not be available or there was an error."
 
         # If we don't have article metadata yet, try to fetch it
@@ -340,7 +416,13 @@ register_tool(ToolConfig(
 
 register_tool(ToolConfig(
     name="get_full_text",
-    description="Retrieve the full text of an article from PubMed Central. Only works for articles with free full text (those with a PMC ID). Use this when the user wants to read the complete article, not just the abstract. You can provide either a PMC ID directly or a PMID (which will be checked for PMC availability).",
+    description="""Retrieve the full text of an article. Use this when the user wants to read the complete article, not just the abstract.
+
+This tool will:
+1. If the article is in PubMed Central (PMC): Return the full text content directly
+2. If NOT in PMC: Return a list of full-text links from publishers (both free and subscription-required)
+
+When free publisher links are returned, you can use a web fetch tool to retrieve the content from those URLs.""",
     input_schema={
         "type": "object",
         "properties": {

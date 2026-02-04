@@ -13,6 +13,13 @@ export interface FullTextLinksResponse {
     links: FullTextLink[];
 }
 
+export interface FullTextContentResponse {
+    pmid: string;
+    pmc_id: string | null;
+    full_text: string | null;
+    error: string | null;
+}
+
 export const articleApi = {
     /**
      * Fetch a single article by PMID
@@ -27,6 +34,14 @@ export const articleApi = {
      */
     async getFullTextLinks(pmid: string): Promise<FullTextLinksResponse> {
         const response = await api.get(`/api/articles/${pmid}/full-text-links`);
+        return response.data;
+    },
+
+    /**
+     * Fetch full text content from PubMed Central (if available)
+     */
+    async getFullTextContent(pmid: string): Promise<FullTextContentResponse> {
+        const response = await api.get(`/api/articles/${pmid}/full-text`);
         return response.data;
     }
 };

@@ -12,7 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { ChatBubbleLeftRightIcon, CheckBadgeIcon } from '@heroicons/react/24/solid';
 import { documentAnalysisApi } from '../../lib/api/documentAnalysisApi';
-import { articleApi, FullTextLink } from '../../lib/api/articleApi';
+import { articleApi, FullTextLink, FullTextContentResponse } from '../../lib/api/articleApi';
 import { reportApi } from '../../lib/api/reportApi';
 import { trackEvent } from '../../lib/api/trackingApi';
 import { ReportArticle } from '../../types/report';
@@ -114,6 +114,10 @@ export default function ArticleViewerModal({
     // Full text links state - keyed by pmid to cache results
     const [fullTextLinksCache, setFullTextLinksCache] = useState<Record<string, FullTextLink[]>>({});
     const [loadingLinks, setLoadingLinks] = useState(false);
+
+    // Full text content state - keyed by pmid to cache results
+    const [fullTextContentCache, setFullTextContentCache] = useState<Record<string, FullTextContentResponse>>({});
+    const [loadingFullText, setLoadingFullText] = useState(false);
 
     // Stance analysis state - keyed by article id to preserve results when navigating
     const [stanceCache, setStanceCache] = useState<Record<string, StanceAnalysisResult>>({});
@@ -228,6 +232,43 @@ export default function ArticleViewerModal({
             setLoadingLinks(false);
         }
     }, [article?.pmid, fullTextLinksCache]);
+
+    // Fetch full text content from PMC
+    const currentFullText = article?.pmid ? fullTextContentCache[article.pmid] : undefined;
+
+    const fetchFullTextContent = useCallback(async () => {
+        if (!article?.pmid || fullTextContentCache[article.pmid]) return;
+
+        setLoadingFullText(true);
+        try {
+            const response = await articleApi.getFullTextContent(article.pmid);
+            setFullTextContentCache(prev => ({
+                ...prev,
+                [article.pmid as string]: response
+            }));
+        } catch (error) {
+            console.error('Failed to fetch full text content:', error);
+            // Cache error response to prevent repeated failed requests
+            setFullTextContentCache(prev => ({
+                ...prev,
+                [article.pmid as string]: {
+                    pmid: article.pmid as string,
+                    pmc_id: null,
+                    full_text: null,
+                    error: 'Failed to fetch full text'
+                }
+            }));
+        } finally {
+            setLoadingFullText(false);
+        }
+    }, [article?.pmid, fullTextContentCache]);
+
+    // Auto-fetch full text when switching to the links tab
+    useEffect(() => {
+        if (activeTab === 'links' && article?.pmid && !fullTextContentCache[article.pmid]) {
+            fetchFullTextContent();
+        }
+    }, [activeTab, article?.pmid, fullTextContentCache, fetchFullTextContent]);
 
     // Handle escape key
     useEffect(() => {
@@ -705,99 +746,147 @@ export default function ArticleViewerModal({
                                 </div>
                             )}
 
-                            {/* Full Text Links Tab */}
+                            {/* Full Text Tab */}
                             {activeTab === 'links' && (
-                                <div className="p-6">
-                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                                        Full Text Access
-                                    </h2>
-                                    <div className="space-y-3 max-w-xl">
-                                        {/* Links from PubMed LinkOut */}
-                                        {currentLinks && currentLinks.length > 0 && currentLinks.map((link, idx) => (
-                                            <a
-                                                key={`${link.provider}-${idx}`}
-                                                href={link.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                onClick={() => trackEvent('article_link_click', { type: 'fulltext', provider: link.provider, pmid: article.pmid, is_free: link.is_free })}
-                                                className={`block px-4 py-3 rounded-lg ${link.is_free
-                                                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30'
-                                                    : 'bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
-                                                    }`}
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2">
-                                                        {link.is_free && <CheckBadgeIcon className="h-5 w-5 text-green-600 dark:text-green-400" />}
-                                                        <span className={`font-medium ${link.is_free ? 'text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-gray-300'}`}>
-                                                            {link.provider}
-                                                        </span>
-                                                    </div>
-                                                    <ArrowTopRightOnSquareIcon className={`h-5 w-5 ${link.is_free ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`} />
-                                                </div>
-                                                {link.categories.length > 0 && (
-                                                    <p className={`text-sm mt-1 ${link.is_free ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
-                                                        {link.is_free ? 'Free full text' : link.categories.join(', ')}
-                                                    </p>
-                                                )}
-                                            </a>
-                                        ))}
-
-                                        {/* Button to fetch links */}
-                                        {currentLinks === undefined && (
-                                            <button
-                                                type="button"
-                                                onClick={fetchFullTextLinks}
-                                                disabled={loadingLinks}
-                                                className="w-full px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-left"
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2">
-                                                        <LinkIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                                                        <span className="font-medium text-blue-700 dark:text-blue-300">
-                                                            {loadingLinks ? 'Searching...' : 'Search for full text options'}
-                                                        </span>
-                                                    </div>
-                                                    {loadingLinks && (
-                                                        <svg className="animate-spin h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24">
-                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                        </svg>
-                                                    )}
-                                                </div>
-                                                <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                                                    Check PubMed LinkOut for additional sources
-                                                </p>
-                                            </button>
-                                        )}
-
-                                        {/* No links found message */}
-                                        {currentLinks !== undefined && currentLinks.length === 0 && (
-                                            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg">
-                                                <p className="text-gray-500 dark:text-gray-400">
-                                                    No full text sources found in PubMed LinkOut
+                                <div className="h-full flex flex-col">
+                                    {/* Loading state */}
+                                    {loadingFullText && (
+                                        <div className="flex-1 flex items-center justify-center">
+                                            <div className="text-center">
+                                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                                                <p className="text-gray-600 dark:text-gray-400">
+                                                    Fetching full text from PubMed Central...
                                                 </p>
                                             </div>
-                                        )}
+                                        </div>
+                                    )}
 
-                                        {/* DOI link */}
-                                        {article.doi && (
-                                            <a
-                                                href={`https://doi.org/${article.doi}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                onClick={() => trackEvent('article_link_click', { type: 'doi', pmid: article.pmid, doi: article.doi })}
-                                                className="block px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30"
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <span className="font-medium text-amber-700 dark:text-amber-300">Publisher (via DOI)</span>
-                                                    <ArrowTopRightOnSquareIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                    {/* Full text content available */}
+                                    {!loadingFullText && currentFullText?.full_text && (
+                                        <div className="flex-1 flex flex-col min-h-0">
+                                            <div className="flex-shrink-0 px-6 pt-4 pb-2 border-b border-gray-200 dark:border-gray-700 bg-green-50 dark:bg-green-900/20">
+                                                <div className="flex items-center gap-2">
+                                                    <CheckBadgeIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                                    <span className="font-medium text-green-700 dark:text-green-300">
+                                                        Full text from PubMed Central
+                                                    </span>
+                                                    <span className="text-sm text-green-600 dark:text-green-400">
+                                                        ({currentFullText.pmc_id})
+                                                    </span>
                                                 </div>
-                                                <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
-                                                    May require subscription or purchase
+                                            </div>
+                                            <div className="flex-1 overflow-y-auto p-6">
+                                                <MarkdownRenderer
+                                                    content={currentFullText.full_text}
+                                                    className="prose dark:prose-invert max-w-none"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* No PMC full text - show links */}
+                                    {!loadingFullText && currentFullText && !currentFullText.full_text && (
+                                        <div className="p-6">
+                                            {/* Info about no PMC text */}
+                                            <div className="mb-4 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                                                <p className="text-amber-700 dark:text-amber-300 text-sm">
+                                                    {currentFullText.error || 'This article is not available in PubMed Central.'}
+                                                    {' '}Full text may be available from other sources below.
                                                 </p>
-                                            </a>
-                                        )}
-                                    </div>
+                                            </div>
+
+                                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                                                Alternative Full Text Sources
+                                            </h2>
+                                            <div className="space-y-3 max-w-xl">
+                                                {/* Links from PubMed LinkOut */}
+                                                {currentLinks && currentLinks.length > 0 && currentLinks.map((link, idx) => (
+                                                    <a
+                                                        key={`${link.provider}-${idx}`}
+                                                        href={link.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        onClick={() => trackEvent('article_link_click', { type: 'fulltext', provider: link.provider, pmid: article.pmid, is_free: link.is_free })}
+                                                        className={`block px-4 py-3 rounded-lg ${link.is_free
+                                                            ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30'
+                                                            : 'bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                {link.is_free && <CheckBadgeIcon className="h-5 w-5 text-green-600 dark:text-green-400" />}
+                                                                <span className={`font-medium ${link.is_free ? 'text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-gray-300'}`}>
+                                                                    {link.provider}
+                                                                </span>
+                                                            </div>
+                                                            <ArrowTopRightOnSquareIcon className={`h-5 w-5 ${link.is_free ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`} />
+                                                        </div>
+                                                        {link.categories.length > 0 && (
+                                                            <p className={`text-sm mt-1 ${link.is_free ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                                {link.is_free ? 'Free full text' : link.categories.join(', ')}
+                                                            </p>
+                                                        )}
+                                                    </a>
+                                                ))}
+
+                                                {/* Button to fetch links */}
+                                                {currentLinks === undefined && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={fetchFullTextLinks}
+                                                        disabled={loadingLinks}
+                                                        className="w-full px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-left"
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <LinkIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                                                <span className="font-medium text-blue-700 dark:text-blue-300">
+                                                                    {loadingLinks ? 'Searching...' : 'Search for full text options'}
+                                                                </span>
+                                                            </div>
+                                                            {loadingLinks && (
+                                                                <svg className="animate-spin h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24">
+                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                                </svg>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                                                            Check PubMed LinkOut for additional sources
+                                                        </p>
+                                                    </button>
+                                                )}
+
+                                                {/* No links found message */}
+                                                {currentLinks !== undefined && currentLinks.length === 0 && (
+                                                    <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                                        <p className="text-gray-500 dark:text-gray-400">
+                                                            No full text sources found in PubMed LinkOut
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {/* DOI link */}
+                                                {article.doi && (
+                                                    <a
+                                                        href={`https://doi.org/${article.doi}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        onClick={() => trackEvent('article_link_click', { type: 'doi', pmid: article.pmid, doi: article.doi })}
+                                                        className="block px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="font-medium text-amber-700 dark:text-amber-300">Publisher (via DOI)</span>
+                                                            <ArrowTopRightOnSquareIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                                        </div>
+                                                        <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                                                            May require subscription or purchase
+                                                        </p>
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

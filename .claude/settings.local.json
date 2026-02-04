@@ -38,7 +38,8 @@
       "WebFetch(domain:nsaunders.wordpress.com)",
       "WebFetch(domain:www.linkedin.com)",
       "Bash(\"C:\\\\code\\\\kh\\\\backend\\\\venv\\\\Scripts\\\\python.exe\" \"C:\\\\code\\\\kh\\\\backend\\\\migrations\\\\add_summary_to_help_override.py\")",
-      "Bash(./venv/Scripts/python:*)"
+      "Bash(./venv/Scripts/python:*)",
+      "Bash(venv/Scripts/python.exe:*)"
     ],
     "deny": [],
     "ask": [],

@@ -874,12 +874,15 @@ class PubMedService:
 
             return unique_links
 
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error fetching full text links for PMID {pmid}: {e}")
+            raise  # Re-raise so caller can handle/retry
         except httpx.RequestError as e:
-            logger.error(f"Error fetching full text links for PMID {pmid}: {e}")
-            return []
+            logger.error(f"Request error fetching full text links for PMID {pmid}: {e}")
+            raise  # Re-raise so caller can handle/retry
         except Exception as e:
             logger.error(f"Error parsing full text links for PMID {pmid}: {e}")
-            return []
+            return []  # Parsing error - return empty, don't retry
 
     async def get_pmc_full_text(self, pmc_id: str) -> Optional[str]:
         """
