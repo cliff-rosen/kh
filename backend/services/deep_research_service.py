@@ -80,11 +80,21 @@ class ChecklistStatus(BaseModel):
     evidence_summary: str = Field(description="Brief summary of evidence found")
 
 
-class CompletenessCheck(BaseModel):
-    """LLM output for completeness checking."""
-    items: List[ChecklistStatus] = Field(description="Status of each checklist item")
-    is_complete: bool = Field(description="True if research is sufficiently complete")
-    recommendation: str = Field(description="Continue searching or synthesize answer")
+class EvaluationResult(BaseModel):
+    """First evaluator: pass/fail with confidence."""
+    passed: bool = Field(description="True if research is sufficient to answer the question")
+    confidence: float = Field(description="Confidence in this assessment (0.0 to 1.0)")
+    gaps: List[str] = Field(description="If failed, specific information still needed")
+    checklist_status: List[ChecklistStatus] = Field(description="Status of each checklist item")
+    reasoning: str = Field(description="Explanation of the assessment")
+
+
+class SecondOpinionResult(BaseModel):
+    """Second opinion evaluator for low-confidence passes."""
+    confirmed: bool = Field(description="True if agreeing the research is sufficient")
+    additional_gaps: List[str] = Field(description="If not confirmed, additional information needed")
+    final_confidence: float = Field(description="Final confidence after review (0.0 to 1.0)")
+    assessment: str = Field(description="Overall assessment and reasoning")
 
 
 class SynthesizedAnswer(BaseModel):
@@ -119,6 +129,26 @@ class Source:
 
 
 # =============================================================================
+# Research Configuration
+# =============================================================================
+
+@dataclass
+class ResearchConfig:
+    """Configuration for research behavior and thresholds."""
+    # Iteration limits
+    max_iterations: int = 10
+    timeout_seconds: int = 600  # 10 minutes
+
+    # Evaluation thresholds
+    confidence_threshold: float = 0.8  # Below this, get second opinion
+    min_sources: int = 3  # Minimum sources before considering complete
+
+    # Search limits per query
+    max_pubmed_results: int = 10
+    max_web_results: int = 10
+
+
+# =============================================================================
 # Research Context
 # =============================================================================
 
@@ -136,7 +166,7 @@ class ResearchContext:
     org_id: Optional[int]
     question: str
     context: Optional[str]
-    max_iterations: int
+    config: ResearchConfig
     start_time: datetime
 
     # === Mutable (accumulated during execution) ===
@@ -150,6 +180,10 @@ class ResearchContext:
     iterations: List[Dict[str, Any]] = field(default_factory=list)
     final_answer: Optional[SynthesizedAnswer] = None
 
+    # === Evaluation state ===
+    last_evaluation: Optional[EvaluationResult] = None
+    second_opinion: Optional[SecondOpinionResult] = None
+
     # === Metrics ===
     metrics: Dict[str, int] = field(default_factory=lambda: {
         "total_iterations": 0,
@@ -159,15 +193,10 @@ class ResearchContext:
         "llm_calls": 0
     })
 
-    # === Configuration ===
-    TIMEOUT_SECONDS: int = 600  # 10 minutes
-    MAX_PUBMED_RESULTS: int = 10
-    MAX_WEB_RESULTS: int = 10
-
     def is_timed_out(self) -> bool:
         """Check if research has exceeded timeout."""
         elapsed = (datetime.now(timezone.utc) - self.start_time).total_seconds()
-        return elapsed > self.TIMEOUT_SECONDS
+        return elapsed > self.config.timeout_seconds
 
     def get_unsatisfied_items(self) -> List[ChecklistItem]:
         """Get checklist items that are not yet satisfied."""
@@ -187,6 +216,10 @@ class ResearchContext:
         lines = [f"- {fact.fact} [{fact.source_id}]" for fact in self.knowledge_base]
         return "\n".join(lines)
 
+    def has_minimum_sources(self) -> bool:
+        """Check if we have minimum required sources."""
+        return len(self.sources) >= self.config.min_sources
+
     def final_result(self) -> Dict[str, Any]:
         """Build final result dict."""
         return {
@@ -200,7 +233,11 @@ class ResearchContext:
             },
             "iterations_used": self.metrics["total_iterations"],
             "status": "completed",
-            "limitations": self.final_answer.limitations if self.final_answer else []
+            "limitations": self.final_answer.limitations if self.final_answer else [],
+            "evaluation": {
+                "final_confidence": self.last_evaluation.confidence if self.last_evaluation else 0,
+                "used_second_opinion": self.second_opinion is not None
+            }
         }
 
 
@@ -298,6 +335,8 @@ class DeepResearchService:
         max_iterations: int
     ) -> ResearchContext:
         """Initialize research context and create trace."""
+        config = ResearchConfig(max_iterations=max_iterations)
+
         trace_id = await self.trace_service.create_trace(
             tool_name="deep_research",
             user_id=self.user_id,
@@ -305,7 +344,8 @@ class DeepResearchService:
             input_params={
                 "question": question,
                 "context": context,
-                "max_iterations": max_iterations
+                "max_iterations": max_iterations,
+                "confidence_threshold": config.confidence_threshold
             }
         )
         await self.trace_service.start_trace(trace_id)
@@ -316,7 +356,7 @@ class DeepResearchService:
             org_id=self.org_id,
             question=question,
             context=context,
-            max_iterations=max_iterations,
+            config=config,
             start_time=datetime.now(timezone.utc)
         )
 
@@ -398,8 +438,20 @@ class DeepResearchService:
         self,
         ctx: ResearchContext
     ) -> AsyncGenerator[ToolProgress, None]:
-        """Stage: Iterative research loop - search, process, check completeness."""
-        for iteration in range(1, ctx.max_iterations + 1):
+        """
+        Stage: Iterative research loop with two-stage evaluation.
+
+        Evaluation flow:
+        1. First evaluator: pass/fail with confidence
+           - FAIL: returns gaps to pursue → continue loop
+           - PASS + confidence < threshold → second opinion
+           - PASS + confidence >= threshold → exit loop
+        2. Second opinion (only on low-confidence pass):
+           - Can confirm or identify additional gaps
+        """
+        max_iter = ctx.config.max_iterations
+
+        for iteration in range(1, max_iter + 1):
             ctx.metrics["total_iterations"] = iteration
 
             # Check timeout
@@ -412,67 +464,138 @@ class DeepResearchService:
                 )
                 break
 
-            # Check if complete
-            unsatisfied = ctx.get_unsatisfied_items()
-            if not unsatisfied:
-                logger.info("All checklist items satisfied")
-                break
-
             # Calculate progress (0.15 to 0.85 for research loop)
-            progress_base = 0.15 + (0.7 * (iteration - 1) / ctx.max_iterations)
+            progress_base = 0.15 + (0.7 * (iteration - 1) / max_iter)
 
             yield ToolProgress(
                 stage=f"iteration_{iteration}",
-                message=f"Research iteration {iteration}/{ctx.max_iterations}",
+                message=f"Research iteration {iteration}/{max_iter}",
                 progress=progress_base,
                 data={"iteration": iteration}
             )
 
+            # Get gaps to pursue (from previous evaluation or initial checklist)
+            if ctx.last_evaluation and not ctx.last_evaluation.passed:
+                # Use gaps from evaluation
+                gaps_to_pursue = ctx.last_evaluation.gaps
+            else:
+                # Use unsatisfied checklist items
+                gaps_to_pursue = [item.description for item in ctx.get_unsatisfied_items()]
+
+            if not gaps_to_pursue:
+                logger.info("No gaps to pursue")
+                break
+
             # Run single iteration
-            async for progress in self._run_iteration(ctx, iteration, unsatisfied, progress_base):
+            async for progress in self._run_iteration(ctx, iteration, gaps_to_pursue, progress_base):
                 yield progress
 
-            # Check completeness after iteration
-            completeness = await self._llm_check_completeness(ctx)
+            # First evaluator: pass/fail with confidence
+            yield ToolProgress(
+                stage=f"iteration_{iteration}",
+                message="Evaluating research completeness...",
+                progress=progress_base + 0.05
+            )
+
+            evaluation = await self._llm_evaluate(ctx)
             ctx.metrics["llm_calls"] += 1
 
-            if completeness:
-                for status in completeness.items:
-                    ctx.checklist_status[status.id] = status
+            if not evaluation:
+                logger.warning("Evaluation failed, continuing")
+                continue
 
-                satisfied = ctx.get_satisfied_count()
-                total = len(ctx.checklist)
+            ctx.last_evaluation = evaluation
 
+            # Update checklist status from evaluation
+            for status in evaluation.checklist_status:
+                ctx.checklist_status[status.id] = status
+
+            satisfied = ctx.get_satisfied_count()
+            total = len(ctx.checklist)
+
+            if not evaluation.passed:
+                # FAIL: Continue loop with identified gaps
                 yield ToolProgress(
                     stage=f"iteration_{iteration}",
-                    message=f"Checklist: {satisfied}/{total} items satisfied",
+                    message=f"Need more info: {len(evaluation.gaps)} gaps identified ({satisfied}/{total} satisfied)",
                     progress=progress_base + 0.06,
-                    data={"satisfied": satisfied, "total": total}
+                    data={"passed": False, "gaps": len(evaluation.gaps), "satisfied": satisfied}
+                )
+            elif evaluation.confidence < ctx.config.confidence_threshold:
+                # PASS but low confidence: Get second opinion
+                yield ToolProgress(
+                    stage=f"iteration_{iteration}",
+                    message=f"Low confidence ({evaluation.confidence:.0%}), getting second opinion...",
+                    progress=progress_base + 0.06,
+                    data={"passed": True, "confidence": evaluation.confidence}
                 )
 
-                if completeness.is_complete:
-                    logger.info("Research complete per completeness check")
-                    break
+                second_opinion = await self._llm_second_opinion(ctx, evaluation)
+                ctx.metrics["llm_calls"] += 1
+
+                if second_opinion:
+                    ctx.second_opinion = second_opinion
+
+                    if second_opinion.confirmed:
+                        logger.info(f"Second opinion confirmed (confidence: {second_opinion.final_confidence:.0%})")
+                        yield ToolProgress(
+                            stage=f"iteration_{iteration}",
+                            message=f"Second opinion confirmed ({second_opinion.final_confidence:.0%} confidence)",
+                            progress=progress_base + 0.07
+                        )
+                        break
+                    else:
+                        # Second opinion found more gaps
+                        ctx.last_evaluation = EvaluationResult(
+                            passed=False,
+                            confidence=second_opinion.final_confidence,
+                            gaps=second_opinion.additional_gaps,
+                            checklist_status=evaluation.checklist_status,
+                            reasoning=second_opinion.assessment
+                        )
+                        yield ToolProgress(
+                            stage=f"iteration_{iteration}",
+                            message=f"Second opinion: {len(second_opinion.additional_gaps)} more gaps",
+                            progress=progress_base + 0.07,
+                            data={"additional_gaps": len(second_opinion.additional_gaps)}
+                        )
+            else:
+                # PASS with high confidence: Done
+                logger.info(f"Research complete (confidence: {evaluation.confidence:.0%})")
+                yield ToolProgress(
+                    stage=f"iteration_{iteration}",
+                    message=f"Research sufficient ({evaluation.confidence:.0%} confidence, {satisfied}/{total} satisfied)",
+                    progress=progress_base + 0.06,
+                    data={"passed": True, "confidence": evaluation.confidence, "satisfied": satisfied}
+                )
+                break
 
             # Save iteration state
-            await self._update_trace_state(ctx, {
+            state_update = {
                 "iterations": ctx.iterations,
                 "knowledge_base": {
                     "facts": [{"fact": f.fact, "source_id": f.source_id} for f in ctx.knowledge_base],
                     "sources": [s.to_dict() for s in ctx.sources.values()]
                 }
-            })
+            }
+            if ctx.last_evaluation:
+                state_update["last_evaluation"] = {
+                    "passed": ctx.last_evaluation.passed,
+                    "confidence": ctx.last_evaluation.confidence,
+                    "gaps": ctx.last_evaluation.gaps
+                }
+            await self._update_trace_state(ctx, state_update)
 
     async def _run_iteration(
         self,
         ctx: ResearchContext,
         iteration: int,
-        unsatisfied: List[ChecklistItem],
+        gaps_to_pursue: List[str],
         progress_base: float
     ) -> AsyncGenerator[ToolProgress, None]:
         """Run a single research iteration: generate queries, search, process."""
-        # Generate queries
-        queries = await self._llm_generate_queries(ctx, unsatisfied)
+        # Generate queries based on gaps
+        queries = await self._llm_generate_queries(ctx, gaps_to_pursue)
         ctx.metrics["llm_calls"] += 1
 
         if not queries:
@@ -481,6 +604,7 @@ class DeepResearchService:
 
         iteration_data = {
             "iteration": iteration,
+            "gaps_pursued": gaps_to_pursue,
             "pubmed_queries": queries.pubmed_queries,
             "web_queries": queries.web_queries
         }
@@ -512,7 +636,7 @@ class DeepResearchService:
 
         # Process results
         if search_results:
-            processed = await self._llm_process_results(ctx, unsatisfied, search_results)
+            processed = await self._llm_process_results(ctx, gaps_to_pursue, search_results)
             ctx.metrics["llm_calls"] += 1
 
             if processed:
@@ -606,10 +730,10 @@ Generate a checklist of what information is needed for a complete answer.""",
     async def _llm_generate_queries(
         self,
         ctx: ResearchContext,
-        unsatisfied: List[ChecklistItem]
+        gaps: List[str]
     ) -> Optional[SearchQueries]:
         """Generate search queries based on gaps."""
-        needed_items = "\n".join(f"- {item.description}" for item in unsatisfied)
+        gaps_text = "\n".join(f"- {gap}" for gap in gaps)
 
         result = await call_llm(
             system_message="""You are a research assistant generating search queries.
@@ -624,13 +748,13 @@ Already known:
 {knowledge_summary}
 
 Still need to find:
-{needed_items}
+{gaps}
 
 Generate 1-2 PubMed queries and 1-2 web search queries to fill the gaps.""",
             values={
                 "question": ctx.refined_question,
                 "knowledge_summary": ctx.summarize_knowledge_base(),
-                "needed_items": needed_items
+                "gaps": gaps_text
             },
             model_config=DEFAULT_MODEL_CONFIG,
             response_schema=SearchQueries
@@ -644,11 +768,11 @@ Generate 1-2 PubMed queries and 1-2 web search queries to fill the gaps.""",
     async def _llm_process_results(
         self,
         ctx: ResearchContext,
-        unsatisfied: List[ChecklistItem],
+        gaps: List[str],
         search_results: List[Dict[str, Any]]
     ) -> Optional[ProcessedResults]:
         """Extract relevant facts from search results."""
-        needed_items = "\n".join(f"- [{item.id}] {item.description}" for item in unsatisfied)
+        gaps_text = "\n".join(f"- {gap}" for gap in gaps)
         results_text = ""
         for r in search_results[:20]:  # Limit to avoid token overflow
             results_text += f"\n[{r['source_id']}] {r['title']}\n{r['snippet']}\n"
@@ -659,16 +783,16 @@ For each relevant finding, extract the key fact, note which checklist items it a
 and include the source ID for citation.""",
             user_message="""Research question: {question}
 
-Checklist items still needed:
-{needed_items}
+Information gaps to address:
+{gaps}
 
 Search results:
 {results}
 
-Extract relevant facts and note which checklist items they address.""",
+Extract relevant facts and note which gaps they address.""",
             values={
                 "question": ctx.refined_question,
-                "needed_items": needed_items,
+                "gaps": gaps_text,
                 "results": results_text
             },
             model_config=DEFAULT_MODEL_CONFIG,
@@ -680,42 +804,104 @@ Extract relevant facts and note which checklist items they address.""",
         logger.error(f"Failed to process results: {result.error}")
         return None
 
-    async def _llm_check_completeness(
+    async def _llm_evaluate(
         self,
         ctx: ResearchContext
-    ) -> Optional[CompletenessCheck]:
-        """Check if the checklist items are satisfied."""
+    ) -> Optional[EvaluationResult]:
+        """
+        First evaluator: Determine if research is sufficient.
+
+        Returns pass/fail with confidence and specific gaps if failing.
+        """
         checklist_text = "\n".join(f"- [{item.id}] {item.description}" for item in ctx.checklist)
 
         result = await call_llm(
-            system_message="""You are a research assistant evaluating research completeness.
-Review the checklist against accumulated knowledge and determine:
-- Which items are satisfied (sufficient information found)
-- Which are partial (some info but gaps remain)
-- Which are unsatisfied (no relevant information found)
+            system_message="""You are a research evaluator assessing whether sufficient information has been gathered.
 
-Research is complete if all items are satisfied or have good partial coverage.""",
+Your job:
+1. Evaluate each checklist item: satisfied, partial, or unsatisfied
+2. Decide if the research is SUFFICIENT to answer the question (passed=true/false)
+3. Provide a confidence score (0.0-1.0) in your assessment
+4. If NOT sufficient, list specific information gaps that need to be addressed
+
+Be rigorous but practical. Research doesn't need to be perfect, but should adequately address the question.""",
             user_message="""Research question: {question}
 
-Checklist:
+Checklist items:
 {checklist}
 
 Knowledge accumulated:
 {knowledge}
 
-Evaluate completeness of each checklist item.""",
+Number of sources found: {source_count}
+
+Evaluate: Is this research sufficient to answer the question?""",
             values={
                 "question": ctx.refined_question,
                 "checklist": checklist_text,
-                "knowledge": ctx.summarize_knowledge_base()
+                "knowledge": ctx.summarize_knowledge_base(),
+                "source_count": len(ctx.sources)
             },
             model_config=DEFAULT_MODEL_CONFIG,
-            response_schema=CompletenessCheck
+            response_schema=EvaluationResult
         )
 
         if result.ok:
-            return CompletenessCheck(**result.data)
-        logger.error(f"Failed to check completeness: {result.error}")
+            return EvaluationResult(**result.data)
+        logger.error(f"Failed to evaluate: {result.error}")
+        return None
+
+    async def _llm_second_opinion(
+        self,
+        ctx: ResearchContext,
+        first_evaluation: EvaluationResult
+    ) -> Optional[SecondOpinionResult]:
+        """
+        Second opinion evaluator for low-confidence passes.
+
+        Reviews the first evaluation and either confirms or identifies additional gaps.
+        """
+        checklist_text = "\n".join(f"- [{item.id}] {item.description}" for item in ctx.checklist)
+
+        result = await call_llm(
+            system_message="""You are a senior research reviewer providing a second opinion.
+
+The first evaluator passed this research but with low confidence. Your job:
+1. Review the accumulated knowledge against the research question
+2. Review the first evaluator's assessment
+3. Either CONFIRM the pass or identify ADDITIONAL GAPS
+
+Be thorough but fair. If the research adequately addresses the question, confirm it.
+If there are significant gaps, identify them specifically.""",
+            user_message="""Research question: {question}
+
+Checklist items:
+{checklist}
+
+Knowledge accumulated:
+{knowledge}
+
+First evaluator's assessment:
+- Passed: {first_passed}
+- Confidence: {first_confidence}
+- Reasoning: {first_reasoning}
+
+Provide your second opinion: Is this research sufficient?""",
+            values={
+                "question": ctx.refined_question,
+                "checklist": checklist_text,
+                "knowledge": ctx.summarize_knowledge_base(),
+                "first_passed": first_evaluation.passed,
+                "first_confidence": f"{first_evaluation.confidence:.0%}",
+                "first_reasoning": first_evaluation.reasoning
+            },
+            model_config=DEFAULT_MODEL_CONFIG,
+            response_schema=SecondOpinionResult
+        )
+
+        if result.ok:
+            return SecondOpinionResult(**result.data)
+        logger.error(f"Failed to get second opinion: {result.error}")
         return None
 
     async def _llm_synthesize_answer(
@@ -796,7 +982,7 @@ Synthesize a comprehensive answer with citations.""",
         """Search PubMed and return formatted results."""
         results = []
         try:
-            articles, _ = await search_pubmed(query=query, max_results=ctx.MAX_PUBMED_RESULTS)
+            articles, _ = await search_pubmed(query=query, max_results=ctx.config.max_pubmed_results)
 
             for article in articles:
                 source_id = f"pubmed_{article.source_id}"
@@ -836,7 +1022,7 @@ Synthesize a comprehensive answer with citations.""",
 
             search_result = await self.web_search_service.search(
                 search_term=query,
-                num_results=ctx.MAX_WEB_RESULTS
+                num_results=ctx.config.max_web_results
             )
 
             for i, item in enumerate(search_result["search_results"]):
