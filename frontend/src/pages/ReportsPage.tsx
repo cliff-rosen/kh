@@ -132,10 +132,12 @@ export default function ReportsPage() {
                 context.report_id = selectedReport.report_id;
                 context.report_name = selectedReport.report_name;
                 context.article_count = selectedReport.articles?.length || 0;
+                // Include the current view mode so the LLM knows how the user is viewing the report
+                context.report_view = reportView; // 'all', 'by-category', or 'tablizer'
             }
         }
         return context;
-    }, [selectedReport, selectedStream, streamDetails]);
+    }, [selectedReport, selectedStream, streamDetails, reportView]);
 
     // Payload handlers for ChatTray
     const payloadHandlers = useMemo<Record<string, PayloadHandler>>(() => ({
