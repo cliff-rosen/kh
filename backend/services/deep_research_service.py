@@ -309,7 +309,7 @@ class DeepResearchService:
             yield ToolProgress(stage="complete", message="Research complete!", progress=1.0)
 
             # Format and yield final result
-            answer_text = self._format_answer_with_sources(ctx)
+            answer_text = self._format_text_for_llm(ctx)
             yield ToolResult(
                 text=answer_text,
                 payload={"type": "deep_research_result", "data": ctx.final_result()}
@@ -1080,18 +1080,56 @@ Synthesize a comprehensive answer with citations.""",
     # OUTPUT FORMATTING
     # =========================================================================
 
-    def _format_answer_with_sources(self, ctx: ResearchContext) -> str:
-        """Format the answer with a sources section."""
+    def _format_text_for_llm(self, ctx: ResearchContext) -> str:
+        """
+        Format a brief summary for the LLM.
+
+        The full answer with citations is displayed in the Deep Research payload card,
+        so we only need to give the LLM context about what was found and guidance
+        on how to respond.
+        """
         if not ctx.final_answer:
-            return "No answer generated."
+            return "Deep research completed but no answer was generated."
 
-        answer = ctx.final_answer.answer
-        sources_section = "\n\n---\n**Sources:**\n"
+        # Count source types
+        pubmed_count = sum(1 for s in ctx.sources.values() if s.source_type == "pubmed")
+        web_count = sum(1 for s in ctx.sources.values() if s.source_type == "web")
 
-        for i, source in enumerate(ctx.sources.values(), 1):
-            if source.source_type == "pubmed":
-                sources_section += f"\n[{i}] {source.title}\n    PubMed: {source.url}\n"
-            else:
-                sources_section += f"\n[{i}] {source.title}\n    {source.url}\n"
+        # Build source summary
+        source_parts = []
+        if pubmed_count:
+            source_parts.append(f"{pubmed_count} PubMed articles")
+        if web_count:
+            source_parts.append(f"{web_count} web sources")
+        sources_text = " and ".join(source_parts) if source_parts else "no sources"
 
-        return answer + sources_section
+        # Confidence info
+        confidence_text = ""
+        if ctx.last_evaluation:
+            confidence_pct = int(ctx.last_evaluation.confidence * 100)
+            confidence_text = f"Confidence: {confidence_pct}%"
+            if ctx.second_opinion:
+                confidence_text += " (verified by second opinion)"
+
+        # Coverage info
+        satisfied = ctx.get_satisfied_count()
+        total = len(ctx.checklist)
+        coverage_text = f"Coverage: {satisfied}/{total} checklist items satisfied"
+
+        # Limitations summary
+        limitations_text = ""
+        if ctx.final_answer.limitations:
+            limitations_text = f"Note: {len(ctx.final_answer.limitations)} limitation(s) identified"
+
+        return f"""Deep research completed successfully.
+
+**Research Summary**:
+- Iterations: {ctx.metrics['total_iterations']}
+- Sources: {sources_text}
+- {confidence_text}
+- {coverage_text}
+{f"- {limitations_text}" if limitations_text else ""}
+
+The full synthesized answer with inline citations is displayed in the **Deep Research panel** on the right. The user can expand sources and view limitations there.
+
+Provide brief commentary on the findings or ask if they'd like clarification on any specific points."""

@@ -12,6 +12,7 @@ import React from 'react';
 import { registerPayloadHandler } from './payloadRegistry';
 import PubMedArticleCard, { PubMedArticleData } from '../../components/chat/PubMedArticleCard';
 import PubMedSearchResultsCard, { PubMedSearchResultsData } from '../../components/chat/PubMedSearchResultsCard';
+import DeepResearchResultCard, { DeepResearchResultData } from '../../components/chat/DeepResearchResultCard';
 
 // ============================================================================
 // PubMed Article Handler (single article details)
@@ -36,6 +37,19 @@ registerPayloadHandler('pubmed_search_results', {
         panelWidth: '800px',
         headerTitle: 'PubMed Search Results',
         headerIcon: '🔍'
+    }
+});
+
+// ============================================================================
+// Deep Research Result Handler (comprehensive research with citations)
+// ============================================================================
+
+registerPayloadHandler('deep_research_result', {
+    render: (data: DeepResearchResultData) => React.createElement(DeepResearchResultCard, { data }),
+    renderOptions: {
+        panelWidth: '700px',
+        headerTitle: 'Deep Research',
+        headerIcon: '🔬'
     }
 });
 

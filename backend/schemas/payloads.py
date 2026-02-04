@@ -1344,7 +1344,15 @@ register_payload_type(PayloadType(
             },
             "iterations_used": {"type": "integer", "description": "Number of research iterations performed"},
             "status": {"type": "string", "enum": ["completed", "max_iterations_reached", "error"]},
-            "limitations": {"type": "array", "items": {"type": "string"}, "description": "Known limitations"}
+            "limitations": {"type": "array", "items": {"type": "string"}, "description": "Known limitations"},
+            "evaluation": {
+                "type": "object",
+                "description": "Evaluation details from the research process",
+                "properties": {
+                    "final_confidence": {"type": "number", "description": "Final confidence score (0.0 to 1.0)"},
+                    "used_second_opinion": {"type": "boolean", "description": "Whether a second opinion was requested"}
+                }
+            }
         },
         "required": ["trace_id", "answer", "sources", "status"]
     }
