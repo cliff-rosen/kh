@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon, BugAntIcon } from '@heroicons/react/24/solid';
 
 import { useChatContext } from '../../context/ChatContext';
@@ -56,6 +56,38 @@ function getDefaultHeaderIcon(payloadType: string): string {
         'import_suggestions': '📥'
     };
     return icons[payloadType] || '✨';
+}
+
+/**
+ * Button to view a payload from a message. Shows the payload's icon and title.
+ */
+function PayloadButton({
+    payloadType,
+    payloadData,
+    messageIndex,
+    payloadHandlers,
+    onOpen
+}: {
+    payloadType: string;
+    payloadData: unknown;
+    messageIndex: number;
+    payloadHandlers?: Record<string, PayloadHandler>;
+    onOpen: (payload: { type: string; data: unknown; messageIndex: number }) => void;
+}): React.ReactElement | null {
+    const handler = payloadHandlers?.[payloadType] || getPayloadHandler(payloadType);
+    if (!handler) return null;
+
+    const opts = handler.renderOptions || {};
+    return (
+        <button
+            type="button"
+            onClick={() => onOpen({ type: payloadType, data: payloadData, messageIndex })}
+            className="text-xs text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1"
+        >
+            {opts.headerIcon && <span>{opts.headerIcon}</span>}
+            <span>View {opts.headerTitle || 'Result'}</span>
+        </button>
+    );
 }
 
 /**
@@ -513,27 +545,38 @@ export default function ChatTray({
                                         <p className="text-xs opacity-70 mt-1">
                                             {new Date(message.timestamp).toLocaleTimeString()}
                                         </p>
-                                        {/* Tool history and diagnostics buttons */}
+                                        {/* Tool history, diagnostics, and payload buttons */}
                                         <div className="flex items-center gap-3 mt-2">
-                                            {message.tool_history && message.tool_history.length > 0 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setToolsToShow(message.tool_history!)}
-                                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                                                >
-                                                    View {message.tool_history.length} tool{message.tool_history.length > 1 ? 's' : ''}
-                                                </button>
-                                            )}
-                                            {message.diagnostics && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setDiagnosticsToShow(message.diagnostics!)}
-                                                    className="text-xs text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1"
-                                                >
-                                                    <BugAntIcon className="h-3 w-3" />
-                                                    <span>Diagnostics</span>
-                                                </button>
-                                            )}
+                                            <>
+                                                {message.tool_history && message.tool_history.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setToolsToShow(message.tool_history!)}
+                                                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                                    >
+                                                        View {message.tool_history.length} tool{message.tool_history.length > 1 ? 's' : ''}
+                                                    </button>
+                                                )}
+                                                {message.diagnostics && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDiagnosticsToShow(message.diagnostics!)}
+                                                        className="text-xs text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1"
+                                                    >
+                                                        <BugAntIcon className="h-3 w-3" />
+                                                        <span>Diagnostics</span>
+                                                    </button>
+                                                )}
+                                                {message.custom_payload?.type && message.custom_payload.data && (
+                                                    <PayloadButton
+                                                        payloadType={message.custom_payload.type}
+                                                        payloadData={message.custom_payload.data}
+                                                        messageIndex={idx}
+                                                        payloadHandlers={payloadHandlers}
+                                                        onOpen={setActivePayload}
+                                                    />
+                                                )}
+                                            </>
                                         </div>
                                     </div>
                                 </div>
