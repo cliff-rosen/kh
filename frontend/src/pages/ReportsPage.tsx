@@ -65,6 +65,7 @@ export default function ReportsPage() {
         }
     }, [reportView, isAdmin]);
     const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+    const [collapsedSummaries, setCollapsedSummaries] = useState<Set<string>>(new Set());
     const [executiveSummaryCollapsed, setExecutiveSummaryCollapsed] = useState(false);
 
     // Modal state
@@ -489,15 +490,33 @@ export default function ReportsPage() {
                                     {!isCollapsed && (
                                         <div className="bg-white dark:bg-gray-900">
                                             {selectedReport.enrichments?.category_summaries?.[categoryId] && (
-                                                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                                                    <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                                        Category Summary
-                                                    </h5>
-                                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-                                                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                                                            {selectedReport.enrichments.category_summaries[categoryId]}
-                                                        </p>
-                                                    </div>
+                                                <div className="border-b border-gray-200 dark:border-gray-700">
+                                                    <button
+                                                        onClick={() => setCollapsedSummaries(prev => {
+                                                            const next = new Set(prev);
+                                                            next.has(categoryId) ? next.delete(categoryId) : next.add(categoryId);
+                                                            return next;
+                                                        })}
+                                                        className="w-full flex items-center gap-1.5 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                                                    >
+                                                        {collapsedSummaries.has(categoryId) ? (
+                                                            <ChevronRightIcon className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                                                        ) : (
+                                                            <ChevronDownIcon className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                                                        )}
+                                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                            Category Summary
+                                                        </span>
+                                                    </button>
+                                                    {!collapsedSummaries.has(categoryId) && (
+                                                        <div className="px-4 pb-3">
+                                                            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 ml-5">
+                                                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                                                                    {selectedReport.enrichments.category_summaries[categoryId]}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                             <div className="p-4 space-y-3">
