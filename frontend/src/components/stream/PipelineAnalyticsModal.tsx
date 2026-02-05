@@ -41,7 +41,9 @@ interface PipelineAnalytics {
         presentation_categories: string[];
         authors: string[];
         journal: string | null;
-        year: string | null;
+        pub_year: number | null;
+        pub_month: number | null;
+        pub_day: number | null;
         pmid: string | null;
         doi: string | null;
         abstract: string | null;

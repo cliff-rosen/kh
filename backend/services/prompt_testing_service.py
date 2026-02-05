@@ -320,7 +320,7 @@ class PromptTestingService:
         Args:
             prompt: The categorization prompt to test
             user_id: User ID for access verification
-            sample_data: Optional sample data with title, abstract, journal, year, categories_json
+            sample_data: Optional sample data with title, abstract, journal, publication_date, categories_json
             report_id: Optional report ID to get an article from
             article_index: Which article to use from the report (default: first)
 
@@ -390,7 +390,7 @@ class PromptTestingService:
             article_index: Which article to use (0-indexed)
 
         Returns:
-            Dict with title, abstract, journal, year, categories_json
+            Dict with title, abstract, journal, publication_date, categories_json
         """
         import json
 

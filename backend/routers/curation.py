@@ -341,7 +341,9 @@ class WipArticleAnalyticsResponse(BaseModel):
     presentation_categories: List[str] = []
     authors: List[str] = []
     journal: Optional[str] = None
-    year: Optional[int] = None
+    pub_year: Optional[int] = None
+    pub_month: Optional[int] = None
+    pub_day: Optional[int] = None
     pmid: Optional[str] = None
     doi: Optional[str] = None
     abstract: Optional[str] = None

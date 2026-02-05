@@ -242,7 +242,7 @@ class GoogleScholarArticle:
         self.publication_info: str = kwargs.get('publication_info', '')
         self.snippet: str = kwargs.get('snippet', '')
         self.abstract: str = kwargs.get('abstract', '')
-        self.year: Optional[int] = kwargs.get('year')
+        self.pub_year: Optional[int] = kwargs.get('year')
         self.journal: Optional[str] = kwargs.get('journal')
         self.doi: Optional[str] = kwargs.get('doi')
         self.cited_by_count: Optional[int] = kwargs.get('cited_by_count')
@@ -272,7 +272,7 @@ class GoogleScholarArticle:
             if author_parts:
                 author_part = author_parts[-1].lower()
         
-        year_part = str(self.year) if self.year else "nodate"
+        year_part = str(self.pub_year) if self.pub_year else "nodate"
         
         return f"scholar_{author_part}_{year_part}_{title_part}"
     
@@ -286,7 +286,7 @@ class GoogleScholarArticle:
             'publication_info': self.publication_info,
             'snippet': self.snippet,
             'abstract': self.abstract,
-            'year': self.year,
+            'pub_year': self.pub_year,
             'journal': self.journal,
             'doi': self.doi,
             'cited_by_count': self.cited_by_count,

@@ -339,7 +339,7 @@ async def execute_search_articles_in_reports(
                 "pmid": article.pmid,
                 "title": article.title,
                 "journal": article.journal,
-                "year": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
+                "publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
                 "report_id": report.report_id,
                 "report_name": report.report_name,
                 "relevance_score": assoc.relevance_score
@@ -455,7 +455,7 @@ User Read: {'Yes' if assoc.is_read else 'No'}
                 "authors": article.authors,
                 "abstract": article.abstract,
                 "journal": article.journal,
-                "year": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
+                "publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
                 "relevance_score": assoc.relevance_score if assoc else None,
                 "is_starred": assoc.is_starred if assoc else None,
                 "notes_count": len(notes)

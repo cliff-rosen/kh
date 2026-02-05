@@ -79,18 +79,37 @@ Frontend Types ─────────────► Display with formatArt
 
 | Field | Type | XML Source | Semantic |
 |-------|------|------------|----------|
-| `pub_year` | int | `PubDate/Year` | Publication year (always present) |
-| `pub_month` | int \| None | `PubDate/Month` | Publication month (1-12, when available) |
-| `pub_day` | int \| None | `PubDate/Day` | Publication day (1-31, when available) |
+| `pub_year` | int | Computed (see below) | Publication year (always present) |
+| `pub_month` | int \| None | Computed (see below) | Publication month (1-12, when available) |
+| `pub_day` | int \| None | Computed (see below) | Publication day (1-31, when available) |
 | `entry_date` | date \| None | `PubMedPubDate[@PubStatus="entrez"]` | When added to PubMed |
 | `comp_date` | date \| None | `DateCompleted` | When MEDLINE indexing completed |
 | `date_revised` | date \| None | `DateRevised` | When record last revised |
 
-**Parsing logic:**
-- Year is parsed from `<Year>` element, always required
-- Month is parsed from `<Month>` element, converted from name (e.g., "Jan") or number
-- Day is parsed from `<Day>` element when present
-- No fabrication of missing precision
+**How `pub_year`/`pub_month`/`pub_day` are derived:**
+
+These fields mirror PubMed's `[dp]` (Publication Date) virtual field — they represent the **earlier** of the print date and the electronic date. The derivation has two steps:
+
+1. **Start with PubDate** (`Article/Journal/JournalIssue/PubDate`):
+   - Parse `<Year>` (always present), `<Month>` (text like "Jan" or numeric, may be absent), `<Day>` (may be absent)
+   - Month names are normalized to integers (Jan→1, Feb→2, etc.)
+   - No fabrication of missing precision — if Day is absent, `pub_day` stays None
+
+2. **Compare with ArticleDate** (`Article/ArticleDate[@DateType="Electronic"]`), if present:
+   - Parse its `<Year>`, `<Month>`, `<Day>` (ArticleDate always has full precision when it exists)
+   - Build comparable tuples: missing month/day default to 12/28 (biasing toward "later" so imprecise dates don't win the comparison spuriously)
+   - **If the electronic date is earlier → replace all three pub fields with the electronic date values**
+   - If the electronic date is the same or later → keep the PubDate values
+
+**Why:** Many articles appear online weeks or months before their print journal issue. Using the earlier date matches what PubMed displays and avoids confusing results where an article found in a January date search shows "February 2026" because we only stored the print date.
+
+**Example:**
+```
+PubDate:     <Year>2026</Year><Month>Feb</Month>          → (2026, 2, None)
+ArticleDate: <Year>2026</Year><Month>01</Month><Day>07</Day> → (2026, 1, 7)
+
+ArticleDate is earlier → pub_year=2026, pub_month=1, pub_day=7
+```
 
 ### 3.2 CanonicalResearchArticle
 
@@ -151,18 +170,22 @@ Frontend Types ─────────────► Display with formatArt
 ```
 PubMed XML
     │
-    │  <PubDate>
-    │    <Year>2026</Year>
-    │    <Month>Jan</Month>
-    │    <!-- No Day element -->
-    │  </PubDate>
-    │
-    ▼
+    │  <PubDate>                              <ArticleDate DateType="Electronic">
+    │    <Year>2026</Year>                      <Year>2026</Year>
+    │    <Month>Feb</Month>                     <Month>01</Month>
+    │    <!-- No Day element -->                <Day>07</Day>
+    │  </PubDate>                             </ArticleDate>
+    │         \                               /
+    │          \     compare: use earlier     /
+    │           \           ▼               /
+    │            └──────────┬──────────────┘
+    │                       │
+    ▼                       ▼
 ┌─────────────────────────────────────────────────────────┐
 │ PubMedArticle                                           │
-│   pub_year = 2026                                       │
-│   pub_month = 1                                         │
-│   pub_day = None  ← HONEST: we don't know the day      │
+│   pub_year = 2026     ← from ArticleDate (earlier)      │
+│   pub_month = 1       ← from ArticleDate (earlier)      │
+│   pub_day = 7         ← from ArticleDate (earlier)      │
 └─────────────────────────────────────────────────────────┘
     │
     ▼
@@ -170,7 +193,7 @@ PubMed XML
 │ CanonicalResearchArticle (via pubmed_article_to_research)│
 │   pub_year = 2026                                       │
 │   pub_month = 1                                         │
-│   pub_day = None                                        │
+│   pub_day = 7                                           │
 └─────────────────────────────────────────────────────────┘
     │
     ▼
@@ -178,7 +201,7 @@ PubMed XML
 │ WipArticle → Article (database)                         │
 │   pub_year = 2026                                       │
 │   pub_month = 1                                         │
-│   pub_day = NULL                                        │
+│   pub_day = 7                                           │
 └─────────────────────────────────────────────────────────┘
     │
     ▼
@@ -186,13 +209,13 @@ PubMed XML
 │ ReportArticle (API response)                            │
 │   pub_year = 2026                                       │
 │   pub_month = 1                                         │
-│   pub_day = null                                        │
+│   pub_day = 7                                           │
 └─────────────────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────────────────┐
 │ Frontend Display                                        │
-│   formatArticleDate(2026, 1, null) → "Jan 2026"        │
+│   formatArticleDate(2026, 1, 7) → "Jan 7, 2026"        │
 │   ← DISPLAYS ONLY KNOWN PRECISION                       │
 └─────────────────────────────────────────────────────────┘
 ```

@@ -68,7 +68,7 @@ def build_context(context: Dict[str, Any]) -> str:
         doi = current_article.get("doi")
         authors = current_article.get("authors")
         journal = current_article.get("journal")
-        year = current_article.get("year")
+        year = current_article.get("publication_date")
 
         parts.append(f"Title: {title}")
         if pmid:
@@ -83,7 +83,7 @@ def build_context(context: Dict[str, Any]) -> str:
         if journal:
             parts.append(f"Journal: {journal}")
         if year:
-            parts.append(f"Year: {year}")
+            parts.append(f"Published: {year}")
 
         # AI Summary - this is the most useful condensed info, show it prominently
         ai_summary = current_article.get("ai_summary")

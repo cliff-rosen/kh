@@ -842,7 +842,7 @@ SUGGESTED_ACTIONS:
                 "authors": article.authors or [],
                 "abstract": article.abstract,
                 "journal": article.journal,
-                "year": format_pub_date(article.pub_year, article.pub_month, article.pub_day) or None,
+                "publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day) or None,
                 "relevance_score": assoc.relevance_score,
                 "relevance_rationale": assoc.relevance_rationale,
                 "category": assoc.presentation_categories[0] if assoc.presentation_categories else None
@@ -901,7 +901,7 @@ SUGGESTED_ACTIONS:
             authors_str += " et al."
 
         journal = article.get("journal", "Unknown Journal")
-        year = article.get("year", "Unknown Year")
+        year = article.get("publication_date", "Unknown")
         pmid = article.get("pmid")
         doi = article.get("doi")
         abstract = article.get("abstract", "No abstract available.")
@@ -968,7 +968,7 @@ SUGGESTED_ACTIONS:
             entry = f"""
             {i}. "{article.get('title', 'Untitled')}"
             Authors: {authors_str or 'Unknown'}
-            Journal: {article.get('journal', 'Unknown')} ({article.get('year', 'Unknown')})
+            Journal: {article.get('journal', 'Unknown')} ({article.get('publication_date', 'Unknown')})
             Relevance: {f"{int(article.get('relevance_score', 0) * 100)}%" if article.get('relevance_score') else 'Not scored'}
             Category: {article.get('category', 'Uncategorized')}"""
 

@@ -88,7 +88,6 @@ STANCE_ANALYSIS_SLUGS = [
     ),
     ("{article.journal}", "article_journal", "Journal where the article was published"),
     ("{article.publication_date}", "article_publication_date", "Publication date"),
-    ("{article.year}", "article_publication_date", "Publication date (legacy alias)"),
     ("{article.abstract}", "article_abstract", "Full abstract of the article"),
     ("{article.summary}", "article_summary", "AI-generated summary of the article"),
 ]

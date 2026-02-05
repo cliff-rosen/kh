@@ -73,7 +73,7 @@ class TestCategorizationPromptRequest(BaseModel):
     prompt: CategorizationPrompt = Field(..., description="The categorization prompt to test")
     sample_data: Optional[Dict[str, Any]] = Field(
         None,
-        description="Sample article data with title, abstract, journal, year, categories_json"
+        description="Sample article data with title, abstract, journal, publication_date, categories_json"
     )
     report_id: Optional[int] = Field(None, description="Reference to an existing report to get an article from")
     article_index: Optional[int] = Field(0, description="Which article to use from the report (default: first)")

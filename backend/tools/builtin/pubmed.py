@@ -92,7 +92,7 @@ def execute_search_pubmed(
                 "title": article.title,
                 "authors": authors_str,
                 "journal": journal,
-                "year": date_str,
+                "publication_date": date_str,
                 "abstract": article.abstract or "",
                 "has_free_full_text": bool(getattr(article, 'pmc_id', None))
             })
@@ -177,7 +177,7 @@ def execute_get_pubmed_article(
                 "title": article.title,
                 "authors": article.authors,
                 "journal": article.journal,
-                "year": article_date,
+                "publication_date": article_date,
                 "volume": article.volume,
                 "issue": article.issue,
                 "pages": article.pages,
@@ -293,7 +293,7 @@ def execute_get_full_text(
                             "title": article.title,
                             "authors": article.authors,
                             "journal": article.journal,
-                            "year": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
+                            "publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
                             "doi": article.doi,
                             "abstract": article.abstract,
                             "pmc_available": False,
@@ -348,7 +348,7 @@ def execute_get_full_text(
                     "title": article.title,
                     "authors": article.authors,
                     "journal": article.journal,
-                    "year": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
+                    "publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
                     "volume": article.volume,
                     "issue": article.issue,
                     "pages": article.pages,
@@ -367,7 +367,7 @@ def execute_get_full_text(
                     "title": "Full Text Retrieved",
                     "authors": "Unknown",
                     "journal": "Unknown",
-                    "year": "Unknown",
+                    "publication_date": "Unknown",
                     "pmc_id": pmc_id,
                     "full_text": full_text
                 }

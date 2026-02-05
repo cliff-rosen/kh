@@ -158,7 +158,7 @@ class CanonicalScholarArticle(BaseModel):
     related_pages_link: Optional[str] = Field(default=None, description="Link to related articles")
     versions_link: Optional[str] = Field(default=None, description="Link to different versions")
     pdf_link: Optional[str] = Field(default=None, description="Direct PDF link if available")
-    year: Optional[int] = Field(default=None, description="Publication year")
+    pub_year: Optional[int] = Field(default=None, description="Publication year")
     position: int = Field(description="Position in search results")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional Scholar metadata")
 

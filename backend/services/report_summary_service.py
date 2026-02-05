@@ -134,7 +134,6 @@ PROMPT_SLUGS = {
         ("{article.authors}", "authors", "Authors of the article"),
         ("{article.journal}", "journal", "Journal where published"),
         ("{article.publication_date}", "publication_date", "Publication date"),
-        ("{article.year}", "publication_date", "Publication date (legacy alias)"),
         ("{article.abstract}", "abstract", "Article abstract"),
         ("{article.filter_reason}", "filter_reason", "AI reasoning for semantic filter"),
     ],
@@ -260,7 +259,7 @@ class ReportSummaryService:
                 - title: Article title
                 - authors: Formatted authors string
                 - journal: Journal name
-                - year: Publication year
+                - publication_date: Publication date
                 - abstract: Article abstract
                 - filter_reason: (optional) AI reasoning from semantic filter
                 - stream_name: (optional) Research stream name
@@ -623,7 +622,7 @@ class ReportSummaryService:
         Format articles for inclusion in LLM prompt.
 
         Args:
-            articles: List of article dicts with title, authors, journal, year, abstract
+            articles: List of article dicts with title, authors, journal, publication_date, abstract
             max_articles: Maximum number of articles to include
 
         Returns:

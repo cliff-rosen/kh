@@ -97,7 +97,7 @@ def build_context(context: Dict[str, Any]) -> str:
     - snapshots: List of saved search snapshots
     - compare_mode: Whether compare mode is active
     - ai_columns: List of AI columns with their configs
-    - articles: List of article summaries (pmid, title, year, journal)
+    - articles: List of article summaries (pmid, title, publication_date, journal)
     """
     query = context.get("query", "")
     total_matched = context.get("total_matched", 0)
@@ -122,7 +122,7 @@ def build_context(context: Dict[str, Any]) -> str:
     # Format articles (first 15)
     articles_text = "None loaded"
     if articles:
-        article_lines = [f"  - [{a.get('pmid', '?')}] {a.get('title', 'Untitled')[:50]}... ({a.get('year', '?')})" for a in articles[:15]]
+        article_lines = [f"  - [{a.get('pmid', '?')}] {a.get('title', 'Untitled')[:50]}... ({a.get('publication_date', '?')})" for a in articles[:15]]
         if len(articles) > 15:
             article_lines.append(f"  ... and {len(articles) - 15} more")
         articles_text = "\n".join(article_lines)

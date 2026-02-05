@@ -214,7 +214,7 @@ class Category(BaseModel):
 class CategorizationPrompt(BaseModel):
     """Custom prompt for article categorization"""
     system_prompt: str = Field(description="System prompt defining the LLM's role for categorization")
-    user_prompt_template: str = Field(description="User prompt template with slugs: {title}, {abstract}, {journal}, {year}, {categories_json}")
+    user_prompt_template: str = Field(description="User prompt template with slugs: {title}, {abstract}, {journal}, {publication_date}, {categories_json}")
 
 
 class PresentationConfig(BaseModel):

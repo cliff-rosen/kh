@@ -297,7 +297,7 @@ register_payload_type(PayloadType(
                         "title": {"type": "string"},
                         "authors": {"type": "string"},
                         "journal": {"type": "string"},
-                        "year": {"type": "string"},
+                        "publication_date": {"type": "string"},
                         "abstract": {"type": "string"},
                         "has_free_full_text": {"type": "boolean"}
                     },
@@ -322,7 +322,7 @@ register_payload_type(PayloadType(
             "title": {"type": "string"},
             "authors": {"type": "string"},
             "journal": {"type": "string"},
-            "year": {"type": "string"},
+            "publication_date": {"type": "string"},
             "volume": {"type": "string"},
             "issue": {"type": "string"},
             "pages": {"type": "string"},
@@ -1236,7 +1236,7 @@ register_payload_type(PayloadType(
             "authors": {"type": "string"},
             "abstract": {"type": ["string", "null"]},
             "journal": {"type": "string"},
-            "year": {"type": ["string", "integer", "null"]},
+            "publication_date": {"type": ["string", "integer", "null"]},
             "relevance_score": {"type": ["number", "null"]},
             "is_starred": {"type": ["boolean", "null"]},
             "notes_count": {"type": "integer"}

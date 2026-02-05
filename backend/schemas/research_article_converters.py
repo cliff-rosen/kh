@@ -101,7 +101,7 @@ def scholar_to_research_article(scholar_article: 'GoogleScholarArticle', positio
         snippet=scholar_article.snippet,
         journal=scholar_article.journal,  # GoogleScholarArticle extracts this
         # Honest date fields - Scholar only provides year
-        pub_year=scholar_article.year,
+        pub_year=scholar_article.pub_year,
         pub_month=None,  # Scholar doesn't provide month
         pub_day=None,  # Scholar doesn't provide day
         doi=scholar_article.doi,  # GoogleScholarArticle extracts DOI

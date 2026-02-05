@@ -35,7 +35,7 @@ USER_PROMPT_TEMPLATE = """Categorize this research article into one of the avail
 Title: {title}
 Abstract: {abstract}
 Journal: {journal}
-Year: {year}
+Published: {publication_date}
 
 ## Available Categories
 {categories_json}
@@ -88,7 +88,7 @@ class ArticleCategorizationService:
                 - title: Article title
                 - abstract: Article abstract
                 - journal: Journal name (optional)
-                - year: Publication year (optional)
+                - publication_date: Publication date (optional)
                 - categories_json: JSON string of available categories
             model_config: Model configuration (model, temperature)
             options: Call options (max_concurrent, on_progress)
@@ -155,7 +155,7 @@ class ArticleCategorizationService:
             {"slug": "{abstract}", "description": "Article abstract"},
             {"slug": "{ai_summary}", "description": "AI-generated summary of the article (if available)"},
             {"slug": "{journal}", "description": "Journal name"},
-            {"slug": "{year}", "description": "Publication year"},
+            {"slug": "{publication_date}", "description": "Publication date"},
             {"slug": "{categories_json}", "description": "JSON array of available categories with id, name, topics, and specific_inclusions"},
         ]
 

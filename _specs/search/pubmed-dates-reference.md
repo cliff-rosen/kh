@@ -215,7 +215,26 @@ search_articles(
 
 ## 6. Our Implementation
 
-### Date Field Mapping
+### How We Derive `pub_year`/`pub_month`/`pub_day`
+
+Our publication date fields mirror PubMed's `[dp]` virtual field. In `pubmed_service.py`, we compute them as the **earlier** of the two source XML fields:
+
+| XML Field | Path | Role |
+|-----------|------|------|
+| **PubDate** | `Article/Journal/JournalIssue/PubDate` | Print/journal issue date (always present, variable precision) |
+| **ArticleDate** | `Article/ArticleDate[@DateType="Electronic"]` | Electronic publication date (optional, full precision) |
+
+**Algorithm:**
+1. Parse year/month/day from PubDate (month may be text like "Jan", day may be absent)
+2. If ArticleDate exists, parse its year/month/day
+3. Compare using tuples — missing month/day default to 12/28 (biasing toward "later" so imprecise dates don't spuriously win)
+4. Use whichever is earlier
+
+This means our `pub_year`/`pub_month`/`pub_day` may come from either XML field depending on which date is earlier for a given article.
+
+For full details on our date storage model, see [Article Dates](../../backend/docs/article_dates.md).
+
+### Search Date Field Mapping
 
 ```python
 # In pubmed_service.py

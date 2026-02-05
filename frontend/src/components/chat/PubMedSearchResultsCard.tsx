@@ -12,7 +12,7 @@ export interface PubMedSearchResult {
     title: string;
     authors: string;
     journal: string;
-    year: string;
+    publication_date: string;
     abstract: string;
     has_free_full_text: boolean;
 }
@@ -113,7 +113,7 @@ export default function PubMedSearchResultsCard({ data }: PubMedSearchResultsCar
                                     <span className="line-clamp-2">{article.journal}</span>
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 align-top">
-                                    {article.year}
+                                    {article.publication_date}
                                 </td>
                                 <td className="px-4 py-3 align-top">
                                     <a

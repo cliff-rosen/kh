@@ -55,7 +55,7 @@ export interface PubMedWorkbenchState {
     articles: Array<{
         pmid: string;
         title: string;
-        year: string;
+        publication_date: string;
         journal: string;
     }>;
 }
@@ -509,7 +509,7 @@ const PubMedWorkbench = forwardRef<PubMedWorkbenchRef, PubMedWorkbenchProps>(fun
             articles: allArticles.slice(0, 15).map(a => ({
                 pmid: a.pmid || '',
                 title: a.title || '',
-                year: getYearString(a.pub_year),
+                publication_date: getYearString(a.pub_year),
                 journal: a.journal || ''
             }))
         };

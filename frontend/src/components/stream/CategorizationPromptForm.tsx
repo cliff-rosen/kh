@@ -696,7 +696,7 @@ export default function CategorizationPromptForm({ streamId, stream }: Categoriz
                                     value={pastedData}
                                     onChange={(e) => setPastedData(e.target.value)}
                                     rows={4}
-                                    placeholder='{"title": "...", "abstract": "...", "journal": "...", "year": "2024", "categories_json": "[...]"}'
+                                    placeholder='{"title": "...", "abstract": "...", "journal": "...", "publication_date": "Jan 2024", "categories_json": "[...]"}'
                                     className="w-full px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 font-mono placeholder-gray-400 dark:placeholder-gray-500"
                                 />
                             </div>

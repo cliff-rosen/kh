@@ -19,7 +19,7 @@ export interface PubMedArticleData {
     title: string;
     authors: string;
     journal: string;
-    year: string;
+    publication_date: string;
     volume?: string;
     issue?: string;
     pages?: string;
@@ -81,7 +81,7 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
                 </div>
                 <div className="flex items-center gap-2">
                     <CalendarIcon className="h-4 w-4 text-gray-400" />
-                    <span className="text-gray-700 dark:text-gray-300">{article.year}</span>
+                    <span className="text-gray-700 dark:text-gray-300">{article.publication_date}</span>
                 </div>
                 {article.volume && (
                     <span className="text-gray-500 dark:text-gray-400">
@@ -228,7 +228,7 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
                     <button
                         type="button"
                         onClick={(e) => {
-                            const citation = `${article.authors}. ${article.title}. ${article.journal}. ${article.year};${article.volume || ''}(${article.issue || ''}):${article.pages || ''}. PMID: ${article.pmid}${article.doi ? `. doi: ${article.doi}` : ''}`;
+                            const citation = `${article.authors}. ${article.title}. ${article.journal}. ${article.publication_date};${article.volume || ''}(${article.issue || ''}):${article.pages || ''}. PMID: ${article.pmid}${article.doi ? `. doi: ${article.doi}` : ''}`;
                             handleCopy(citation, 'citation', e);
                         }}
                         className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1"
@@ -252,7 +252,7 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
                     </button>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-                    {article.authors}. {article.title}. <em>{article.journal}</em>. {article.year}
+                    {article.authors}. {article.title}. <em>{article.journal}</em>. {article.publication_date}
                     {article.volume && `;${article.volume}`}
                     {article.issue && `(${article.issue})`}
                     {article.pages && `:${article.pages}`}
