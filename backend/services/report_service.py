@@ -923,19 +923,34 @@ class ReportService:
         if not report_ids:
             return []
 
-        # Build search conditions
-        search_term = f"%{query}%"
-        search_conditions = [
-            Article.title.ilike(search_term),
-            Article.abstract.ilike(search_term),
-            Article.journal.ilike(search_term),
-            Article.authors.ilike(search_term),
-            Article.pmid.ilike(search_term),
+        # Build search conditions - split query into words so each word
+        # can match independently across any field (AND logic between words)
+        search_fields = [
+            Article.title,
+            Article.abstract,
+            Article.journal,
+            Article.authors,
+            Article.pmid,
         ]
 
         # If query looks like a DOI, also search DOI field
         if "/" in query or query.lower().startswith("10."):
-            search_conditions.append(Article.doi.ilike(search_term))
+            search_fields.append(Article.doi)
+
+        words = query.split()
+        if words:
+            # Each word must appear in at least one field
+            word_conditions = []
+            for word in words:
+                term = f"%{word}%"
+                word_conditions.append(
+                    or_(*[field.ilike(term) for field in search_fields])
+                )
+            combined_search = and_(*word_conditions)
+        else:
+            combined_search = or_(*[
+                field.ilike(f"%{query}%") for field in search_fields
+            ])
 
         search_stmt = select(
             Article, ReportArticleAssociation, Report
@@ -947,7 +962,7 @@ class ReportService:
             ReportArticleAssociation.report_id == Report.report_id
         ).where(
             ReportArticleAssociation.report_id.in_(report_ids),
-            or_(*search_conditions)
+            combined_search
         ).order_by(
             func.coalesce(ReportArticleAssociation.relevance_score, -1).desc()
         ).limit(max_results)
