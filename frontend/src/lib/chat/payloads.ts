@@ -54,6 +54,19 @@ registerPayloadHandler('deep_research_result', {
 });
 
 // ============================================================================
+// Article Details Handler (article from report context)
+// ============================================================================
+
+registerPayloadHandler('article_details', {
+    render: (data: PubMedArticleData) => React.createElement(PubMedArticleCard, { article: data }),
+    renderOptions: {
+        panelWidth: '550px',
+        headerTitle: 'Article Details',
+        headerIcon: '📄'
+    }
+});
+
+// ============================================================================
 // Additional payload types can be registered here as needed.
 //
 // The pattern is:
