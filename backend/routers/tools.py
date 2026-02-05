@@ -121,8 +121,7 @@ async def check_pubmed_ids(
     ensuring accurate results even when the query returns thousands of results.
     """
     from services.pubmed_service import PubMedService
-    from schemas.canonical_types import CanonicalPubMedArticle
-    from schemas.research_article_converters import pubmed_to_research_article
+    from schemas.research_article_converters import pubmed_article_to_research
 
     try:
         # Apply default date range if not provided
@@ -194,24 +193,7 @@ async def check_pubmed_ids(
             # Convert to canonical format and build lookup
             for article in articles:
                 try:
-                    canonical_pubmed = CanonicalPubMedArticle(
-                        pmid=article.PMID,
-                        title=article.title or "[No title available]",
-                        abstract=article.abstract or "[No abstract available]",
-                        authors=article.authors.split(', ') if article.authors else [],
-                        journal=article.journal or "[Unknown journal]",
-                        pub_year=article.pub_year,
-                        pub_month=article.pub_month,
-                        pub_day=article.pub_day,
-                        keywords=[],
-                        mesh_terms=[],
-                        metadata={
-                            "volume": article.volume,
-                            "issue": article.issue,
-                            "pages": article.pages,
-                        }
-                    )
-                    research_article = pubmed_to_research_article(canonical_pubmed)
+                    research_article = pubmed_article_to_research(article)
                     article_lookup[article.PMID] = research_article
                 except Exception as e:
                     logger.error(f"Error converting article {article.PMID}: {e}")

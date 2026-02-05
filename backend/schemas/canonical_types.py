@@ -134,38 +134,6 @@ class CanonicalResearchArticle(BaseModel):
             self.id = hashlib.md5(content.encode()).hexdigest()[:16]
         return self
 
-class CanonicalPubMedArticle(BaseModel):
-    """
-    PubMed-specific article schema - TRANSIENT INTERMEDIATE type.
-
-    Purpose: Validates PubMed data before conversion to CanonicalResearchArticle.
-
-    Lifecycle:
-        PubMedArticle (parsing) -> CanonicalPubMedArticle -> CanonicalResearchArticle
-
-    Usage:
-        - Created in pubmed_service.py, routers/tools.py, routers/tablizer.py
-        - Immediately converted via pubmed_to_research_article()
-        - All downstream code uses CanonicalResearchArticle
-
-    The metadata dict preserves PubMed-specific fields (article_date, pub_date,
-    entry_date, comp_date, date_revised) that get mapped to CanonicalResearchArticle fields.
-    """
-    pmid: str = Field(description="PubMed ID")
-    title: str = Field(description="Article title")
-    abstract: str = Field(description="Article abstract")
-    authors: List[str] = Field(default=[], description="List of author names")
-    journal: str = Field(description="Journal name")
-    # Honest date fields - only populated with actual precision available
-    pub_year: Optional[int] = Field(default=None, description="Publication year (always present from PubMed)")
-    pub_month: Optional[int] = Field(default=None, description="Publication month (1-12, when available)")
-    pub_day: Optional[int] = Field(default=None, description="Publication day (1-31, when available)")
-    doi: Optional[str] = Field(default=None, description="Digital Object Identifier")
-    keywords: List[str] = Field(default=[], description="Article keywords")
-    mesh_terms: List[str] = Field(default=[], description="MeSH terms")
-    citation_count: Optional[int] = Field(default=None, description="Number of citations")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional article metadata")
-
 class CanonicalScholarArticle(BaseModel):
     """
     Google Scholar-specific article schema - TRANSIENT INTERMEDIATE type.
@@ -479,7 +447,6 @@ def get_canonical_model(type_name: str) -> type[BaseModel]:
         'email': CanonicalEmail,
         'search_result': CanonicalSearchResult,
         'webpage': CanonicalWebpage,
-        'pubmed_article': CanonicalPubMedArticle,
         'scholar_article': CanonicalScholarArticle,
         'research_article': CanonicalResearchArticle,
         'clinical_trial': CanonicalClinicalTrial
@@ -492,7 +459,7 @@ def get_canonical_model(type_name: str) -> type[BaseModel]:
 
 def list_canonical_types() -> List[str]:
     """Get a list of all available canonical types."""
-    return ['email', 'search_result', 'webpage', 'pubmed_article', 'scholar_article', 'research_article', 'clinical_trial']
+    return ['email', 'search_result', 'webpage', 'scholar_article', 'research_article', 'clinical_trial']
 
 def validate_canonical_data(type_name: str, data: Dict[str, Any]) -> Dict[str, Any]:
     """

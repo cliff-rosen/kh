@@ -14,7 +14,7 @@ from models import ResearchStream
 from schemas.canonical_types import CanonicalResearchArticle
 from schemas.llm import ModelConfig
 from typing import Optional
-from schemas.research_article_converters import legacy_article_to_canonical_pubmed, pubmed_to_research_article
+from schemas.research_article_converters import pubmed_article_to_research
 from services.pubmed_service import PubMedService, fetch_articles_by_ids
 from services.ai_evaluation_service import get_ai_evaluation_service
 from services.article_categorization_service import ArticleCategorizationService
@@ -99,8 +99,7 @@ class RetrievalTestingService:
         articles: List[CanonicalResearchArticle] = []
         for raw_article in raw_articles:
             try:
-                canonical_pubmed = legacy_article_to_canonical_pubmed(raw_article)
-                canonical_article = pubmed_to_research_article(canonical_pubmed)
+                canonical_article = pubmed_article_to_research(raw_article)
                 articles.append(canonical_article)
             except Exception as e:
                 # Log but don't fail on individual article conversion errors
@@ -161,8 +160,7 @@ class RetrievalTestingService:
         articles: List[CanonicalResearchArticle] = []
         for raw_article in raw_articles:
             try:
-                canonical_pubmed = legacy_article_to_canonical_pubmed(raw_article)
-                canonical_article = pubmed_to_research_article(canonical_pubmed)
+                canonical_article = pubmed_article_to_research(raw_article)
                 articles.append(canonical_article)
             except Exception as e:
                 print(f"Warning: Failed to convert article {getattr(raw_article, 'PMID', 'unknown')}: {e}")

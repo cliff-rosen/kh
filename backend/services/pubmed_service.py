@@ -621,8 +621,7 @@ class PubMedService:
             date_type: Type of date to filter on ("publication", "completion", "entry", "revised")
             include_full_text: If True, fetch full text from PMC for articles with PMC IDs
         """
-        from schemas.canonical_types import CanonicalPubMedArticle
-        from schemas.research_article_converters import pubmed_to_research_article
+        from schemas.research_article_converters import pubmed_article_to_research
 
         logger.info(
             f"PubMed search: query='{query}', max_results={max_results}, offset={offset}"
@@ -660,32 +659,7 @@ class PubMedService:
         conversion_failures: List[tuple[str, str]] = []  # (pmid, error)
         for i, article in enumerate(articles):
             try:
-                # Create CanonicalPubMedArticle
-                canonical_pubmed = CanonicalPubMedArticle(
-                    pmid=article.PMID,
-                    title=article.title or "[No title available]",
-                    abstract=article.abstract or "[No abstract available]",
-                    authors=article.authors.split(", ") if article.authors else [],
-                    journal=article.journal or "[Unknown journal]",
-                    pub_year=article.pub_year,
-                    pub_month=article.pub_month,
-                    pub_day=article.pub_day,
-                    keywords=[],  # Would need to extract from XML
-                    mesh_terms=[],  # Would need to extract from XML
-                    metadata={
-                        "volume": article.volume,
-                        "issue": article.issue,
-                        "pages": article.pages,
-                        "medium": article.medium,
-                        "comp_date": article.comp_date,
-                        "date_revised": article.date_revised,
-                        "article_date": article.article_date,
-                        "entry_date": article.entry_date,
-                    },
-                )
-
-                # Convert to CanonicalResearchArticle
-                research_article = pubmed_to_research_article(canonical_pubmed)
+                research_article = pubmed_article_to_research(article)
                 research_article.search_position = offset + i + 1
                 # Pass through full_text if fetched
                 if article.full_text:

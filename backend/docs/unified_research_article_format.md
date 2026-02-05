@@ -119,25 +119,15 @@ The `CanonicalResearchArticle` provides a unified schema for research articles f
 ### Converting PubMed Article
 
 ```python
-from schemas.canonical_types import CanonicalPubMedArticle
-from schemas.research_article_converters import pubmed_to_research_article
+from schemas.research_article_converters import pubmed_article_to_research
+from services.pubmed_service import PubMedService
 
-# Original PubMed article
-pubmed_article = CanonicalPubMedArticle(
-    pmid="12345678",
-    title="Example Study on Treatment X",
-    abstract="This study examines...",
-    authors=["Smith J", "Doe A"],
-    journal="Journal of Medicine",
-    publication_date="2024-01-15",
-    doi="10.1234/example",
-    keywords=["treatment", "clinical trial"],
-    mesh_terms=["Therapeutics", "Clinical Trials"],
-    citation_count=42
-)
+# Fetch PubMed articles
+service = PubMedService()
+articles = await service.get_articles_from_ids(["12345678"])
 
-# Convert to unified format
-unified_article = pubmed_to_research_article(pubmed_article)
+# Convert PubMedArticle directly to unified format
+unified_article = pubmed_article_to_research(articles[0])
 ```
 
 ### Converting Google Scholar Article
@@ -167,15 +157,10 @@ unified_article = scholar_to_research_article(scholar_article)
 ### Batch Conversion
 
 ```python
-from schemas.research_article_converters import convert_articles_to_unified
+from schemas.research_article_converters import pubmed_article_to_research
 
-# Convert multiple articles at once
-pubmed_articles = [...]  # List of PubMed articles
-unified_articles = convert_articles_to_unified(pubmed_articles, "pubmed")
-
-# Works with dictionaries too
-scholar_dicts = [...]  # List of Scholar article dictionaries
-unified_articles = convert_articles_to_unified(scholar_dicts, "google_scholar")
+# Convert multiple PubMedArticle objects
+unified_articles = [pubmed_article_to_research(a) for a in pubmed_articles]
 ```
 
 ### Working with Unified Articles
@@ -196,21 +181,15 @@ for article in unified_articles:
         print(f"PDF available: {article.pdf_url}")
 ```
 
-### Converting Back to Source Format
+### Accessing Source-Specific Data
 
 ```python
-from schemas.research_article_converters import research_article_to_source_format
-
-# Convert unified article back to source-specific format
-source_data = research_article_to_source_format(unified_article)
-
-# This returns a dictionary matching the original source schema
+# Source-specific fields are preserved in source_metadata
 if unified_article.source == "pubmed":
-    # source_data matches CanonicalPubMedArticle fields
-    pmid = source_data["pmid"]
+    pmid = unified_article.pmid
+    volume = unified_article.source_metadata.get("volume")
 elif unified_article.source == "google_scholar":
-    # source_data matches CanonicalScholarArticle fields
-    position = source_data["position"]
+    position = unified_article.search_position
 ```
 
 ## Best Practices

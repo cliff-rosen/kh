@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 # Defines the basic data types that can be represented.
 PrimitiveType = Literal['string', 'number', 'boolean', 'primitive']
 ComplexType = Literal['object', 'file', 'database_entity', 'markdown', 'config']
-CanonicalType = Literal['email', 'webpage', 'search_result', 'pubmed_article', 'newsletter', 'daily_newsletter_recap', 'pubmed_extraction', 'scored_article', 'scholar_article']
+CanonicalType = Literal['email', 'webpage', 'search_result', 'newsletter', 'daily_newsletter_recap', 'pubmed_extraction', 'scored_article', 'scholar_article']
 ValueType = Union[PrimitiveType, ComplexType, CanonicalType]
 
 # Defines the role an asset plays within a workflow.

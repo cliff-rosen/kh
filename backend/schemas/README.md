@@ -29,9 +29,9 @@ This directory contains the canonical schema system for the JAM Bot application.
    - Consistent webpage representation
    - Used by: web scraping tools, content extraction
 
-4. **PubMed Article** (`CanonicalPubMedArticle`)
-   - Academic article metadata structure
-   - Used by: research tools, article extraction
+4. **Research Article** (`CanonicalResearchArticle`)
+   - Unified academic article metadata from any source (PubMed, Google Scholar, etc.)
+   - Used by: research tools, article extraction, workbench
 
 5. **Newsletter** (`CanonicalNewsletter`)
    - Newsletter content and metadata

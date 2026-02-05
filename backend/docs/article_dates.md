@@ -35,13 +35,12 @@ PubMed provides publication dates with varying precision:
 | # | Object | Location | Date Fields |
 |---|--------|----------|-------------|
 | 1 | PubMedArticle | `services/pubmed_service.py` | pub_year, pub_month, pub_day, entry_date, comp_date, date_revised |
-| 2 | CanonicalPubMedArticle | `schemas/canonical_types.py` | pub_year, pub_month, pub_day |
-| 3 | CanonicalResearchArticle | `schemas/canonical_types.py` | pub_year, pub_month, pub_day, date_completed, date_revised, date_entered |
-| 4 | WipArticle (model) | `models.py` | pub_year, pub_month, pub_day |
-| 5 | WipArticle (schema) | `schemas/research_stream.py` | pub_year, pub_month, pub_day |
-| 6 | Article (model) | `models.py` | pub_year, pub_month, pub_day, comp_date |
-| 7 | Article (schema) | `schemas/article.py` | pub_year, pub_month, pub_day |
-| 8 | ReportArticle | `schemas/report.py` | pub_year, pub_month, pub_day |
+| 2 | CanonicalResearchArticle | `schemas/canonical_types.py` | pub_year, pub_month, pub_day, date_completed, date_revised, date_entered |
+| 3 | WipArticle (model) | `models.py` | pub_year, pub_month, pub_day |
+| 4 | WipArticle (schema) | `schemas/research_stream.py` | pub_year, pub_month, pub_day |
+| 5 | Article (model) | `models.py` | pub_year, pub_month, pub_day, comp_date |
+| 6 | Article (schema) | `schemas/article.py` | pub_year, pub_month, pub_day |
+| 7 | ReportArticle | `schemas/report.py` | pub_year, pub_month, pub_day |
 
 ### Type Architecture
 
@@ -51,9 +50,7 @@ PubMed XML
        ▼
 PubMedArticle (parsing)
        │  Parses year/month/day separately from XML
-       ▼
-CanonicalPubMedArticle ─────► Transient intermediate (validates PubMed data)
-       │
+       │  Converted via pubmed_article_to_research()
        ▼
 CanonicalResearchArticle ───► Universal interface for ALL sources
        │                      (PubMed, Google Scholar, future sources)
@@ -70,7 +67,7 @@ ReportArticle ──────────────► Report presentation 
 Frontend Types ─────────────► Display with formatArticleDate() utility
 ```
 
-**Key point:** CanonicalPubMedArticle and CanonicalScholarArticle are backend-only transient types. The frontend only sees CanonicalResearchArticle.
+**Key point:** CanonicalScholarArticle is a backend-only transient type. PubMedArticle converts directly to CanonicalResearchArticle via `pubmed_article_to_research()`. The frontend only sees CanonicalResearchArticle.
 
 ---
 
@@ -95,19 +92,7 @@ Frontend Types ─────────────► Display with formatArt
 - Day is parsed from `<Day>` element when present
 - No fabrication of missing precision
 
-### 3.2 CanonicalPubMedArticle
-
-**Location:** `backend/schemas/canonical_types.py`
-
-| Field | Type | Semantic |
-|-------|------|----------|
-| `pub_year` | int \| None | Publication year |
-| `pub_month` | int \| None | Publication month (1-12) |
-| `pub_day` | int \| None | Publication day (1-31) |
-
-**Population:** `pubmed_service.py` → `to_canonical()` method
-
-### 3.3 CanonicalResearchArticle
+### 3.2 CanonicalResearchArticle
 
 **Location:** `backend/schemas/canonical_types.py`
 
@@ -120,9 +105,9 @@ Frontend Types ─────────────► Display with formatArt
 | `date_revised` | str \| None | Last revision (YYYY-MM-DD) |
 | `date_entered` | str \| None | PubMed entry (YYYY-MM-DD) |
 
-**Population:** `research_article_converters.py` → `pubmed_to_research_article()`
+**Population:** `research_article_converters.py` → `pubmed_article_to_research()`
 
-### 3.4 WipArticle (model)
+### 3.3 WipArticle (model)
 
 **Location:** `backend/models.py`
 
@@ -134,7 +119,7 @@ Frontend Types ─────────────► Display with formatArt
 
 **Population:** `wip_article_service.py` → `create_wip_articles()`
 
-### 3.5 Article (model)
+### 3.4 Article (model)
 
 **Location:** `backend/models.py`
 
@@ -147,7 +132,7 @@ Frontend Types ─────────────► Display with formatArt
 
 **Population:** `article_service.py` → `find_or_create_from_wip()`
 
-### 3.6 ReportArticle
+### 3.5 ReportArticle
 
 **Location:** `backend/schemas/report.py`
 
@@ -182,7 +167,7 @@ PubMed XML
     │
     ▼
 ┌─────────────────────────────────────────────────────────┐
-│ CanonicalPubMedArticle → CanonicalResearchArticle       │
+│ CanonicalResearchArticle (via pubmed_article_to_research)│
 │   pub_year = 2026                                       │
 │   pub_month = 1                                         │
 │   pub_day = None                                        │
@@ -317,7 +302,7 @@ New code should use `pub_year`, `pub_month`, `pub_day` exclusively.
 | File | Purpose |
 |------|---------|
 | `services/pubmed_service.py` | PubMedArticle parsing with honest date extraction |
-| `schemas/canonical_types.py` | CanonicalPubMedArticle, CanonicalResearchArticle with pub_year/month/day |
+| `schemas/canonical_types.py` | CanonicalResearchArticle with pub_year/month/day |
 | `schemas/research_article_converters.py` | Conversion between types |
 | `services/wip_article_service.py` | WipArticle creation with date fields |
 | `services/article_service.py` | Article creation with date fields |
@@ -334,7 +319,6 @@ New code should use `pub_year`, `pub_month`, `pub_day` exclusively.
 | Backend | Frontend Location | Notes |
 |---------|-------------------|-------|
 | CanonicalResearchArticle | `types/canonical_types.ts` | 1:1 mirror with pub_year/month/day |
-| CanonicalPubMedArticle | (not on FE) | Backend-only transient type |
 | WipArticle (model) | `types/research-stream.ts` | Has pub_year/month/day |
 | Article (model) | `types/article.ts` | Has pub_year/month/day |
 | ReportArticle | `types/report.ts` | Has pub_year/month/day |

@@ -62,8 +62,7 @@ async def search_pubmed(
     logger.info(f"search_pubmed - user_id={current_user.user_id}, query='{request.query_expression[:50]}...'")
 
     from services.pubmed_service import PubMedService
-    from schemas.canonical_types import CanonicalPubMedArticle
-    from schemas.research_article_converters import pubmed_to_research_article
+    from schemas.research_article_converters import pubmed_article_to_research
 
     try:
         pubmed_service = PubMedService()
@@ -88,24 +87,7 @@ async def search_pubmed(
 
             for article in raw_articles:
                 try:
-                    canonical_pubmed = CanonicalPubMedArticle(
-                        pmid=article.PMID,
-                        title=article.title or "[No title available]",
-                        abstract=article.abstract or "[No abstract available]",
-                        authors=article.authors.split(', ') if article.authors else [],
-                        journal=article.journal or "[Unknown journal]",
-                        pub_year=article.pub_year,
-                        pub_month=article.pub_month,
-                        pub_day=article.pub_day,
-                        keywords=[],
-                        mesh_terms=[],
-                        metadata={
-                            "volume": article.volume,
-                            "issue": article.issue,
-                            "pages": article.pages,
-                        }
-                    )
-                    research_article = pubmed_to_research_article(canonical_pubmed)
+                    research_article = pubmed_article_to_research(article)
                     articles.append(research_article)
                 except Exception as e:
                     logger.error(f"Error converting article {article.PMID}: {e}")
