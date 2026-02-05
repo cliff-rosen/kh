@@ -74,7 +74,7 @@ def execute_search_pubmed(
 
             pmid = article.pmid or article.id
             journal = article.journal or 'Unknown'
-            year = article.publication_date or 'Unknown'
+            year = str(article.pub_year) if article.pub_year else 'Unknown'
 
             # Text for LLM
             text_results.append(f"""

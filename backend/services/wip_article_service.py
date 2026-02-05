@@ -204,24 +204,19 @@ class WipArticleService:
             f"execution_id={execution_id}, retrieval_group_id={retrieval_group_id}"
         )
 
-        date_parse_failures = 0
         for article in articles:
-            # Handle legacy publication_date for backward compatibility
-            pub_date = None
-            if article.publication_date:
-                try:
-                    pub_date = datetime.fromisoformat(article.publication_date).date()
-                except (ValueError, AttributeError):
-                    date_parse_failures += 1
-
-            # Use the new honest date fields if available, fall back to legacy fields
             pub_year = article.pub_year
             pub_month = article.pub_month
             pub_day = article.pub_day
 
-            # Fallback: extract from publication_year if pub_year not set
-            if pub_year is None and article.publication_year:
-                pub_year = article.publication_year
+            # Build legacy publication_date from honest fields for backward compat
+            pub_date = None
+            if pub_year and pub_month and pub_day:
+                try:
+                    from datetime import date as date_type
+                    pub_date = date_type(pub_year, pub_month, pub_day)
+                except (ValueError, TypeError):
+                    pass
 
             wip_article = WipArticle(
                 research_stream_id=research_stream_id,
@@ -248,11 +243,6 @@ class WipArticleService:
                 included_in_report=False,
             )
             self.db.add(wip_article)
-
-        if date_parse_failures > 0:
-            logger.warning(
-                f"Failed to parse publication_date for {date_parse_failures}/{len(articles)} articles"
-            )
 
         await self.db.commit()
         logger.info(
