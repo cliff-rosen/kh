@@ -777,7 +777,7 @@ register_tool(ToolConfig(
         "properties": {
             "query": {
                 "type": "string",
-                "description": "Search query - can be a PMID (e.g. '12345678'), author name, title words, journal name, or any text to match in the abstract. For DOIs, include the '10.' prefix."
+                "description": "Space-separated search terms. Each term is matched independently (AND logic) against title, abstract, journal, authors, and PMID. Use simple keywords like 'Madigan asbestos' — do NOT use boolean operators (AND/OR/NOT), quotes, or field tags. For DOIs, include the '10.' prefix."
             },
             "max_results": {
                 "type": "integer",
