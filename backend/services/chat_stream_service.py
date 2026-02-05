@@ -901,7 +901,7 @@ SUGGESTED_ACTIONS:
             authors_str += " et al."
 
         journal = article.get("journal", "Unknown Journal")
-        year = article.get("publication_date", "Unknown")
+        publication_date = article.get("publication_date", "Unknown")
         pmid = article.get("pmid")
         doi = article.get("doi")
         abstract = article.get("abstract", "No abstract available.")
@@ -915,7 +915,7 @@ SUGGESTED_ACTIONS:
 
         Title: {title}
         Authors: {authors_str}
-        Journal: {journal} ({year})"""]
+        Journal: {journal} ({publication_date})"""]
 
         if pmid:
             sections.append(f"        PMID: {pmid}")
