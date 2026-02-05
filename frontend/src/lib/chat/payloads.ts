@@ -13,6 +13,7 @@ import { registerPayloadHandler } from './payloadRegistry';
 import PubMedArticleCard, { PubMedArticleData } from '../../components/chat/PubMedArticleCard';
 import PubMedSearchResultsCard, { PubMedSearchResultsData } from '../../components/chat/PubMedSearchResultsCard';
 import DeepResearchResultCard, { DeepResearchResultData } from '../../components/chat/DeepResearchResultCard';
+import ArtifactListCard, { ArtifactListData, ArtifactData, ArtifactDetailCard } from '../../components/chat/ArtifactListCard';
 
 // ============================================================================
 // PubMed Article Handler (single article details)
@@ -63,6 +64,32 @@ registerPayloadHandler('article_details', {
         panelWidth: '550px',
         headerTitle: 'Article Details',
         headerIcon: '📄'
+    }
+});
+
+// ============================================================================
+// Artifact List Handler (bug/feature tracker)
+// ============================================================================
+
+registerPayloadHandler('artifact_list', {
+    render: (data: ArtifactListData) => React.createElement(ArtifactListCard, { data }),
+    renderOptions: {
+        panelWidth: '600px',
+        headerTitle: 'Defect Tracker',
+        headerIcon: '🐛'
+    }
+});
+
+// ============================================================================
+// Artifact Details Handler (single bug/feature)
+// ============================================================================
+
+registerPayloadHandler('artifact_details', {
+    render: (data: ArtifactData) => React.createElement(ArtifactDetailCard, { data }),
+    renderOptions: {
+        panelWidth: '500px',
+        headerTitle: 'Artifact Details',
+        headerIcon: '🐛'
     }
 });
 

@@ -93,6 +93,18 @@ class ExecutionStatus(str, PyEnum):
     FAILED = "failed"         # Execution failed, no report
 
 
+class ArtifactType(str, PyEnum):
+    """Type of artifact (defect tracker)"""
+    BUG = "bug"
+    FEATURE = "feature"
+
+class ArtifactStatus(str, PyEnum):
+    """Status of an artifact"""
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    CLOSED = "closed"
+
+
 # Organization table (multi-tenancy)
 class Organization(Base):
     """Organization/tenant that users belong to"""
@@ -833,6 +845,25 @@ class ToolTrace(Base):
     # Relationships
     user = relationship("User", back_populates="tool_traces")
     organization = relationship("Organization")
+
+
+# === DEFECT / FEATURE TRACKER ===
+
+class Artifact(Base):
+    """Bug/feature tracker for platform admins"""
+    __tablename__ = "artifacts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    artifact_type = Column(Enum(ArtifactType, values_callable=lambda x: [e.value for e in x], name='artifacttype'), nullable=False)
+    status = Column(Enum(ArtifactStatus, values_callable=lambda x: [e.value for e in x], name='artifactstatus'), nullable=False, default=ArtifactStatus.OPEN)
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    creator = relationship("User")
 
 
 # Add relationships to User model

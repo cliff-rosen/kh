@@ -118,7 +118,8 @@ class ChatStreamService:
             current_page = context_with_chat.get("current_page", "unknown")
             active_tab = context_with_chat.get("active_tab")
             active_subtab = context_with_chat.get("active_subtab")
-            tools_by_name = get_tools_for_page_dict(current_page, active_tab, active_subtab)
+            user_role = context_with_chat.get("user_role")
+            tools_by_name = get_tools_for_page_dict(current_page, active_tab, active_subtab, user_role=user_role)
 
             # Send initial status
             yield StatusEvent(message="Thinking...").model_dump_json()

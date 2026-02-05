@@ -1297,6 +1297,79 @@ register_payload_type(PayloadType(
 
 
 # =============================================================================
+# Artifact Payloads (Defect/Feature Tracker)
+# =============================================================================
+
+def _summarize_artifact_list(data: Dict[str, Any]) -> str:
+    """Summarize artifact list."""
+    total = data.get("total", 0)
+    return f"List of {total} artifacts (bugs/features)"
+
+
+def _summarize_artifact_details(data: Dict[str, Any]) -> str:
+    """Summarize artifact details."""
+    artifact_id = data.get("id", "?")
+    title = data.get("title", "Untitled")
+    atype = data.get("type", "unknown")
+    status = data.get("status", "unknown")
+    if len(title) > 40:
+        title = title[:37] + "..."
+    return f"[{atype.upper()}] #{artifact_id} {title} ({status})"
+
+
+register_payload_type(PayloadType(
+    name="artifact_list",
+    description="List of bugs and feature requests",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_artifact_list,
+    schema={
+        "type": "object",
+        "properties": {
+            "total": {"type": "integer"},
+            "artifacts": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "title": {"type": "string"},
+                        "description": {"type": ["string", "null"]},
+                        "type": {"type": "string", "enum": ["bug", "feature"]},
+                        "status": {"type": "string", "enum": ["open", "in_progress", "closed"]},
+                        "created_by": {"type": "integer"},
+                        "created_at": {"type": ["string", "null"]},
+                        "updated_at": {"type": ["string", "null"]}
+                    }
+                }
+            }
+        }
+    }
+))
+
+register_payload_type(PayloadType(
+    name="artifact_details",
+    description="Details of a single bug or feature request",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_artifact_details,
+    schema={
+        "type": "object",
+        "properties": {
+            "id": {"type": "integer"},
+            "title": {"type": "string"},
+            "description": {"type": ["string", "null"]},
+            "type": {"type": "string", "enum": ["bug", "feature"]},
+            "status": {"type": "string", "enum": ["open", "in_progress", "closed"]},
+            "created_by": {"type": "integer"},
+            "created_at": {"type": ["string", "null"]},
+            "updated_at": {"type": ["string", "null"]}
+        }
+    }
+))
+
+
+# =============================================================================
 # Deep Research Payloads
 # =============================================================================
 

@@ -73,6 +73,7 @@ class ToolConfig:
     category: str = "general"           # Tool category for organization
     payload_type: Optional[str] = None  # Payload type from schemas/payloads.py (e.g., "pubmed_search_results")
     is_global: bool = True              # If True, available on all pages by default
+    required_role: Optional[str] = None # If set, only users with this role can see the tool (e.g., "platform_admin")
 
 
 # =============================================================================
@@ -145,12 +146,14 @@ def tools_to_dict(tools: List[ToolConfig]) -> Dict[str, ToolConfig]:
 def get_tools_for_page(
     page: str,
     tab: Optional[str] = None,
-    subtab: Optional[str] = None
+    subtab: Optional[str] = None,
+    user_role: Optional[str] = None
 ) -> List[ToolConfig]:
     """
     Get all tools for a page, optional tab, and optional subtab.
 
     Returns: global tools + page tools + tab tools + subtab tools (via page config registry)
+    Filters out tools that require a role the user doesn't have.
     """
     from services.chat_page_config import get_tool_names_for_page_tab
 
@@ -166,30 +169,38 @@ def get_tools_for_page(
         if name not in global_names and name in _tool_registry:
             tools.append(_tool_registry[name])
 
+    # Filter by required_role
+    if user_role:
+        tools = [t for t in tools if t.required_role is None or t.required_role == user_role]
+    else:
+        tools = [t for t in tools if t.required_role is None]
+
     return tools
 
 
 def get_tools_for_page_dict(
     page: str,
     tab: Optional[str] = None,
-    subtab: Optional[str] = None
+    subtab: Optional[str] = None,
+    user_role: Optional[str] = None
 ) -> Dict[str, ToolConfig]:
     """
     Get all tools for a page as a dict mapping name to config.
 
     Returns: global tools + page tools + tab tools + subtab tools
     """
-    return tools_to_dict(get_tools_for_page(page, tab, subtab))
+    return tools_to_dict(get_tools_for_page(page, tab, subtab, user_role=user_role))
 
 
 def get_tools_for_anthropic(
     page: str,
     tab: Optional[str] = None,
-    subtab: Optional[str] = None
+    subtab: Optional[str] = None,
+    user_role: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Get tools in Anthropic API format for a page.
 
     Returns: global tools + page tools + tab tools + subtab tools in Anthropic format
     """
-    return tools_to_anthropic_format(get_tools_for_page(page, tab, subtab))
+    return tools_to_anthropic_format(get_tools_for_page(page, tab, subtab, user_role=user_role))
