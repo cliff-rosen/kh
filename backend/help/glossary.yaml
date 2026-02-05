@@ -1,228 +1,262 @@
 sections:
   - category: glossary
-    topic: core-concepts
-    title: Core Concepts
-    summary: Definitions of Research Stream, Report, Article, and other key terms
+    topic: core-entities
+    title: Core Entities
+    summary: Understanding Streams, Reports, and Articles - the building blocks
     roles: [member, org_admin, platform_admin]
     order: 10
     content: |
-      Key terms used throughout Knowledge Horizon.
+      Knowledge Horizon is built around three core entities in a clear hierarchy.
 
-      ## Research Stream
+      ## Stream (Research Stream)
 
-      A configured monitoring setup that tracks a specific research area.
+      A **stream** is an automated research monitor focused on a specific topic area.
+      Think of it as a "saved search" that runs regularly and compiles results into reports.
 
-      **Components:**
-      - **Search queries** - What to look for in PubMed
-      - **Semantic filters** - AI-powered relevance scoring
-      - **Schedule** - How often to check for new articles (daily, weekly, etc.)
-      - **Reports** - Generated summaries of new findings
+      **What defines a stream:**
+      - A focus area (e.g., "CAR-T Cell Therapy Safety" or "GLP-1 Agonists in Diabetes")
+      - Search queries that find relevant articles in PubMed
+      - A schedule (daily, weekly, etc.) for checking new publications
 
-      **Example:** A stream monitoring "CAR-T cell therapy adverse events" would have queries
-      targeting CAR-T literature and filters focusing on safety/toxicity topics.
+      **Key relationship:** One stream produces many reports over time.
 
       ## Report
 
-      A curated collection of recent articles from a research stream.
+      A **report** is a snapshot of recent research from a stream, covering a specific date range.
 
-      **Contains:**
-      - Date range covered
-      - Executive summary (AI-generated overview)
-      - Thematic analysis (key themes identified)
-      - Category summaries (grouped findings)
-      - Individual article cards with summaries
+      **What a report contains:**
+      - **Executive summary** - AI-generated overview of key findings
+      - **Categories** - Articles grouped by theme
+      - **Articles** - The individual papers, each with its own summary
 
-      Reports are generated automatically based on the stream's schedule.
+      **Key relationships:**
+      - A report belongs to one stream
+      - A report contains many articles
+      - Reports are generated automatically on schedule or manually on-demand
 
       ## Article
 
-      A research publication (paper, review, etc.) from PubMed.
+      An **article** is a single research publication (paper, review, etc.) from PubMed.
 
-      **Key properties:**
-      - PMID (PubMed identifier)
-      - Title, authors, journal
-      - Abstract (original author summary)
-      - AI summary (Knowledge Horizon generated)
-      - Filter score (relevance rating)
-      - Categories (thematic groupings)
+      **What you see for each article:**
+      - **PMID** - PubMed's unique identifier (links to original)
+      - **Title, authors, journal** - Basic bibliographic info
+      - **Abstract** - The authors' original summary
+      - **AI summary** - Knowledge Horizon's summary focused on why this article matters to the stream
+      - **Categories** - Which thematic groups this article belongs to
 
-      ## Pipeline
-
-      The automated process that retrieves and processes articles.
-
-      **Steps:**
-      1. Query PubMed for new articles
-      2. Apply semantic filters (relevance scoring)
-      3. Generate AI summaries
-      4. Categorize by theme
-      5. Compile into report
-
-      Pipelines run on schedule or can be triggered manually.
+      **Key relationship:** An article can appear in multiple reports (if it remains relevant over time or appears in different streams).
 
   - category: glossary
-    topic: filtering-terms
-    title: Filtering & Relevance Terms
-    summary: Definitions for semantic filter, filter score, threshold, curation
+    topic: article-features
+    title: Article Features
+    summary: Filter scores, stars, notes, and other article-level features
     roles: [member, org_admin, platform_admin]
     order: 20
     content: |
-      Terms related to article filtering and relevance.
-
-      ## Semantic Filter
-
-      An AI-powered relevance assessment that scores articles.
-
-      **How it works:**
-      - Each stream has configured filter criteria (what makes an article relevant)
-      - AI reads each article and assigns a score (0.0 to 1.0)
-      - Articles above the threshold pass; those below are filtered out
-
-      **Why "semantic":** Unlike keyword matching, semantic filters understand meaning.
-      An article about "CAR-T toxicity management" would match a filter for
-      "adverse events in cell therapy" even without exact keyword overlap.
+      Features you'll encounter when viewing individual articles.
 
       ## Filter Score
 
-      A number from 0.0 to 1.0 indicating how relevant an article is.
+      A relevance rating from 0.0 to 1.0 showing how well an article matches the stream's focus.
 
-      - 1.0 = Perfectly relevant
-      - 0.0 = Not relevant at all
-      - Scores are relative to the stream's configured focus
+      - **0.9 - 1.0** - Highly relevant, directly on-topic
+      - **0.7 - 0.9** - Clearly relevant
+      - **0.5 - 0.7** - Somewhat relevant, may be tangential
+      - **Below 0.5** - Usually filtered out automatically
+
+      The score helps you prioritize reading. Articles with higher scores are more likely to contain findings directly relevant to your research interest.
+
+      ## AI Summary vs Abstract
+
+      - **Abstract** - Written by the paper's authors. Summarizes what the paper is about.
+      - **AI Summary** - Generated by Knowledge Horizon. Explains why this paper matters *to your stream's focus*.
+
+      The AI summary highlights findings relevant to your specific topic, even if they're buried in a broader paper.
+
+      ## Stars and Notes
+
+      Personal annotations you can add to articles:
+
+      - **Star** - Mark an article as important for later reference
+      - **Notes** - Add your own comments or observations
+
+      Stars and notes persist across sessions and are private to your account.
+
+      ## Category Assignment
+
+      Each article is assigned to one or more thematic categories within the report.
+
+      Categories are determined automatically based on the article's content and the stream's configuration. They help you quickly scan for articles on specific subtopics.
+
+  - category: glossary
+    topic: report-features
+    title: Report Features
+    summary: Executive summary, categories, highlights, and analysis
+    roles: [member, org_admin, platform_admin]
+    order: 30
+    content: |
+      Features you'll encounter when viewing reports.
+
+      ## Executive Summary
+
+      An AI-generated overview of the entire report (typically 2-4 paragraphs).
+
+      **What it covers:**
+      - Major themes across all articles
+      - Notable findings or trends
+      - Key takeaways for quick understanding
+
+      Read this first to get oriented before diving into individual articles.
+
+      ## Categories
+
+      Reports organize articles into thematic groups for easier navigation.
+
+      **Each category includes:**
+      - A descriptive name (e.g., "Clinical Trial Results", "Mechanism Studies")
+      - A summary of what articles in this category cover
+      - The list of articles belonging to it
+
+      Click a category to see only those articles, or browse all articles together.
+
+      ## Key Highlights
+
+      Bullet-point summaries of the most important findings.
+
+      **Used for:**
+      - Quick scanning when you're short on time
+      - Email digests
+      - Sharing with colleagues
+
+      Highlights extract the "so what" from each significant finding.
+
+      ## Approval Status
+
+      Reports may have one of these statuses:
+
+      - **Awaiting Approval** - Generated but pending admin review
+      - **Approved** - Reviewed and released for viewing
+      - **Rejected** - Not approved (with reason provided)
+
+      You'll typically only see approved reports unless you're an administrator.
+
+  - category: glossary
+    topic: tools-and-views
+    title: Tools & Views
+    summary: Tablizer, Article Viewer, and other ways to explore content
+    roles: [member, org_admin, platform_admin]
+    order: 40
+    content: |
+      Different tools for exploring your research content.
+
+      ## Article Viewer
+
+      The default view for reading individual articles.
+
+      **Features:**
+      - Full abstract and AI summary
+      - Filter score and reasoning
+      - Star and notes functionality
+      - Link to original PubMed entry
+
+      ## Tablizer
+
+      A spreadsheet-like view for analyzing multiple articles at once.
+
+      **What it offers:**
+      - All articles in a sortable, filterable table
+      - Column customization (show/hide fields)
+      - **AI Columns** - Custom columns that analyze each article (e.g., "Is this a clinical trial?")
+      - Export to CSV
+
+      Tablizer is especially useful for:
+      - Systematic screening of articles
+      - Extracting structured data
+      - Finding articles that match specific criteria
+
+      ## Deep Research
+
+      An AI-powered research assistant that searches and synthesizes information.
+
+      **How it works:**
+      1. Ask a research question
+      2. The tool searches PubMed and web sources
+      3. It synthesizes findings into an answer with citations
+
+      Use Deep Research for exploratory questions that span multiple sources.
+
+      ## PubMed Search
+
+      Direct search of PubMed from within Knowledge Horizon.
+
+      **Features:**
+      - Full PubMed query syntax support
+      - Results displayed with abstracts
+      - Can view full text when available
+
+      Use this for ad-hoc searches outside your configured streams.
+
+  - category: glossary
+    topic: admin-concepts
+    title: Admin Concepts
+    summary: Curation, semantic filters, schedules, and pipelines
+    roles: [org_admin, platform_admin]
+    order: 50
+    content: |
+      Concepts relevant to stream administrators and curators.
+
+      ## Curation
+
+      Human review and adjustment of automated decisions.
+
+      **Curator actions:**
+      - **Include** - Add an article that was filtered out
+      - **Exclude** - Remove an article that passed the filter
+      - **Edit summary** - Modify an article's AI summary
+      - **Reassign categories** - Move articles between categories
+
+      Curation decisions are preserved when reports are regenerated.
+
+      ## Semantic Filter
+
+      AI-powered relevance assessment that decides which articles make it into reports.
+
+      **How it works:**
+      1. Each stream has filter criteria defining "what's relevant"
+      2. For each new article, AI reads it and assigns a score (0.0 to 1.0)
+      3. Articles scoring above the threshold are included
+
+      **Why "semantic":** Unlike keyword matching, semantic filters understand meaning. An article about "cytokine storm management" would match a filter for "CAR-T adverse events" even without those exact words.
 
       ## Threshold
 
       The minimum filter score for automatic inclusion.
 
-      - Set by stream administrators
       - Typical values: 0.5 to 0.7
-      - Higher threshold = stricter filtering (fewer articles, higher quality)
-      - Lower threshold = broader coverage (more articles, may include less relevant)
+      - Higher = stricter filtering, fewer but more relevant articles
+      - Lower = broader coverage, more articles but may include tangential ones
 
-      ## Curation
+      ## Pipeline
 
-      Human review and adjustment of automated filtering decisions.
+      The automated process that creates reports.
 
-      **Curator actions:**
-      - **Include** - Add an article that was filtered out
-      - **Exclude** - Remove an article that passed the filter
-      - **Star** - Mark an article as important
-      - **Add notes** - Annotate articles with comments
+      **Steps:**
+      1. Query PubMed for new articles
+      2. Apply semantic filter
+      3. Generate AI summaries
+      4. Assign categories
+      5. Compile into report
 
-      Curation overrides are preserved across report regenerations.
+      Pipelines run on schedule or can be triggered manually.
 
-  - category: glossary
-    topic: retrieval-terms
-    title: Retrieval & Search Terms
-    summary: Definitions for retrieval group, query expansion, date types
-    roles: [org_admin, platform_admin]
-    order: 30
-    content: |
-      Terms related to article retrieval from PubMed.
+      ## Schedule
 
-      ## Retrieval Group
+      When the pipeline runs automatically.
 
-      A named set of search queries that work together.
+      **Options:**
+      - Daily, Weekly, Biweekly, Monthly
+      - Specific day and time
+      - Timezone-aware
 
-      **Example:** A "CAR-T Safety" retrieval group might include:
-      - "CAR-T cytokine release syndrome"
-      - "chimeric antigen receptor neurotoxicity"
-      - "CD19 CAR adverse events"
-
-      Multiple queries in a group are combined (OR logic) to cast a wider net.
-
-      ## Query Expansion
-
-      Automatic enhancement of search queries using synonyms and related terms.
-
-      **Example:** Query "heart attack" might expand to include:
-      - myocardial infarction
-      - MI
-      - coronary event
-
-      Expansion improves recall but may reduce precision.
-
-      ## Date Type
-
-      Which date field to use when filtering by time range.
-
-      | Type | Field Used | Best For |
-      |------|------------|----------|
-      | Publication | When article was published | Most common use |
-      | Entry | When PubMed added the article | Catching backfilled articles |
-
-      ## Boolean Query Syntax
-
-      Standard operators for PubMed searches:
-
-      | Operator | Example | Meaning |
-      |----------|---------|---------|
-      | AND | "cancer AND therapy" | Both terms required |
-      | OR | "tumor OR tumour" | Either term matches |
-      | NOT | "cancer NOT review" | First term, excluding second |
-      | [ti] | "CRISPR[ti]" | Search in title only |
-      | [au] | "Smith[au]" | Search by author |
-      | [mh] | "Neoplasms[mh]" | Search MeSH terms |
-
-  - category: glossary
-    topic: report-terms
-    title: Report & Analysis Terms
-    summary: Definitions for executive summary, thematic analysis, category
-    roles: [member, org_admin, platform_admin]
-    order: 40
-    content: |
-      Terms related to reports and AI analysis.
-
-      ## Executive Summary
-
-      An AI-generated overview of the entire report.
-
-      **Contains:**
-      - Key themes across all articles
-      - Notable findings or trends
-      - High-level takeaways
-
-      Typically 2-4 paragraphs summarizing the report's contents.
-
-      ## Thematic Analysis
-
-      AI identification of recurring themes across articles.
-
-      **Output:**
-      - Named themes (e.g., "Manufacturing improvements", "Safety profiles")
-      - Articles grouped by theme
-      - Theme descriptions
-
-      Helps readers quickly understand the landscape of recent research.
-
-      ## Category
-
-      A thematic grouping of articles within a report.
-
-      **Properties:**
-      - Category name (e.g., "Clinical Trials", "Mechanism Studies")
-      - Category summary (AI-generated description)
-      - List of articles in the category
-
-      Categories are determined automatically but can be influenced by
-      stream configuration.
-
-      ## Key Highlights
-
-      The most important findings extracted from the report.
-
-      **Used for:**
-      - Quick scanning
-      - Email digests
-      - Dashboard widgets
-
-      Highlights are concise bullet points, not full summaries.
-
-      ## Article Summary
-
-      An AI-generated summary of a single article.
-
-      **Differs from abstract:**
-      - Abstract: Written by the paper's authors
-      - AI Summary: Generated by Knowledge Horizon, focused on relevance to the stream
-
-      AI summaries emphasize findings relevant to the stream's focus area.
+      Scheduled runs check for new articles since the last report.

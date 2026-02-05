@@ -52,7 +52,7 @@ DEFAULT_CATEGORY_LABELS = {
     'tools': 'Tools',
     'operations': 'Operations',
     'field-reference': 'Field Reference',
-    'glossary': 'Glossary',
+    'glossary': 'Terms and Concepts',
 }
 
 # Path to help content directory
