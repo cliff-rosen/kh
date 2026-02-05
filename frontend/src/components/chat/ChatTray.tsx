@@ -405,6 +405,13 @@ export default function ChatTray({
         }
     }, [isOpen]);
 
+    // Refocus input after response completes
+    useEffect(() => {
+        if (!isLoading && isOpen && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isLoading, isOpen]);
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         e.stopPropagation();
