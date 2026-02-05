@@ -212,6 +212,8 @@ class ArticleInfo(BaseModel):
     authors: Optional[List[str]] = Field(default_factory=list, description="Article authors")
     journal: Optional[str] = Field(None, description="Journal name")
     pub_year: Optional[int] = Field(None, description="Publication year")
+    pub_month: Optional[int] = Field(None, description="Publication month (1-12)")
+    pub_day: Optional[int] = Field(None, description="Publication day (1-31)")
     pmid: Optional[str] = Field(None, description="PubMed ID")
     doi: Optional[str] = Field(None, description="DOI")
 

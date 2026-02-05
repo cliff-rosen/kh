@@ -433,12 +433,9 @@ class PubMedArticle:
         self.article_date = kwargs.get("article_date", "")
         self.entry_date = kwargs.get("entry_date", "")
 
-    @property
-    def year(self) -> str:
-        """Computed from pub_year for backward compatibility."""
-        return str(self.pub_year) if self.pub_year else ""
-
     def __str__(self) -> str:
+        from utils.date_utils import format_pub_date
+        date_str = format_pub_date(self.pub_year, self.pub_month, self.pub_day)
         line = "===================================================\n"
         res = (
             "PMID: "
@@ -459,8 +456,8 @@ class PubMedArticle:
             + "Journal: "
             + self.journal[0:80]
             + "\n"
-            + "Year: "
-            + self.year
+            + "Date: "
+            + date_str
             + "\n"
             + "Volume: "
             + self.volume
@@ -512,15 +509,16 @@ class PubMedArticle:
 
 
 def get_citation_from_article(article: PubMedArticle) -> str:
+    from utils.date_utils import format_pub_date
     authors = article.authors
     title = article.title
     journal = article.journal
-    year = article.year
+    date_str = format_pub_date(article.pub_year, article.pub_month, article.pub_day)
     volume = article.volume
     issue = article.issue
     pages = article.pages
 
-    return f"{authors} ({year}). {title}. {journal}, {volume}({issue}), {pages}."
+    return f"{authors} ({date_str}). {title}. {journal}, {volume}({issue}), {pages}."
 
 
 async def search_articles(

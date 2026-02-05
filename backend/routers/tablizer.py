@@ -500,8 +500,13 @@ def _prepare_article(article: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(authors, list):
         authors = ", ".join(authors)
 
-    # Build publication year string from pub_year field
-    pub_year = article.get("pub_year", "")
+    # Build publication date string from pub_year/month/day
+    from utils.date_utils import format_pub_date
+    pub_date_str = format_pub_date(
+        article.get("pub_year"),
+        article.get("pub_month"),
+        article.get("pub_day"),
+    )
 
     return {
         "id": article.get("pmid") or article.get("id", ""),
@@ -509,7 +514,7 @@ def _prepare_article(article: Dict[str, Any]) -> Dict[str, Any]:
         "abstract": article.get("abstract", ""),
         "authors": authors,
         "journal": article.get("journal", ""),
-        "publication_year": str(pub_year) if pub_year else "",
+        "publication_year": pub_date_str,
     }
 
 

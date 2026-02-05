@@ -12,6 +12,8 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional
 
+from utils.date_utils import format_pub_date
+
 from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt
 from schemas.llm import ModelConfig, DEFAULT_MODEL_CONFIG
 from services.report_summary_service import ReportSummaryService, DEFAULT_PROMPTS, AVAILABLE_SLUGS
@@ -258,7 +260,7 @@ class PromptTestingService:
                     "title": flat_item.get("title", ""),
                     "authors": flat_item.get("authors", ""),
                     "journal": flat_item.get("journal", ""),
-                    "year": flat_item.get("year", ""),
+                    "publication_date": flat_item.get("publication_date", ""),
                     "abstract": flat_item.get("abstract", ""),
                     "filter_reason": flat_item.get("filter_reason", ""),
                 }
@@ -439,7 +441,7 @@ class PromptTestingService:
             "abstract": article.abstract or "",
             "ai_summary": assoc.ai_summary or "",  # Include AI summary if available
             "journal": article.journal or "",
-            "year": str(article.year) if article.year else "",
+            "publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
             "categories_json": json.dumps(categories_for_context, indent=2)
         }
 
@@ -496,8 +498,8 @@ class PromptTestingService:
         # Build item using helper - wrap sample_data in SimpleNamespace for attribute access
         from types import SimpleNamespace
 
-        # Parse year from string if needed
-        year = sample_data.get("article_year")
+        # Parse year from string if needed (check new key first, fall back to legacy)
+        year = sample_data.get("article_publication_date") or sample_data.get("article_year")
         if isinstance(year, str) and year.isdigit():
             year = int(year)
         elif not isinstance(year, int):
@@ -516,7 +518,9 @@ class PromptTestingService:
             title=sample_data.get("article_title"),
             authors=authors,
             journal=sample_data.get("article_journal"),
-            year=year,
+            pub_year=year,
+            pub_month=None,
+            pub_day=None,
             abstract=sample_data.get("article_abstract"),
         )
         item = build_stance_item(stream_obj, article_obj, sample_data.get("article_summary"))
@@ -606,7 +610,7 @@ class PromptTestingService:
             "article_title": article.title or "",
             "article_authors": authors_str,
             "article_journal": article.journal or "",
-            "article_year": str(article.year) if article.year else "",
+            "article_publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
             "article_abstract": article.abstract or "",
             "article_summary": assoc.ai_summary or "",
         }

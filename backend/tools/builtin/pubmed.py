@@ -22,6 +22,7 @@ from typing import Any, Dict, Union
 from sqlalchemy.orm import Session
 
 from tools.registry import ToolConfig, ToolResult, register_tool
+from utils.date_utils import format_pub_date
 
 logger = logging.getLogger(__name__)
 
@@ -74,14 +75,14 @@ def execute_search_pubmed(
 
             pmid = article.pmid or article.id
             journal = article.journal or 'Unknown'
-            year = str(article.pub_year) if article.pub_year else 'Unknown'
+            date_str = format_pub_date(article.pub_year, article.pub_month, article.pub_day) or 'Unknown'
 
             # Text for LLM
             text_results.append(f"""
             {i}. "{article.title}"
             PMID: {pmid}
             Authors: {authors_str}
-            Journal: {journal} ({year})
+            Journal: {journal} ({date_str})
             Abstract: {(article.abstract or 'No abstract')[:300]}{'...' if article.abstract and len(article.abstract) > 300 else ''}
             """)
 
@@ -91,7 +92,7 @@ def execute_search_pubmed(
                 "title": article.title,
                 "authors": authors_str,
                 "journal": journal,
-                "year": str(year),
+                "year": date_str,
                 "abstract": article.abstract or "",
                 "has_free_full_text": bool(getattr(article, 'pmc_id', None))
             })
@@ -154,13 +155,14 @@ def execute_get_pubmed_article(
         if article.doi:
             doi_info = f"\n        DOI: {article.doi}"
 
+        article_date = format_pub_date(article.pub_year, article.pub_month, article.pub_day)
         text_result = f"""
         === PubMed Article ===
         PMID: {article.PMID}
         Title: {article.title}
         Authors: {article.authors}
         Journal: {article.journal}
-        Year: {article.year}
+        Date: {article_date or 'Unknown'}
         Volume: {article.volume}, Issue: {article.issue}, Pages: {article.pages}{pmc_info}{doi_info}
 
         === Abstract ===
@@ -175,7 +177,7 @@ def execute_get_pubmed_article(
                 "title": article.title,
                 "authors": article.authors,
                 "journal": article.journal,
-                "year": article.year,
+                "year": article_date,
                 "volume": article.volume,
                 "issue": article.issue,
                 "pages": article.pages,
@@ -291,7 +293,7 @@ def execute_get_full_text(
                             "title": article.title,
                             "authors": article.authors,
                             "journal": article.journal,
-                            "year": article.year,
+                            "year": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
                             "doi": article.doi,
                             "abstract": article.abstract,
                             "pmc_available": False,
@@ -346,7 +348,7 @@ def execute_get_full_text(
                     "title": article.title,
                     "authors": article.authors,
                     "journal": article.journal,
-                    "year": article.year,
+                    "year": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
                     "volume": article.volume,
                     "issue": article.issue,
                     "pages": article.pages,

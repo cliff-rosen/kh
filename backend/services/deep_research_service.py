@@ -998,6 +998,8 @@ Synthesize a comprehensive answer with citations.""",
                         "pmid": article.source_id,
                         "authors": article.authors,
                         "pub_year": article.pub_year,
+                        "pub_month": article.pub_month,
+                        "pub_day": article.pub_day,
                         "journal": article.journal
                     }
                 )

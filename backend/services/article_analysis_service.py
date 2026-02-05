@@ -52,7 +52,7 @@ Purpose: {stream_purpose}
 Title: {article_title}
 Authors: {article_authors}
 Journal: {article_journal}
-Year: {article_year}
+Published: {article_publication_date}
 
 # Abstract
 {article_abstract}
@@ -87,7 +87,8 @@ STANCE_ANALYSIS_SLUGS = [
         "Authors of the article (comma-separated)",
     ),
     ("{article.journal}", "article_journal", "Journal where the article was published"),
-    ("{article.year}", "article_year", "Publication year"),
+    ("{article.publication_date}", "article_publication_date", "Publication date"),
+    ("{article.year}", "article_publication_date", "Publication date (legacy alias)"),
     ("{article.abstract}", "article_abstract", "Full abstract of the article"),
     ("{article.summary}", "article_summary", "AI-generated summary of the article"),
 ]
@@ -99,9 +100,10 @@ def get_stance_slug_mappings() -> Dict[str, str]:
 
 
 def get_stance_available_slugs() -> List[Dict[str, str]]:
-    """Get available slugs for UI/help for stance analysis."""
+    """Get available slugs for UI/help for stance analysis (excludes legacy aliases)."""
     return [
         {"slug": slug, "description": desc} for slug, _, desc in STANCE_ANALYSIS_SLUGS
+        if "legacy" not in desc
     ]
 
 
@@ -212,7 +214,12 @@ def build_stance_item(stream: Any, article: Any, article_summary: Optional[str] 
     Returns:
         Item dict ready for analyze_article_stance
     """
-    year = getattr(article, 'pub_year', None) or getattr(article, 'year', None)
+    from utils.date_utils import format_pub_date
+
+    pub_year = getattr(article, 'pub_year', None)
+    pub_month = getattr(article, 'pub_month', None)
+    pub_day = getattr(article, 'pub_day', None)
+    date_str = format_pub_date(pub_year, pub_month, pub_day) or "Unknown"
 
     return {
         "stream_name": getattr(stream, 'stream_name', None) or "Unknown",
@@ -220,7 +227,7 @@ def build_stance_item(stream: Any, article: Any, article_summary: Optional[str] 
         "article_title": getattr(article, 'title', None) or "Untitled",
         "article_authors": ", ".join(article.authors) if getattr(article, 'authors', None) else "Unknown authors",
         "article_journal": getattr(article, 'journal', None) or "Unknown",
-        "article_year": str(year) if year else "Unknown",
+        "article_publication_date": date_str,
         "article_abstract": getattr(article, 'abstract', None) or "",
         "article_summary": article_summary or "No AI summary available",
     }
@@ -247,7 +254,7 @@ async def analyze_article_stance(
             - article_title: Article title
             - article_authors: Formatted authors string
             - article_journal: Journal name
-            - article_year: Publication year (as string)
+            - article_publication_date: Publication date (formatted string)
             - article_abstract: Article abstract
             - article_summary: AI-generated summary (optional)
         stance_analysis_prompt: Custom prompt dict (None = use defaults)

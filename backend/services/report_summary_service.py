@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from schemas.research_stream import EnrichmentConfig, Category
 
 from agents.prompts.llm import call_llm, ModelConfig, LLMOptions, LLMResult
+from utils.date_utils import format_pub_date
 import logging
 
 logger = logging.getLogger(__name__)
@@ -108,7 +109,7 @@ Write in a professional, analytical tone. Include only the summary with no headi
 # Article Information
 Title: {title}
 Authors: {authors}
-Journal: {journal} ({year})
+Journal: {journal} ({publication_date})
 
 # Abstract
 {abstract}
@@ -132,7 +133,8 @@ PROMPT_SLUGS = {
         ("{article.title}", "title", "Title of the article"),
         ("{article.authors}", "authors", "Authors of the article"),
         ("{article.journal}", "journal", "Journal where published"),
-        ("{article.year}", "year", "Publication year"),
+        ("{article.publication_date}", "publication_date", "Publication date"),
+        ("{article.year}", "publication_date", "Publication date (legacy alias)"),
         ("{article.abstract}", "abstract", "Article abstract"),
         ("{article.filter_reason}", "filter_reason", "AI reasoning for semantic filter"),
     ],
@@ -165,9 +167,9 @@ def get_slug_mappings(prompt_type: str) -> Dict[str, str]:
 
 
 def get_available_slugs(prompt_type: str) -> List[Dict[str, str]]:
-    """Get available slugs for UI/help for a prompt type."""
+    """Get available slugs for UI/help for a prompt type (excludes legacy aliases)."""
     slugs = PROMPT_SLUGS.get(prompt_type, [])
-    return [{"slug": slug, "description": desc} for slug, _, desc in slugs]
+    return [{"slug": slug, "description": desc} for slug, _, desc in slugs if "legacy" not in desc]
 
 
 def get_required_keys(prompt_type: str) -> List[str]:
@@ -457,7 +459,7 @@ class ReportSummaryService:
                 "title": article.title or "Untitled",
                 "authors": self.format_authors(article.authors),
                 "journal": article.journal or "Unknown",
-                "year": str(article.year) if article.year else "Unknown",
+                "publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day) or "Unknown",
                 "abstract": article.abstract or "",
                 "filter_reason": wip_article.filter_score_reason if wip_article else "",
                 "stream_name": stream.stream_name or "" if stream else "",
@@ -513,7 +515,7 @@ class ReportSummaryService:
                         "title": article.title,
                         "authors": (article.authors or [])[:3],
                         "journal": article.journal,
-                        "year": article.year,
+                        "publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
                         "abstract": (article.abstract or "")[:400],
                     })
 
@@ -568,7 +570,7 @@ class ReportSummaryService:
                     "title": article.title,
                     "authors": (article.authors or [])[:3],
                     "journal": article.journal,
-                    "year": article.year,
+                    "publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
                     "abstract": (article.abstract or "")[:500],
                 })
 
@@ -640,8 +642,8 @@ class ReportSummaryService:
             journal_year = []
             if article.get("journal"):
                 journal_year.append(article["journal"])
-            if article.get("year"):
-                journal_year.append(f"({article['year']})")
+            if article.get("publication_date"):
+                journal_year.append(f"({article['publication_date']})")
 
             location = " ".join(journal_year) if journal_year else "Unknown source"
 

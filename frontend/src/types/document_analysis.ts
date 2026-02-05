@@ -195,6 +195,8 @@ export interface ArticleInfo {
     authors?: string[];
     journal?: string;
     pub_year?: number;
+    pub_month?: number;
+    pub_day?: number;
     pmid?: string;
     doi?: string;
 }

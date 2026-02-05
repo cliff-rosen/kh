@@ -1106,6 +1106,8 @@ class ReportService:
                     authors=article.authors[:3] if article.authors else None,
                     journal=article.journal or None,
                     pub_year=article.pub_year,
+                    pub_month=article.pub_month,
+                    pub_day=article.pub_day,
                     summary=assoc.ai_summary or (article.abstract[:300] + '...' if article.abstract and len(article.abstract) > 300 else article.abstract),
                     url=article.url or (f"https://pubmed.ncbi.nlm.nih.gov/{article.pmid}/" if article.pmid else None),
                     pmid=article.pmid,

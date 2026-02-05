@@ -20,6 +20,7 @@ from dataclasses import asdict
 from datetime import datetime
 import logging
 
+from utils.date_utils import format_pub_date
 from database import get_async_db
 from models import User, UserRole, CurationEvent
 from services import auth_service
@@ -1235,7 +1236,7 @@ async def regenerate_article_summary(
             "title": article.title or "Untitled",
             "authors": summary_service.format_authors(article.authors),
             "journal": article.journal or "Unknown",
-            "year": str(article.pub_year) if article.pub_year else "Unknown",
+            "publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day) or "Unknown",
             "abstract": article.abstract or "",
             "filter_reason": association.wip_article.filter_score_reason if association.wip_article else "",
             "stream_name": stream.stream_name if stream else "",

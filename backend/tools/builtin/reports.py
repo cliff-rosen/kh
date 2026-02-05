@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tools.registry import ToolConfig, ToolResult, register_tool
+from utils.date_utils import format_pub_date
 
 logger = logging.getLogger(__name__)
 
@@ -217,7 +218,7 @@ async def execute_get_report_articles(
             category_ids = assoc.presentation_categories or []
             category_names = [category_map.get(cid, cid) for cid in category_ids]
             categories_str = ', '.join(category_names) if category_names else 'Uncategorized'
-            publication_date = str(article.year) if article.year else "Unknown"
+            publication_date = format_pub_date(article.pub_year, article.pub_month, article.pub_day) or "Unknown"
 
             if mode == "condensed":
                 text_lines.append(f"""
@@ -327,7 +328,7 @@ async def execute_search_articles_in_reports(
             text_lines.append(f"""
 {i}. Article ID: {article.article_id} | PMID: {article.pmid}
    Title: {article.title}
-   Journal: {article.journal} ({article.year or 'Unknown'})
+   Journal: {article.journal} ({format_pub_date(article.pub_year, article.pub_month, article.pub_day) or 'Unknown'})
    Report: {report.report_name} ({report.report_date.strftime('%Y-%m-%d') if report.report_date else 'Unknown'})
    Relevance Score: {assoc.relevance_score or 'N/A'}
    Context: {abstract_snippet}
@@ -338,7 +339,7 @@ async def execute_search_articles_in_reports(
                 "pmid": article.pmid,
                 "title": article.title,
                 "journal": article.journal,
-                "year": article.year,
+                "year": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
                 "report_id": report.report_id,
                 "report_name": report.report_name,
                 "relevance_score": assoc.relevance_score
@@ -414,7 +415,7 @@ DOI: {article.doi or 'N/A'}
 Title: {article.title}
 Authors: {article.authors}
 Journal: {article.journal}
-Year: {article.year}
+Date: {format_pub_date(article.pub_year, article.pub_month, article.pub_day) or 'Unknown'}
 Volume: {article.volume}, Issue: {article.issue}, Pages: {article.pages}
 
 === Abstract ===
@@ -454,7 +455,7 @@ User Read: {'Yes' if assoc.is_read else 'No'}
                 "authors": article.authors,
                 "abstract": article.abstract,
                 "journal": article.journal,
-                "year": article.year,
+                "year": format_pub_date(article.pub_year, article.pub_month, article.pub_day),
                 "relevance_score": assoc.relevance_score if assoc else None,
                 "is_starred": assoc.is_starred if assoc else None,
                 "notes_count": len(notes)
@@ -679,7 +680,7 @@ async def execute_get_starred_articles(
             text_lines.append(f"""
 {i}. Article ID: {article.article_id} | PMID: {article.pmid}
    Title: {article.title}
-   Journal: {article.journal} ({article.year or 'Unknown'})
+   Journal: {article.journal} ({format_pub_date(article.pub_year, article.pub_month, article.pub_day) or 'Unknown'})
    Report: {report.report_name}
    Relevance Score: {assoc.relevance_score or 'N/A'}
 """)

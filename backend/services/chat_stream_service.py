@@ -13,6 +13,7 @@ import anthropic
 import os
 import logging
 import uuid
+from utils.date_utils import format_pub_date
 from schemas.chat import (
     ChatResponsePayload,
     AgentTrace,
@@ -841,7 +842,7 @@ SUGGESTED_ACTIONS:
                 "authors": article.authors or [],
                 "abstract": article.abstract,
                 "journal": article.journal,
-                "year": str(article.pub_year) if article.pub_year else None,
+                "year": format_pub_date(article.pub_year, article.pub_month, article.pub_day) or None,
                 "relevance_score": assoc.relevance_score,
                 "relevance_rationale": assoc.relevance_rationale,
                 "category": assoc.presentation_categories[0] if assoc.presentation_categories else None

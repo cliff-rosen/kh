@@ -27,6 +27,8 @@ import json
 import uuid
 import logging
 
+from utils.date_utils import format_pub_date
+
 logger = logging.getLogger(__name__)
 
 # Type alias for progress callbacks
@@ -1429,7 +1431,7 @@ Score from {{min_value}} to {{max_value}}."""
                     "abstract": article.abstract or "",
                     "ai_summary": assoc.ai_summary or "",  # Use AI summary if available
                     "journal": article.journal or "Unknown",
-                    "year": str(article.year) if article.year else "Unknown",
+                    "publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day) or "Unknown",
                     "categories_json": categories_json,
                 })
                 valid_associations.append(assoc)

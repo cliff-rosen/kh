@@ -239,7 +239,7 @@ class EnrichmentConfig(BaseModel):
 
     Slugs available for article_summary:
     - {stream.name}, {stream.purpose}
-    - {article.title}, {article.authors}, {article.journal}, {article.year}, {article.abstract}
+    - {article.title}, {article.authors}, {article.journal}, {article.publication_date}, {article.abstract}
 
     Slugs available for category_summary:
     - {stream.name}, {stream.purpose}
@@ -269,7 +269,7 @@ class ArticleAnalysisConfig(BaseModel):
 
     Slugs available for stance_analysis:
     - {stream.name}, {stream.purpose}
-    - {article.title}, {article.authors}, {article.journal}, {article.year}, {article.abstract}
+    - {article.title}, {article.authors}, {article.journal}, {article.publication_date}, {article.abstract}
     """
     stance_analysis_prompt: Optional[PromptTemplate] = Field(
         None,

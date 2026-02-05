@@ -11,6 +11,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from dataclasses import dataclass
 
+from utils.date_utils import format_pub_date
+
 
 @dataclass
 class EmailArticle:
@@ -22,7 +24,9 @@ class EmailArticle:
     pmid: Optional[str] = None
     authors: Optional[List[str]] = None
     journal: Optional[str] = None
-    pub_year: Optional[int] = None  # Publication year
+    pub_year: Optional[int] = None
+    pub_month: Optional[int] = None
+    pub_day: Optional[int] = None
     summary: Optional[str] = None
 
 
@@ -360,8 +364,9 @@ class EmailTemplateService:
                 meta_parts.append(f"{article.authors[0]} et al.")
         if article.journal:
             meta_parts.append(article.journal)
-        if article.pub_year:
-            meta_parts.append(str(article.pub_year))
+        date_str = format_pub_date(article.pub_year, article.pub_month, article.pub_day)
+        if date_str:
+            meta_parts.append(date_str)
 
         meta_html = ' &bull; '.join(meta_parts) if meta_parts else ''
 

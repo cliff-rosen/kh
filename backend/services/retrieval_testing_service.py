@@ -19,6 +19,7 @@ from services.pubmed_service import PubMedService, fetch_articles_by_ids
 from services.ai_evaluation_service import get_ai_evaluation_service
 from services.article_categorization_service import ArticleCategorizationService
 from agents.prompts.llm import LLMOptions
+from utils.date_utils import format_pub_date
 
 logger = logging.getLogger(__name__)
 
@@ -384,7 +385,7 @@ Journal: {{journal}}
                 "title": article.title or "Untitled",
                 "abstract": article.abstract or "",
                 "journal": article.journal or "Unknown",
-                "year": str(article.year) if article.year else "Unknown",
+                "publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day) or "Unknown",
                 "categories_json": categories_json,
             })
 

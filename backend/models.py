@@ -354,10 +354,6 @@ class WipArticle(Base):
     execution = relationship("PipelineExecution", back_populates="wip_articles")
     curator = relationship("User", foreign_keys=[curated_by])
 
-    @property
-    def year(self):
-        """Computed from pub_year for backward compatibility."""
-        return str(self.pub_year) if self.pub_year else None
 
 
 class Article(Base):
@@ -401,10 +397,6 @@ class Article(Base):
     report_associations = relationship("ReportArticleAssociation", back_populates="article")
     feedback = relationship("UserFeedback", back_populates="article")
 
-    @property
-    def year(self):
-        """Computed from pub_year for backward compatibility."""
-        return str(self.pub_year) if self.pub_year else None
 
 
 class Report(Base):
