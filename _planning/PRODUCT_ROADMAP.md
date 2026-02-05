@@ -89,7 +89,40 @@ All of these should be collaborative and shareable within the organization.
 
 ---
 
-## 2.5 Chat Enhancements
+## 2.5 Discovery
+
+Enhanced capabilities for finding relevant articles:
+
+- "More like this" - find similar articles
+- Citation network - what does this cite, what cites this
+- Author tracking - follow authors, see their new work
+- Concept/topic alerts - notify when new articles match a concept
+
+---
+
+## 2.6 Analysis & Synthesis
+
+Tools for deeper analysis across articles:
+
+- Key quotes - collect excerpt quotes from articles in support of a point
+- Cross-report trends - how is the literature evolving over time
+- Synthesis - summarize what multiple articles say about a topic
+- Evidence tables - structured extraction for systematic reviews
+
+---
+
+## 2.7 Additional Data Sources
+
+Expand beyond PubMed and Google Scholar:
+
+- Preprint servers (bioRxiv, medRxiv)
+- Other databases (Scopus, Embase, Web of Science)
+- Regulatory documents
+- Patents
+
+---
+
+## 2.8 Chat Enhancements
 
 TBD - ongoing improvements to:
 - Tools
