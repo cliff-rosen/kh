@@ -12,6 +12,7 @@ from sqlalchemy import select
 import anthropic
 import os
 import logging
+import re
 import uuid
 from utils.date_utils import format_pub_date
 from schemas.chat import (
@@ -445,7 +446,12 @@ class ChatStreamService:
             prior_messages = db_messages[:-1] if db_messages else []
             for msg in prior_messages:
                 if msg.role in ('user', 'assistant'):
-                    history.append({"role": msg.role, "content": msg.content})
+                    # Strip [[tool:N]] markers from assistant messages so the LLM
+                    # doesn't learn to reproduce them as plain text
+                    content = msg.content
+                    if msg.role == 'assistant':
+                        content = re.sub(r'\[\[tool:\d+\]\]', '', content)
+                    history.append({"role": msg.role, "content": content})
 
         # User message sent as-is - context is already in system prompt
         messages_for_llm = history + [{"role": "user", "content": request.message}]
