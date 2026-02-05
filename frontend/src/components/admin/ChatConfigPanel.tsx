@@ -134,6 +134,7 @@ export function ChatConfigPanel() {
     const [helpViewMode, setHelpViewMode] = useState<'content' | 'llm-view'>('content');
     const [isHelpMaximized, setIsHelpMaximized] = useState(false);
     const [collapsedTopics, setCollapsedTopics] = useState<Set<string>>(new Set());
+    const [selectedTopicIndex, setSelectedTopicIndex] = useState(0);
 
     // LLM View state
     const [tocConfig, setTocConfig] = useState<HelpTOCConfig | null>(null);
@@ -454,6 +455,7 @@ export function ChatConfigPanel() {
     const selectHelpCategory = async (category: string) => {
         setIsLoadingHelpCategory(true);
         setHelpError(null);
+        setSelectedTopicIndex(0); // Reset to first topic when changing categories
         try {
             const categoryDetail = await adminApi.getHelpCategory(category);
             setSelectedHelpCategory(categoryDetail);
@@ -1514,62 +1516,89 @@ export function ChatConfigPanel() {
                                                 </div>
                                             </div>
 
-                                            {/* Topics list */}
-                                            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                                                {selectedHelpCategory.topics.map((topic) => {
-                                                    const editingTopic = editingTopics.find(t => t.category === topic.category && t.topic === topic.topic);
-                                                    const isModified = editingTopic && editingTopic.content !== editingTopic.originalContent;
-                                                    return (
-                                                        <div key={`${topic.category}/${topic.topic}`} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                                                            {/* Topic header */}
-                                                            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900 flex items-center justify-between">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="font-medium text-gray-900 dark:text-white">
-                                                                        {topic.title}
+                                            {/* Topic tabs */}
+                                            <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                                                <nav className="flex overflow-x-auto px-4 gap-1" aria-label="Topics">
+                                                    {selectedHelpCategory.topics.map((topic, index) => {
+                                                        const editingTopic = editingTopics.find(t => t.category === topic.category && t.topic === topic.topic);
+                                                        const isModified = editingTopic && editingTopic.content !== editingTopic.originalContent;
+                                                        const isSelected = selectedTopicIndex === index;
+                                                        return (
+                                                            <button
+                                                                key={`${topic.category}/${topic.topic}`}
+                                                                onClick={() => setSelectedTopicIndex(index)}
+                                                                className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                                                                    isSelected
+                                                                        ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
+                                                                }`}
+                                                            >
+                                                                <span className="flex items-center gap-2">
+                                                                    {topic.title}
+                                                                    {(topic.has_override || isModified) && (
+                                                                        <span className={`inline-flex w-2 h-2 rounded-full ${
+                                                                            isModified ? 'bg-amber-500' : 'bg-purple-500'
+                                                                        }`} />
+                                                                    )}
+                                                                </span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </nav>
+                                            </div>
+
+                                            {/* Selected topic content */}
+                                            {selectedHelpCategory.topics[selectedTopicIndex] && (() => {
+                                                const topic = selectedHelpCategory.topics[selectedTopicIndex];
+                                                const editingTopic = editingTopics.find(t => t.category === topic.category && t.topic === topic.topic);
+                                                const isModified = editingTopic && editingTopic.content !== editingTopic.originalContent;
+                                                return (
+                                                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                                                        {/* Topic metadata bar */}
+                                                        <div className="flex-shrink-0 px-6 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                                                            <div className="flex items-center gap-3">
+                                                                <code className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                                                                    {topic.category}/{topic.topic}
+                                                                </code>
+                                                                {topic.has_override && (
+                                                                    <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                                                        Custom
                                                                     </span>
-                                                                    <code className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
-                                                                        {topic.topic}
-                                                                    </code>
-                                                                    {topic.has_override && (
-                                                                        <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                                                                            Custom
-                                                                        </span>
-                                                                    )}
-                                                                    {isModified && (
-                                                                        <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                                                                            Modified
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                <div className="flex items-center gap-2">
-                                                                    {topic.roles.map((role) => (
-                                                                        <span
-                                                                            key={role}
-                                                                            className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${getRoleBadgeColor(role)}`}
-                                                                        >
-                                                                            {getRoleIcon(role)}
-                                                                            {role}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
+                                                                )}
+                                                                {isModified && (
+                                                                    <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                                                                        Modified
+                                                                    </span>
+                                                                )}
                                                             </div>
-                                                            {/* Topic summary */}
-                                                            <div className="px-4 py-2 bg-gray-25 dark:bg-gray-850 text-sm text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                                                                {topic.summary}
-                                                            </div>
-                                                            {/* Content editor */}
-                                                            <div className="p-4">
-                                                                <textarea
-                                                                    value={editingTopic?.content || ''}
-                                                                    onChange={(e) => updateTopicContent(topic.category, topic.topic, e.target.value)}
-                                                                    placeholder="Enter help content in markdown..."
-                                                                    className="w-full h-48 min-h-[8rem] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y font-mono text-sm"
-                                                                />
+                                                            <div className="flex items-center gap-2">
+                                                                {topic.roles.map((role) => (
+                                                                    <span
+                                                                        key={role}
+                                                                        className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${getRoleBadgeColor(role)}`}
+                                                                    >
+                                                                        {getRoleIcon(role)}
+                                                                        {role}
+                                                                    </span>
+                                                                ))}
                                                             </div>
                                                         </div>
-                                                    );
-                                                })}
-                                            </div>
+                                                        {/* Topic summary */}
+                                                        <div className="flex-shrink-0 px-6 py-2 bg-gray-50 dark:bg-gray-900 text-sm text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                                                            {topic.summary}
+                                                        </div>
+                                                        {/* Content editor - fills remaining space */}
+                                                        <div className="flex-1 min-h-0 p-4">
+                                                            <textarea
+                                                                value={editingTopic?.content || ''}
+                                                                onChange={(e) => updateTopicContent(topic.category, topic.topic, e.target.value)}
+                                                                placeholder="Enter help content in markdown..."
+                                                                className="w-full h-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
                                         </>
                                     ) : (
                                         <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-gray-500">
@@ -2230,19 +2259,6 @@ export function ChatConfigPanel() {
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button
-                                    onClick={expandAllTopics}
-                                    className="px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                                >
-                                    Expand All
-                                </button>
-                                <button
-                                    onClick={collapseAllTopics}
-                                    className="px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                                >
-                                    Collapse All
-                                </button>
-                                <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
                                 {selectedHelpCategory.topics.some(t => t.has_override) && (
                                     <button
                                         onClick={resetHelpCategory}
@@ -2275,79 +2291,89 @@ export function ChatConfigPanel() {
                             </div>
                         </div>
 
-                        {/* Content - Topics List */}
-                        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
-                            {selectedHelpCategory.topics.map((topic) => {
-                                const topicKey = `${topic.category}/${topic.topic}`;
-                                const editingTopic = editingTopics.find(t => t.category === topic.category && t.topic === topic.topic);
-                                const isModified = editingTopic && editingTopic.content !== editingTopic.originalContent;
-                                const isCollapsed = collapsedTopics.has(topicKey);
-
-                                return (
-                                    <div key={topicKey} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                                        {/* Topic header - clickable to collapse/expand */}
+                        {/* Topic tabs */}
+                        <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                            <nav className="flex overflow-x-auto px-6 gap-1" aria-label="Topics">
+                                {selectedHelpCategory.topics.map((topic, index) => {
+                                    const editingTopic = editingTopics.find(t => t.category === topic.category && t.topic === topic.topic);
+                                    const isModified = editingTopic && editingTopic.content !== editingTopic.originalContent;
+                                    const isSelected = selectedTopicIndex === index;
+                                    return (
                                         <button
-                                            onClick={() => toggleTopicCollapse(topicKey)}
-                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                            key={`${topic.category}/${topic.topic}`}
+                                            onClick={() => setSelectedTopicIndex(index)}
+                                            className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                                                isSelected
+                                                    ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
+                                            }`}
                                         >
-                                            <div className="flex items-center gap-2">
-                                                {isCollapsed ? (
-                                                    <ChevronRightIcon className="h-4 w-4 text-gray-400" />
-                                                ) : (
-                                                    <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                                            <span className="flex items-center gap-2">
+                                                {topic.title}
+                                                {(topic.has_override || isModified) && (
+                                                    <span className={`inline-flex w-2 h-2 rounded-full ${
+                                                        isModified ? 'bg-amber-500' : 'bg-purple-500'
+                                                    }`} />
                                                 )}
-                                                <span className="font-medium text-gray-900 dark:text-white">
-                                                    {topic.title}
-                                                </span>
-                                                <code className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
-                                                    {topic.topic}
-                                                </code>
-                                                {topic.has_override && (
-                                                    <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                                                        Custom
-                                                    </span>
-                                                )}
-                                                {isModified && (
-                                                    <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                                                        Modified
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {topic.roles.map((role) => (
-                                                    <span
-                                                        key={role}
-                                                        className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${getRoleBadgeColor(role)}`}
-                                                    >
-                                                        {getRoleIcon(role)}
-                                                        {role}
-                                                    </span>
-                                                ))}
-                                            </div>
+                                            </span>
                                         </button>
-
-                                        {/* Collapsible content */}
-                                        {!isCollapsed && (
-                                            <>
-                                                {/* Topic summary */}
-                                                <div className="px-4 py-2 bg-gray-25 dark:bg-gray-850 text-sm text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                                                    {topic.summary}
-                                                </div>
-                                                {/* Content editor */}
-                                                <div className="p-4">
-                                                    <textarea
-                                                        value={editingTopic?.content || ''}
-                                                        onChange={(e) => updateTopicContent(topic.category, topic.topic, e.target.value)}
-                                                        placeholder="Enter help content in markdown..."
-                                                        className="w-full h-64 min-h-[10rem] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y font-mono text-sm"
-                                                    />
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+                            </nav>
                         </div>
+
+                        {/* Selected topic content */}
+                        {selectedHelpCategory.topics[selectedTopicIndex] && (() => {
+                            const topic = selectedHelpCategory.topics[selectedTopicIndex];
+                            const editingTopic = editingTopics.find(t => t.category === topic.category && t.topic === topic.topic);
+                            const isModified = editingTopic && editingTopic.content !== editingTopic.originalContent;
+                            return (
+                                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                                    {/* Topic metadata bar */}
+                                    <div className="flex-shrink-0 px-6 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <code className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                                                {topic.category}/{topic.topic}
+                                            </code>
+                                            {topic.has_override && (
+                                                <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                                    Custom
+                                                </span>
+                                            )}
+                                            {isModified && (
+                                                <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                                                    Modified
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {topic.roles.map((role) => (
+                                                <span
+                                                    key={role}
+                                                    className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${getRoleBadgeColor(role)}`}
+                                                >
+                                                    {getRoleIcon(role)}
+                                                    {role}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    {/* Topic summary */}
+                                    <div className="flex-shrink-0 px-6 py-2 bg-gray-50 dark:bg-gray-900 text-sm text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                                        {topic.summary}
+                                    </div>
+                                    {/* Content editor - fills remaining space */}
+                                    <div className="flex-1 min-h-0 p-6">
+                                        <textarea
+                                            value={editingTopic?.content || ''}
+                                            onChange={(e) => updateTopicContent(topic.category, topic.topic, e.target.value)}
+                                            placeholder="Enter help content in markdown..."
+                                            className="w-full h-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none font-mono text-sm"
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
             )}
