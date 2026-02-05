@@ -500,14 +500,6 @@ export function ChatConfigPanel() {
         setCollapsedTopics(new Set());
     };
 
-    const expandAllTopics = () => setCollapsedTopics(new Set());
-
-    const collapseAllTopics = () => {
-        if (!selectedHelpCategory) return;
-        const allKeys = new Set(selectedHelpCategory.topics.map(t => `${t.category}/${t.topic}`));
-        setCollapsedTopics(allKeys);
-    };
-
     const saveHelpCategory = async () => {
         if (!selectedHelpCategory || modifiedTopics.length === 0) return;
 
@@ -719,11 +711,10 @@ export function ChatConfigPanel() {
                                             <div
                                                 key={page.page}
                                                 onClick={() => setSelectedPageName(page.page)}
-                                                className={`px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-700 ${
-                                                    selectedPageName === page.page
+                                                className={`px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-700 ${selectedPageName === page.page
                                                         ? 'bg-blue-50 dark:bg-blue-900/20'
                                                         : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                                                }`}
+                                                    }`}
                                             >
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-medium text-gray-900 dark:text-white text-sm">
@@ -942,11 +933,10 @@ export function ChatConfigPanel() {
                                     <div
                                         key={pt.name}
                                         onClick={() => setSelectedPayload(pt.name)}
-                                        className={`px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-700 ${
-                                            selectedPayload === pt.name
+                                        className={`px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-700 ${selectedPayload === pt.name
                                                 ? 'bg-blue-50 dark:bg-blue-900/20'
                                                 : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                                        }`}
+                                            }`}
                                     >
                                         <div className="flex items-center gap-2">
                                             <span className="font-medium text-gray-900 dark:text-white text-sm">
@@ -957,11 +947,10 @@ export function ChatConfigPanel() {
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2 mt-1">
-                                            <span className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded ${
-                                                pt.source === 'llm'
+                                            <span className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded ${pt.source === 'llm'
                                                     ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                                                     : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                            }`}>
+                                                }`}>
                                                 {pt.source}
                                             </span>
                                             <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
@@ -994,11 +983,10 @@ export function ChatConfigPanel() {
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                                                         <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Source</div>
-                                                        <div className={`mt-1 inline-flex px-2 py-1 text-sm font-medium rounded ${
-                                                            payload.source === 'llm'
+                                                        <div className={`mt-1 inline-flex px-2 py-1 text-sm font-medium rounded ${payload.source === 'llm'
                                                                 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                                                                 : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                                        }`}>
+                                                            }`}>
                                                             {payload.source}
                                                         </div>
                                                     </div>
@@ -1093,9 +1081,8 @@ export function ChatConfigPanel() {
                                             <button
                                                 key={tool.name}
                                                 onClick={() => setSelectedToolName(tool.name)}
-                                                className={`w-full text-left px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                                                    selectedToolName === tool.name ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-l-purple-500' : ''
-                                                }`}
+                                                className={`w-full text-left px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${selectedToolName === tool.name ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-l-purple-500' : ''
+                                                    }`}
                                             >
                                                 <div className="flex items-center justify-between">
                                                     <span className="font-medium text-gray-900 dark:text-white text-sm">
@@ -1396,11 +1383,10 @@ export function ChatConfigPanel() {
                             <nav className="flex gap-4">
                                 <button
                                     onClick={() => setHelpViewMode('content')}
-                                    className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                                        helpViewMode === 'content'
+                                    className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${helpViewMode === 'content'
                                             ? 'border-purple-500 text-purple-600 dark:text-purple-400'
                                             : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                                    }`}
+                                        }`}
                                 >
                                     <div className="flex items-center gap-2">
                                         <BookOpenIcon className="h-4 w-4" />
@@ -1409,11 +1395,10 @@ export function ChatConfigPanel() {
                                 </button>
                                 <button
                                     onClick={() => setHelpViewMode('llm-view')}
-                                    className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                                        helpViewMode === 'llm-view'
+                                    className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${helpViewMode === 'llm-view'
                                             ? 'border-purple-500 text-purple-600 dark:text-purple-400'
                                             : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                                    }`}
+                                        }`}
                                 >
                                     <div className="flex items-center gap-2">
                                         <EyeIcon className="h-4 w-4" />
@@ -1441,9 +1426,8 @@ export function ChatConfigPanel() {
                                             <button
                                                 key={cat.category}
                                                 onClick={() => selectHelpCategory(cat.category)}
-                                                className={`w-full text-left px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                                                    selectedHelpCategory?.category === cat.category ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-l-purple-500' : ''
-                                                }`}
+                                                className={`w-full text-left px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${selectedHelpCategory?.category === cat.category ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-l-purple-500' : ''
+                                                    }`}
                                             >
                                                 <div className="font-medium text-gray-900 dark:text-white">
                                                     {cat.label}
@@ -1527,18 +1511,16 @@ export function ChatConfigPanel() {
                                                             <button
                                                                 key={`${topic.category}/${topic.topic}`}
                                                                 onClick={() => setSelectedTopicIndex(index)}
-                                                                className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                                                                    isSelected
+                                                                className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isSelected
                                                                         ? 'border-purple-500 text-purple-600 dark:text-purple-400'
                                                                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 <span className="flex items-center gap-2">
                                                                     {topic.title}
                                                                     {(topic.has_override || isModified) && (
-                                                                        <span className={`inline-flex w-2 h-2 rounded-full ${
-                                                                            isModified ? 'bg-amber-500' : 'bg-purple-500'
-                                                                        }`} />
+                                                                        <span className={`inline-flex w-2 h-2 rounded-full ${isModified ? 'bg-amber-500' : 'bg-purple-500'
+                                                                            }`} />
                                                                     )}
                                                                 </span>
                                                             </button>
@@ -1622,11 +1604,10 @@ export function ChatConfigPanel() {
                                                 <button
                                                     key={role}
                                                     onClick={() => setSelectedPreviewRole(role)}
-                                                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                                                        selectedPreviewRole === role
+                                                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${selectedPreviewRole === role
                                                             ? 'bg-purple-600 text-white'
                                                             : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     {role === 'member' ? 'Member' : role === 'org_admin' ? 'Org Admin' : 'Platform Admin'}
                                                 </button>
@@ -2302,18 +2283,16 @@ export function ChatConfigPanel() {
                                         <button
                                             key={`${topic.category}/${topic.topic}`}
                                             onClick={() => setSelectedTopicIndex(index)}
-                                            className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                                                isSelected
+                                            className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isSelected
                                                     ? 'border-purple-500 text-purple-600 dark:text-purple-400'
                                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
-                                            }`}
+                                                }`}
                                         >
                                             <span className="flex items-center gap-2">
                                                 {topic.title}
                                                 {(topic.has_override || isModified) && (
-                                                    <span className={`inline-flex w-2 h-2 rounded-full ${
-                                                        isModified ? 'bg-amber-500' : 'bg-purple-500'
-                                                    }`} />
+                                                    <span className={`inline-flex w-2 h-2 rounded-full ${isModified ? 'bg-amber-500' : 'bg-purple-500'
+                                                        }`} />
                                                 )}
                                             </span>
                                         </button>
