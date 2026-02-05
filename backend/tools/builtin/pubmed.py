@@ -57,11 +57,10 @@ def execute_search_pubmed(
 
         total_results = metadata.get('total_results', len(articles))
 
-        # Format results for the LLM
-        text_results = [f"Found {total_results} total results. Showing top {len(articles)}:\n"]
-
         # Build payload data for frontend
         articles_data = []
+        # Compact listing for LLM (titles + PMIDs only - full details are in the UI panel)
+        compact_lines = []
 
         for i, article in enumerate(articles, 1):
             # Get authors - handle both list and string formats
@@ -77,14 +76,7 @@ def execute_search_pubmed(
             journal = article.journal or 'Unknown'
             date_str = format_pub_date(article.pub_year, article.pub_month, article.pub_day) or 'Unknown'
 
-            # Text for LLM
-            text_results.append(f"""
-            {i}. "{article.title}"
-            PMID: {pmid}
-            Authors: {authors_str}
-            Journal: {journal} ({date_str})
-            Abstract: {(article.abstract or 'No abstract')[:300]}{'...' if article.abstract and len(article.abstract) > 300 else ''}
-            """)
+            compact_lines.append(f"{i}. \"{article.title}\" (PMID: {pmid}, {date_str})")
 
             # Data for frontend payload
             articles_data.append({
@@ -97,7 +89,12 @@ def execute_search_pubmed(
                 "has_free_full_text": bool(getattr(article, 'pmc_id', None))
             })
 
-        text_result = "\n".join(text_results)
+        text_result = (
+            f"Found {total_results} results for \"{query}\". Showing top {len(articles)}.\n"
+            f"A search results panel with full details (authors, journals, abstracts) is displayed to the user. "
+            f"Do NOT repeat article details inline. Just summarize findings or offer to help explore specific articles.\n\n"
+            + "\n".join(compact_lines)
+        )
 
         payload = {
             "type": "pubmed_search_results",
@@ -147,27 +144,16 @@ def execute_get_pubmed_article(
 
         article = articles[0]
 
-        # Format the full article for the LLM
-        pmc_info = ""
-        if article.pmc_id:
-            pmc_info = f"\n        PMC ID: {article.pmc_id} (free full text available)"
-        doi_info = ""
-        if article.doi:
-            doi_info = f"\n        DOI: {article.doi}"
-
         article_date = format_pub_date(article.pub_year, article.pub_month, article.pub_day)
-        text_result = f"""
-        === PubMed Article ===
-        PMID: {article.PMID}
-        Title: {article.title}
-        Authors: {article.authors}
-        Journal: {article.journal}
-        Date: {article_date or 'Unknown'}
-        Volume: {article.volume}, Issue: {article.issue}, Pages: {article.pages}{pmc_info}{doi_info}
 
-        === Abstract ===
-        {article.abstract or 'No abstract available.'}
-        """
+        # Concise text for LLM - full details are shown in the article card panel
+        pmc_note = " (free full text available via PMC)" if article.pmc_id else ""
+        text_result = (
+            f"Retrieved article PMID {article.PMID}: \"{article.title}\"{pmc_note}.\n"
+            f"An article card with full metadata, authors, journal info, and abstract is displayed to the user in a panel. "
+            f"Do NOT repeat the article details inline. You may reference the article by title or PMID and discuss its content.\n\n"
+            f"Abstract: {article.abstract or 'No abstract available.'}"
+        )
 
         # Build payload for frontend card
         payload = {
@@ -259,31 +245,14 @@ def execute_get_full_text(
                 paid_links = [l for l in links if not l.get('is_free', False)]
 
                 if links:
-                    # Build informative response with links
-                    text_parts = [
-                        f"Article PMID {pmid} is not available in PubMed Central, but full text may be available from other sources.",
-                        f"\nTitle: {article.title}",
-                        f"Journal: {article.journal}",
-                        f"DOI: {article.doi}" if article.doi else "",
-                        "\n--- Full Text Links ---"
-                    ]
-
-                    if free_links:
-                        text_parts.append(f"\nFREE ACCESS ({len(free_links)} sources):")
-                        for link in free_links:
-                            text_parts.append(f"  - {link['provider']}: {link['url']}")
-                            if link.get('categories'):
-                                text_parts.append(f"    Categories: {', '.join(link['categories'])}")
-
-                    if paid_links:
-                        text_parts.append(f"\nSUBSCRIPTION REQUIRED ({len(paid_links)} sources):")
-                        for link in paid_links:
-                            text_parts.append(f"  - {link['provider']}: {link['url']}")
-
-                    if free_links:
-                        text_parts.append("\nYou can use a web fetch tool to retrieve content from the free access links above.")
-
-                    text_result = "\n".join(text_parts)
+                    # Concise text for LLM - link details are shown in the panel
+                    free_count = len(free_links)
+                    paid_count = len(paid_links)
+                    text_result = (
+                        f"Article PMID {pmid} (\"{article.title}\") is not in PubMed Central.\n"
+                        f"A panel is displayed to the user showing {free_count} free and {paid_count} subscription full-text links. "
+                        f"Do NOT list the links inline. You may mention whether free access is available and offer to fetch content from free links."
+                    )
 
                     # Build payload with links info
                     payload = {
@@ -332,12 +301,19 @@ def execute_get_full_text(
                 article = articles[0]
 
         # Build text result for LLM (truncated for token limits)
+        # Note: LLM needs the full text to answer content questions, but the card also shows it
         text_full_text = full_text
         max_chars = 15000
         if len(text_full_text) > max_chars:
             text_full_text = text_full_text[:max_chars] + f"\n\n... [Text truncated. Full article is {len(full_text)} characters]"
 
-        text_result = f"=== Full Text (PMC ID: {pmc_id}) ===\n\n{text_full_text}"
+        title_note = f" \"{article.title}\"" if article else ""
+        text_result = (
+            f"Full text retrieved for PMC ID {pmc_id}{title_note}.\n"
+            f"An article card with the full text is displayed to the user in a panel. "
+            f"Do NOT reproduce large sections of the article inline. Summarize or quote briefly as needed.\n\n"
+            f"{text_full_text}"
+        )
 
         # Build payload for frontend card with full text
         if article:

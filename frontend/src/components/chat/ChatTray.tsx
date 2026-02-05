@@ -805,8 +805,8 @@ export default function ChatTray({
                                 </button>
                             </div>
 
-                            {/* Payload Content - flex container for cards that manage their own scrolling */}
-                            <div className="flex-1 min-h-0 p-4 flex flex-col">
+                            {/* Payload Content - scrollable area for card content */}
+                            <div className="flex-1 min-h-0 p-4 overflow-y-auto">
                                 {handler ? (
                                     handler.render(activePayload.data, {
                                         onAccept: (data) => {
