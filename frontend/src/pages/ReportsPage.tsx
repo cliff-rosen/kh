@@ -520,14 +520,18 @@ export default function ReportsPage() {
                                                 </div>
                                             )}
                                             <div className="p-4 space-y-3">
-                                                {data.articles.map((article, idx) => (
-                                                    <ReportArticleCard
-                                                        key={article.article_id}
-                                                        article={article}
-                                                        cardFormat={cardFormat}
-                                                        onClick={() => openArticleViewer(data.articles, idx)}
-                                                    />
-                                                ))}
+                                                {data.articles.map((article) => {
+                                                    // Find the article's index in the full list so navigation works across all articles
+                                                    const fullIndex = selectedReport.articles.findIndex(a => a.article_id === article.article_id);
+                                                    return (
+                                                        <ReportArticleCard
+                                                            key={article.article_id}
+                                                            article={article}
+                                                            cardFormat={cardFormat}
+                                                            onClick={() => openArticleViewer(selectedReport.articles, fullIndex)}
+                                                        />
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     )}
