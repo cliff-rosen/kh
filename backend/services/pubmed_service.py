@@ -215,6 +215,36 @@ class PubMedArticle:
                 else:
                     pub_date += "-01-01"  # Default to Jan 1 if no month
 
+        # Use the earlier of journal PubDate vs ArticleDate (electronic pub date)
+        # PubMed displays the earlier date as the publication date. An article in
+        # the "December 2025" journal issue may have been e-published November 3.
+        if article_date_node is not None:
+            epub_year_node = article_date_node.find(".//Year")
+            epub_month_node = article_date_node.find(".//Month")
+            epub_day_node = article_date_node.find(".//Day")
+            if epub_year_node is not None and epub_year_node.text:
+                try:
+                    epub_year = int(epub_year_node.text)
+                    epub_month = int(epub_month_node.text) if epub_month_node is not None and epub_month_node.text else None
+                    epub_day = int(epub_day_node.text) if epub_day_node is not None and epub_day_node.text else None
+
+                    # Compare: use epub date if it's earlier than journal PubDate
+                    # Build comparable tuples (treat None month/day as 12/31 for "later" comparison)
+                    if pub_year is not None:
+                        journal_tuple = (pub_year, pub_month or 12, pub_day or 28)
+                        epub_tuple = (epub_year, epub_month or 12, epub_day or 28)
+                        if epub_tuple < journal_tuple:
+                            pub_year = epub_year
+                            pub_month = epub_month
+                            pub_day = epub_day
+                    else:
+                        # No journal PubDate at all, use epub
+                        pub_year = epub_year
+                        pub_month = epub_month
+                        pub_day = epub_day
+                except (ValueError, TypeError):
+                    pass  # Keep journal PubDate if epub parsing fails
+
         # Parse all authors - no truncation, store complete list
         author_list = []
         if author_list_node is not None:
