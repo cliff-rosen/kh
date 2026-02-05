@@ -4,8 +4,8 @@
  * Displays chat conversations for platform admins with full message inspection.
  */
 
-import { useState, useEffect } from 'react';
-import { ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon, UserIcon, CpuChipIcon, BugAntIcon } from '@heroicons/react/24/outline';
+import { useState, useEffect, useCallback } from 'react';
+import { ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon, UserIcon, CpuChipIcon, BugAntIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { api } from '@/lib/api';
 import { showErrorToast } from '@/lib/errorToast';
 import { AgentTrace as ChatAgentTrace } from '@/types/chat';
@@ -154,6 +154,7 @@ export function ConversationList() {
     const [selectedConversation, setSelectedConversation] = useState<ConversationDetail | null>(null);
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
+    const [traceToShow, setTraceToShow] = useState<AgentTrace | null>(null);
 
     const fetchConversations = async () => {
         setLoading(true);
@@ -397,73 +398,15 @@ export function ConversationList() {
                             ) : (
                                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
                                     {selectedConversation.messages.map((msg, idx) => (
-                                        <div
+                                        <MessageListItem
                                             key={msg.id}
-                                            onClick={() => setSelectedMessage(msg)}
-                                            className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
-                                                selectedMessage?.id === msg.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''
-                                            }`}
-                                        >
-                                            <div className="flex items-start gap-3">
-                                                <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                                                    msg.role === 'user'
-                                                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
-                                                        : 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
-                                                }`}>
-                                                    {msg.role === 'user' ? (
-                                                        <UserIcon className="h-4 w-4" />
-                                                    ) : (
-                                                        <CpuChipIcon className="h-4 w-4" />
-                                                    )}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-                                                            {msg.role}
-                                                        </span>
-                                                        <span className="text-xs text-gray-400 dark:text-gray-500">
-                                                            #{idx + 1}
-                                                        </span>
-                                                        <span className="text-xs text-gray-400 dark:text-gray-500">
-                                                            {formatDate(msg.created_at)}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-sm text-gray-900 dark:text-white line-clamp-3">
-                                                        {msg.content}
-                                                    </p>
-                                                    {/* Badges for extras */}
-                                                    {msg.extras && Object.keys(msg.extras).length > 0 && (
-                                                        <div className="flex flex-wrap gap-1 mt-2">
-                                                            {(msg.extras.trace || msg.extras.diagnostics) && (
-                                                                <span className="px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
-                                                                    {msg.extras.trace ? 'trace' : 'diagnostics'}
-                                                                </span>
-                                                            )}
-                                                            {msg.extras.tool_history && msg.extras.tool_history.length > 0 && (
-                                                                <span className="px-1.5 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">
-                                                                    {msg.extras.tool_history.length} tool{msg.extras.tool_history.length !== 1 ? 's' : ''}
-                                                                </span>
-                                                            )}
-                                                            {msg.extras.custom_payload && (
-                                                                <span className="px-1.5 py-0.5 text-xs bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded">
-                                                                    payload
-                                                                </span>
-                                                            )}
-                                                            {msg.extras.suggested_values && msg.extras.suggested_values.length > 0 && (
-                                                                <span className="px-1.5 py-0.5 text-xs bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300 rounded">
-                                                                    {msg.extras.suggested_values.length} values
-                                                                </span>
-                                                            )}
-                                                            {msg.extras.suggested_actions && msg.extras.suggested_actions.length > 0 && (
-                                                                <span className="px-1.5 py-0.5 text-xs bg-pink-100 dark:bg-pink-900 text-pink-700 dark:text-pink-300 rounded">
-                                                                    {msg.extras.suggested_actions.length} actions
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
+                                            message={msg}
+                                            index={idx}
+                                            isSelected={selectedMessage?.id === msg.id}
+                                            onSelect={() => setSelectedMessage(msg)}
+                                            onOpenTrace={(trace) => setTraceToShow(trace)}
+                                            formatDate={formatDate}
+                                        />
                                     ))}
                                 </div>
                             )}
@@ -482,6 +425,138 @@ export function ConversationList() {
                     </div>
                 </div>
             )}
+
+            {/* Trace Panel launched from left sidebar */}
+            {traceToShow && (
+                <DiagnosticsPanel
+                    diagnostics={traceToShow as unknown as ChatAgentTrace}
+                    onClose={() => setTraceToShow(null)}
+                />
+            )}
+        </div>
+    );
+}
+
+/** Message item in the left sidebar list - expandable with clickable trace badge */
+function MessageListItem({
+    message,
+    index,
+    isSelected,
+    onSelect,
+    onOpenTrace,
+    formatDate
+}: {
+    message: Message;
+    index: number;
+    isSelected: boolean;
+    onSelect: () => void;
+    onOpenTrace: (trace: AgentTrace) => void;
+    formatDate: (d: string) => string;
+}) {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const hasLongContent = message.content.length > 200;
+
+    const handleExpandClick = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsExpanded(!isExpanded);
+    }, [isExpanded]);
+
+    const handleTraceClick = useCallback((e: React.MouseEvent, trace: AgentTrace) => {
+        e.stopPropagation();
+        onOpenTrace(trace);
+    }, [onOpenTrace]);
+
+    return (
+        <div
+            onClick={onSelect}
+            className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+                isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''
+            }`}
+        >
+            <div className="flex items-start gap-3">
+                <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                    message.role === 'user'
+                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                        : 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
+                }`}>
+                    {message.role === 'user' ? (
+                        <UserIcon className="h-4 w-4" />
+                    ) : (
+                        <CpuChipIcon className="h-4 w-4" />
+                    )}
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                            {message.role}
+                        </span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                            #{index + 1}
+                        </span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                            {formatDate(message.created_at)}
+                        </span>
+                        {/* Expand/collapse button for long content */}
+                        {hasLongContent && (
+                            <button
+                                onClick={handleExpandClick}
+                                className="ml-auto p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+                                title={isExpanded ? 'Collapse' : 'Expand'}
+                            >
+                                {isExpanded ? (
+                                    <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                                ) : (
+                                    <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+                                )}
+                            </button>
+                        )}
+                    </div>
+                    <p className={`text-sm text-gray-900 dark:text-white whitespace-pre-wrap ${
+                        !isExpanded ? 'line-clamp-3' : ''
+                    }`}>
+                        {message.content}
+                    </p>
+                    {/* Badges for extras */}
+                    {message.extras && Object.keys(message.extras).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                            {(message.extras.trace || message.extras.diagnostics) && (
+                                <button
+                                    onClick={(e) => message.extras?.trace && handleTraceClick(e, message.extras.trace)}
+                                    className={`px-1.5 py-0.5 text-xs rounded flex items-center gap-1 ${
+                                        message.extras.trace
+                                            ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800 cursor-pointer'
+                                            : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                                    }`}
+                                    disabled={!message.extras.trace}
+                                >
+                                    <BugAntIcon className="h-3 w-3" />
+                                    {message.extras.trace ? 'trace' : 'diagnostics'}
+                                </button>
+                            )}
+                            {message.extras.tool_history && message.extras.tool_history.length > 0 && (
+                                <span className="px-1.5 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">
+                                    {message.extras.tool_history.length} tool{message.extras.tool_history.length !== 1 ? 's' : ''}
+                                </span>
+                            )}
+                            {message.extras.custom_payload && (
+                                <span className="px-1.5 py-0.5 text-xs bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded">
+                                    payload
+                                </span>
+                            )}
+                            {message.extras.suggested_values && message.extras.suggested_values.length > 0 && (
+                                <span className="px-1.5 py-0.5 text-xs bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300 rounded">
+                                    {message.extras.suggested_values.length} values
+                                </span>
+                            )}
+                            {message.extras.suggested_actions && message.extras.suggested_actions.length > 0 && (
+                                <span className="px-1.5 py-0.5 text-xs bg-pink-100 dark:bg-pink-900 text-pink-700 dark:text-pink-300 rounded">
+                                    {message.extras.suggested_actions.length} actions
+                                </span>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }
