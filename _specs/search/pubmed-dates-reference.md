@@ -12,16 +12,16 @@ PubMed tracks multiple dates for each article. Understanding these is essential 
 
 ### User-Facing Date Types (Search Tags)
 
-| Date Type | Search Tag | Meaning | Use When |
-|-----------|------------|---------|----------|
-| **Publication Date** | `[dp]` | Combined electronic + print (see behavior below) | Default - most common |
-| **Electronic Publication** | `[epdat]` | When article went online | Finding by online availability |
-| **Print Publication** | `[ppdat]` | Official journal issue date | Finding by print date |
-| **Entry Date** | `[edat]` | When added to PubMed | Finding newly indexed articles |
-| **Create Date** | `[crdt]` | When PubMed record was created | Usually same as entry |
-| **MeSH Date** | `[mhda]` | When indexed with MeSH terms | Finding newly indexed MEDLINE |
-| **Completion Date** | `[dcom]` | When MEDLINE indexing completed | Recently completed records |
-| **Modification Date** | `[lr]` | When record was last updated | Tracking updates, corrections |
+| Date Type | Search Tag | XML Source | Meaning | Use When |
+|-----------|------------|------------|---------|----------|
+| **Publication Date** | `[dp]` | Computed: ArticleDate if earlier, else PubDate | Combined electronic + print (see behavior below) | Default - most common |
+| **Electronic Publication** | `[epdat]` | ArticleDate | When article went online | Finding by online availability |
+| **Print Publication** | `[ppdat]` | PubDate | Official journal issue date | Finding by print date |
+| **Entry Date** | `[edat]` | PubMedPubDate[@PubStatus="entrez"] | When added to PubMed | Finding newly indexed articles |
+| **Create Date** | `[crdt]` | PubMedPubDate[@PubStatus="pubmed"] | When PubMed record was created | Usually same as entry |
+| **MeSH Date** | `[mhda]` | PubMedPubDate[@PubStatus="medline"] | When indexed with MeSH terms | Finding newly indexed MEDLINE |
+| **Completion Date** | `[dcom]` | DateCompleted | When MEDLINE indexing completed | Recently completed records |
+| **Modification Date** | `[lr]` | DateRevised | When record was last updated | Tracking updates, corrections |
 
 ### Publication Date `[dp]` Behavior
 
@@ -94,19 +94,6 @@ PubMed tracks multiple dates for each article. Understanding these is essential 
   <Year>2025</Year><Month>12</Month><Day>15</Day>
 </PubMedPubDate>
 ```
-
-### How Search Tags Map to XML
-
-| Search Tag | XML Source |
-|------------|------------|
-| `[dp]` | Computed: ArticleDate if earlier, else PubDate |
-| `[epdat]` | ArticleDate |
-| `[ppdat]` | PubDate |
-| `[edat]` | History/PubMedPubDate[@PubStatus="entrez"] |
-| `[crdt]` | History/PubMedPubDate[@PubStatus="pubmed"] |
-| `[mhda]` | History/PubMedPubDate[@PubStatus="medline"] |
-| `[dcom]` | DateCompleted |
-| `[lr]` | DateRevised |
 
 ---
 
