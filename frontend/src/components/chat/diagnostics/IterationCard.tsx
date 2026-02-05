@@ -9,6 +9,22 @@ import { ContentBlockRenderer } from './ContentBlockRenderer';
 import { MessagesList } from './MessagesList';
 import { ToolCallCard } from './ToolCallCard';
 
+/** Truncate JSON object to a short preview string */
+function truncateJson(obj: Record<string, unknown>, maxLen = 30): string {
+    const str = JSON.stringify(obj);
+    if (str.length <= maxLen) return str;
+    return str.slice(0, maxLen) + '…';
+}
+
+/** Truncate output string to a short preview */
+function truncateOutput(output: string, maxLen = 25): string {
+    if (!output) return '—';
+    // Remove newlines and collapse whitespace
+    const clean = output.replace(/\s+/g, ' ').trim();
+    if (clean.length <= maxLen) return clean;
+    return clean.slice(0, maxLen) + '…';
+}
+
 export interface IterationCardProps {
     iteration: AgentIteration;
     prevIteration: AgentIteration | null;
@@ -64,10 +80,18 @@ export function IterationCard({
                     }`}>
                         {iteration.stop_reason}
                     </span>
-                    {iteration.tool_calls?.length > 0 && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {iteration.tool_calls.length} tool call{iteration.tool_calls.length !== 1 ? 's' : ''}
-                        </span>
+                    {iteration.tool_calls?.length > 0 && !isExpanded && (
+                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 overflow-hidden">
+                            {iteration.tool_calls.map((tc, idx) => (
+                                <span key={tc.tool_use_id} className="flex items-center gap-1 truncate max-w-xs">
+                                    <span className="font-medium text-blue-600 dark:text-blue-400">{tc.tool_name}</span>
+                                    <span className="text-gray-400 truncate">
+                                        ({truncateJson(tc.tool_input)} → {truncateOutput(tc.output_to_model)})
+                                    </span>
+                                    {idx < iteration.tool_calls.length - 1 && <span className="text-gray-300">|</span>}
+                                </span>
+                            ))}
+                        </div>
                     )}
                 </div>
                 <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
