@@ -134,52 +134,6 @@ class CanonicalResearchArticle(BaseModel):
             self.id = hashlib.md5(content.encode()).hexdigest()[:16]
         return self
 
-
-class CanonicalEmail(BaseModel):
-    """
-    Canonical Email schema - the definitive structure for email objects
-    across the entire system.
-    """
-    id: str = Field(description="Unique email identifier")
-    subject: str = Field(description="Email subject line")
-    body: str = Field(description="Email body content (HTML or plain text)")
-    sender: str = Field(description="Sender email address")
-    recipients: List[str] = Field(default=[], description="List of recipient email addresses")
-    timestamp: datetime = Field(description="Email timestamp")
-    labels: List[str] = Field(default=[], description="Email labels/folders")
-    thread_id: Optional[str] = Field(default=None, description="Thread ID if part of conversation")
-    snippet: Optional[str] = Field(default=None, description="Email preview snippet")
-    attachments: List[Dict[str, Any]] = Field(default=[], description="List of email attachments")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional email metadata")
-
-class CanonicalSearchResult(BaseModel):
-    """
-    Canonical Search Result schema - the definitive structure for web search
-    results across the entire system.
-    """
-    title: str = Field(description="Page title")
-    url: str = Field(description="Page URL")
-    snippet: str = Field(description="Page snippet/description")
-    published_date: Optional[str] = Field(default=None, description="Publication date (ISO format)")
-    source: str = Field(description="Source domain")
-    rank: int = Field(description="Search result rank")
-    relevance_score: Optional[float] = Field(default=None, description="Relevance score (0-1)")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional search metadata")
-
-class CanonicalWebpage(BaseModel):
-    """
-    Canonical Webpage schema - the definitive structure for webpage objects.
-    """
-    url: str = Field(description="Webpage URL")
-    title: str = Field(description="Webpage title")
-    content: str = Field(description="Webpage content/text")
-    html: Optional[str] = Field(default=None, description="Raw HTML content")
-    last_modified: Optional[datetime] = Field(default=None, description="Last modification date")
-    content_type: Optional[str] = Field(default=None, description="Content type (e.g., 'text/html')")
-    status_code: Optional[int] = Field(default=None, description="HTTP status code")
-    headers: Optional[Dict[str, str]] = Field(default=None, description="HTTP headers")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional webpage metadata")
-
 class CanonicalPubMedArticle(BaseModel):
     """
     PubMed-specific article schema - TRANSIENT INTERMEDIATE type.
@@ -239,6 +193,51 @@ class CanonicalScholarArticle(BaseModel):
     year: Optional[int] = Field(default=None, description="Publication year")
     position: int = Field(description="Position in search results")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional Scholar metadata")
+
+class CanonicalEmail(BaseModel):
+    """
+    Canonical Email schema - the definitive structure for email objects
+    across the entire system.
+    """
+    id: str = Field(description="Unique email identifier")
+    subject: str = Field(description="Email subject line")
+    body: str = Field(description="Email body content (HTML or plain text)")
+    sender: str = Field(description="Sender email address")
+    recipients: List[str] = Field(default=[], description="List of recipient email addresses")
+    timestamp: datetime = Field(description="Email timestamp")
+    labels: List[str] = Field(default=[], description="Email labels/folders")
+    thread_id: Optional[str] = Field(default=None, description="Thread ID if part of conversation")
+    snippet: Optional[str] = Field(default=None, description="Email preview snippet")
+    attachments: List[Dict[str, Any]] = Field(default=[], description="List of email attachments")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional email metadata")
+
+class CanonicalSearchResult(BaseModel):
+    """
+    Canonical Search Result schema - the definitive structure for web search
+    results across the entire system.
+    """
+    title: str = Field(description="Page title")
+    url: str = Field(description="Page URL")
+    snippet: str = Field(description="Page snippet/description")
+    published_date: Optional[str] = Field(default=None, description="Publication date (ISO format)")
+    source: str = Field(description="Source domain")
+    rank: int = Field(description="Search result rank")
+    relevance_score: Optional[float] = Field(default=None, description="Relevance score (0-1)")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional search metadata")
+
+class CanonicalWebpage(BaseModel):
+    """
+    Canonical Webpage schema - the definitive structure for webpage objects.
+    """
+    url: str = Field(description="Webpage URL")
+    title: str = Field(description="Webpage title")
+    content: str = Field(description="Webpage content/text")
+    html: Optional[str] = Field(default=None, description="Raw HTML content")
+    last_modified: Optional[datetime] = Field(default=None, description="Last modification date")
+    content_type: Optional[str] = Field(default=None, description="Content type (e.g., 'text/html')")
+    status_code: Optional[int] = Field(default=None, description="HTTP status code")
+    headers: Optional[Dict[str, str]] = Field(default=None, description="HTTP headers")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional webpage metadata")
 
 
 # ============================================================================

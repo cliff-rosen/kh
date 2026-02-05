@@ -10,9 +10,21 @@ For PubMed date concepts and XML fields, see [PubMed Dates Reference](../../_spe
 
 We handle dates for two purposes:
 1. **Searching/sorting** - filtering articles by date range
-2. **Display** - showing users when an article became available
+2. **Display** - showing users when an article was published
 
-The challenge: PubMed has multiple date concepts, and we need clear semantics for mapping them to our fields.
+### The Honest Date Approach
+
+PubMed provides publication dates with varying precision:
+- Some articles have full dates: `2026-01-15`
+- Some have only month: `2026-01` (day unknown)
+- Some have only year: `2026` (month and day unknown)
+
+**Problem with the old approach:** We stored dates as a `Date` type, which fabricated precision by defaulting missing day/month to `01`. This caused confusion when users saw "January 1st" for articles that were actually just "sometime in 2026".
+
+**Solution:** We now store three separate integer fields that honestly represent only what we know:
+- `pub_year` (int) - Always present
+- `pub_month` (int, nullable) - 1-12 when known
+- `pub_day` (int, nullable) - 1-31 when known
 
 ---
 
@@ -20,38 +32,42 @@ The challenge: PubMed has multiple date concepts, and we need clear semantics fo
 
 ### Summary Table
 
-| # | Object | Location | Date Fields | Source |
-|---|--------|----------|-------------|--------|
-| 1 | PubMedArticle | `services/pubmed_service.py` | article_date, pub_date, entry_date, comp_date, date_revised, year | PubMed XML |
-| 2 | CanonicalPubMedArticle | `schemas/canonical_types.py` | publication_date, metadata{} | PubMedArticle |
-| 3 | CanonicalResearchArticle | `schemas/canonical_types.py` | publication_date, publication_year, date_completed, date_revised, date_entered, date_published | CanonicalPubMedArticle |
-| 4 | WipArticle (model) | `models.py` | publication_date, year | CanonicalResearchArticle |
-| 5 | WipArticle (schema) | `schemas/research_stream.py` | year | WipArticle model |
-| 6 | Article (model) | `models.py` | publication_date, comp_date, year | WipArticle |
-| 7 | Article (schema) | `schemas/article.py` | publication_date, comp_date, year | Article model |
-| 8 | ReportArticle | `schemas/report.py` | publication_date, year | Article model |
+| # | Object | Location | Date Fields |
+|---|--------|----------|-------------|
+| 1 | PubMedArticle | `services/pubmed_service.py` | pub_year, pub_month, pub_day, entry_date, comp_date, date_revised |
+| 2 | CanonicalPubMedArticle | `schemas/canonical_types.py` | pub_year, pub_month, pub_day |
+| 3 | CanonicalResearchArticle | `schemas/canonical_types.py` | pub_year, pub_month, pub_day, date_completed, date_revised, date_entered |
+| 4 | WipArticle (model) | `models.py` | pub_year, pub_month, pub_day |
+| 5 | WipArticle (schema) | `schemas/research_stream.py` | pub_year, pub_month, pub_day |
+| 6 | Article (model) | `models.py` | pub_year, pub_month, pub_day, comp_date |
+| 7 | Article (schema) | `schemas/article.py` | pub_year, pub_month, pub_day |
+| 8 | ReportArticle | `schemas/report.py` | pub_year, pub_month, pub_day |
 
 ### Type Architecture
 
 ```
-PubMedArticle (parsing)
+PubMed XML
        │
        ▼
+PubMedArticle (parsing)
+       │  Parses year/month/day separately from XML
+       ▼
 CanonicalPubMedArticle ─────► Transient intermediate (validates PubMed data)
-       │                      metadata dict preserves all dates
        │
        ▼
 CanonicalResearchArticle ───► Universal interface for ALL sources
        │                      (PubMed, Google Scholar, future sources)
+       ▼
+WipArticle ─────────────────► Pipeline intermediate storage (database)
        │
        ▼
-WipArticle ─────────────────► Pipeline intermediate storage
+Article ────────────────────► Permanent storage (database)
        │
        ▼
-Article ────────────────────► Permanent storage
+ReportArticle ──────────────► Report presentation (API response)
        │
        ▼
-ReportArticle ──────────────► Report presentation
+Frontend Types ─────────────► Display with formatArticleDate() utility
 ```
 
 **Key point:** CanonicalPubMedArticle and CanonicalScholarArticle are backend-only transient types. The frontend only sees CanonicalResearchArticle.
@@ -64,45 +80,47 @@ ReportArticle ──────────────► Report presentation
 
 **Location:** `backend/services/pubmed_service.py`
 
-| Field | XML Source | Semantic |
-|-------|------------|----------|
-| `article_date` | `ArticleDate[@DateType="Electronic"]` | When article went online |
-| `pub_date` | `JournalIssue/PubDate` | Official print publication |
-| `entry_date` | `PubMedPubDate[@PubStatus="entrez"]` | When added to PubMed |
-| `comp_date` | `DateCompleted` | When MEDLINE indexing completed |
-| `date_revised` | `DateRevised` | When record last revised |
-| `year` | `PubDate/Year` | Publication year |
+| Field | Type | XML Source | Semantic |
+|-------|------|------------|----------|
+| `pub_year` | int | `PubDate/Year` | Publication year (always present) |
+| `pub_month` | int \| None | `PubDate/Month` | Publication month (1-12, when available) |
+| `pub_day` | int \| None | `PubDate/Day` | Publication day (1-31, when available) |
+| `entry_date` | date \| None | `PubMedPubDate[@PubStatus="entrez"]` | When added to PubMed |
+| `comp_date` | date \| None | `DateCompleted` | When MEDLINE indexing completed |
+| `date_revised` | date \| None | `DateRevised` | When record last revised |
 
-**Status:** Correctly parses all dates from XML.
+**Parsing logic:**
+- Year is parsed from `<Year>` element, always required
+- Month is parsed from `<Month>` element, converted from name (e.g., "Jan") or number
+- Day is parsed from `<Day>` element when present
+- No fabrication of missing precision
 
 ### 3.2 CanonicalPubMedArticle
 
 **Location:** `backend/schemas/canonical_types.py`
 
-| Field | Semantic |
-|-------|----------|
-| `publication_date` | Currently set to pub_date (print) |
-| `metadata` | Dict containing article_date, pub_date, entry_date, comp_date, date_revised |
+| Field | Type | Semantic |
+|-------|------|----------|
+| `pub_year` | int \| None | Publication year |
+| `pub_month` | int \| None | Publication month (1-12) |
+| `pub_day` | int \| None | Publication day (1-31) |
 
-**Population points:**
-- `pubmed_service.py:540` - uses `article.pub_date`
-- `routers/tools.py:203` - uses `article.pub_date`
-- `routers/tablizer.py:97` - uses `article.pub_date`
+**Population:** `pubmed_service.py` → `to_canonical()` method
 
 ### 3.3 CanonicalResearchArticle
 
 **Location:** `backend/schemas/canonical_types.py`
 
-| Field | Semantic | Currently Set From |
-|-------|----------|-------------------|
-| `publication_date` | Primary display date | metadata['pub_date'] |
-| `publication_year` | Year only | Extracted from date |
-| `date_completed` | MEDLINE completion | metadata['comp_date'] |
-| `date_revised` | Last revision | metadata['date_revised'] |
-| `date_entered` | PubMed entry | metadata['entry_date'] |
-| `date_published` | "Full precision" | metadata['pub_date'] |
+| Field | Type | Semantic |
+|-------|------|----------|
+| `pub_year` | int \| None | Publication year |
+| `pub_month` | int \| None | Publication month (1-12) |
+| `pub_day` | int \| None | Publication day (1-31) |
+| `date_completed` | str \| None | MEDLINE completion (YYYY-MM-DD) |
+| `date_revised` | str \| None | Last revision (YYYY-MM-DD) |
+| `date_entered` | str \| None | PubMed entry (YYYY-MM-DD) |
 
-**Population point:** `research_article_converters.py:112`
+**Population:** `research_article_converters.py` → `pubmed_to_research_article()`
 
 ### 3.4 WipArticle (model)
 
@@ -110,10 +128,11 @@ ReportArticle ──────────────► Report presentation
 
 | Column | Type | Semantic |
 |--------|------|----------|
-| `publication_date` | Date | From CanonicalResearchArticle |
-| `year` | String(4) | Publication year |
+| `pub_year` | Integer | Publication year |
+| `pub_month` | Integer | Publication month (1-12) |
+| `pub_day` | Integer | Publication day (1-31) |
 
-**Population point:** `wip_article_service.py:224`
+**Population:** `wip_article_service.py` → `create_wip_articles()`
 
 ### 3.5 Article (model)
 
@@ -121,11 +140,12 @@ ReportArticle ──────────────► Report presentation
 
 | Column | Type | Semantic |
 |--------|------|----------|
-| `publication_date` | Date | From WipArticle |
+| `pub_year` | Integer | Publication year |
+| `pub_month` | Integer | Publication month (1-12) |
+| `pub_day` | Integer | Publication day (1-31) |
 | `comp_date` | Date | MEDLINE completion |
-| `year` | String(4) | Publication year |
 
-**Population point:** `article_service.py:125`
+**Population:** `article_service.py` → `find_or_create_from_wip()`
 
 ### 3.6 ReportArticle
 
@@ -133,12 +153,11 @@ ReportArticle ──────────────► Report presentation
 
 | Field | Type | Semantic |
 |-------|------|----------|
-| `publication_date` | Optional[str] | Display date |
-| `year` | Optional[str] | Publication year |
+| `pub_year` | int \| None | Publication year |
+| `pub_month` | int \| None | Publication month (1-12) |
+| `pub_day` | int \| None | Publication day (1-31) |
 
-**Population points:**
-- `report_service.py:1088` - uses `str(article.year)` (year only)
-- `routers/reports.py:179` - uses `article.publication_date.isoformat()` (full date)
+**Population:** `routers/reports.py` and `report_service.py`
 
 ---
 
@@ -147,101 +166,149 @@ ReportArticle ──────────────► Report presentation
 ```
 PubMed XML
     │
+    │  <PubDate>
+    │    <Year>2026</Year>
+    │    <Month>Jan</Month>
+    │    <!-- No Day element -->
+    │  </PubDate>
+    │
     ▼
 ┌─────────────────────────────────────────────────────────┐
 │ PubMedArticle                                           │
-│   article_date = "2026-01-07" (electronic)              │
-│   pub_date = "2026-02-01" (print)                       │
+│   pub_year = 2026                                       │
+│   pub_month = 1                                         │
+│   pub_day = None  ← HONEST: we don't know the day      │
 └─────────────────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────────────────┐
-│ CanonicalPubMedArticle                                  │
-│   publication_date = pub_date ← USES PRINT DATE        │
-│   metadata = {                                          │
-│     'article_date': '2026-01-07',  ← AVAILABLE         │
-│     'pub_date': '2026-02-01',                          │
-│   }                                                     │
+│ CanonicalPubMedArticle → CanonicalResearchArticle       │
+│   pub_year = 2026                                       │
+│   pub_month = 1                                         │
+│   pub_day = None                                        │
 └─────────────────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────────────────┐
-│ CanonicalResearchArticle                                │
-│   publication_date = pub_date ← PRINT DATE             │
-│   date_published = pub_date ← REDUNDANT                │
+│ WipArticle → Article (database)                         │
+│   pub_year = 2026                                       │
+│   pub_month = 1                                         │
+│   pub_day = NULL                                        │
 └─────────────────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────────────────┐
-│ WipArticle → Article → ReportArticle                    │
-│   publication_date = 2026-02-01 ← INHERITS PRINT DATE  │
+│ ReportArticle (API response)                            │
+│   pub_year = 2026                                       │
+│   pub_month = 1                                         │
+│   pub_day = null                                        │
+└─────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────┐
+│ Frontend Display                                        │
+│   formatArticleDate(2026, 1, null) → "Jan 2026"        │
+│   ← DISPLAYS ONLY KNOWN PRECISION                       │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 5. Current Issues
+## 5. Frontend Display
 
-### 5.1 Search/Display Mismatch
+### Date Formatting Utility
 
+**Location:** `frontend/src/utils/dateUtils.ts`
+
+```typescript
+/**
+ * Format a publication date with only the precision actually available.
+ */
+export function formatPubDate(
+    year?: number | null,
+    month?: number | null,
+    day?: number | null,
+    format: 'short' | 'long' = 'short'
+): string {
+    if (!year) return '';
+    if (!month) return `${year}`;                    // "2026"
+    if (!day) return `${monthName} ${year}`;         // "Jan 2026"
+    return `${monthName} ${day}, ${year}`;           // "Jan 15, 2026"
+}
+
+// Convenience wrapper for article display
+export function formatArticleDate(year?, month?, day?): string {
+    return formatPubDate(year, month, day, 'short');
+}
+
+// Get just the year as string
+export function getYearString(year?: number | null): string {
+    return year ? `${year}` : '';
+}
 ```
-User searches: "Articles from Jan 1-7, 2026"
-PubMed returns: Article with ArticleDate=Jan 7, PubDate=Feb 2026
-We display: publication_date = Feb 2026 (from PubDate)
-User sees: "Why is this February article in my January results?"
+
+### Usage in Components
+
+Components that display article dates use the utility:
+
+```typescript
+// In ReportArticleCard.tsx
+{article.pub_year && (
+    <span>• {formatArticleDate(article.pub_year, article.pub_month, article.pub_day)}</span>
+)}
+
+// In ArticleViewerModal.tsx
+{article.pub_year && (
+    <span>{formatArticleDate(article.pub_year, article.pub_month, article.pub_day)}</span>
+)}
 ```
 
-The `[dp]` search tag matches electronic date, but we display print date.
+### Tablizer Display
 
-### 5.2 Issue Summary
+For table-based displays (Tablizer component), we compute a `publication_date` string field:
 
-| Issue | Affected Objects | Root Cause |
-|-------|------------------|------------|
-| article_date ignored | All downstream | `research_article_converters.py:112` uses pub_date |
-| date_published redundant | CanonicalResearchArticle | Same value as publication_date |
-| WipArticle schema missing publication_date | Frontend WIP display | `schemas/research_stream.py:318` |
-| ReportArticle inconsistent | Report display | Different code paths use year vs full date |
+```typescript
+// Transform data for Tablizer column accessor
+const displayArticles = articles.map(article => ({
+    ...article,
+    publication_date: formatArticleDate(article.pub_year, article.pub_month, article.pub_day)
+}));
+```
 
 ---
 
-## 6. Recommended Fix
+## 6. Database Schema
 
-### Semantic Definition
+### Migration
 
-| Field | Should Mean | Source Priority |
-|-------|-------------|-----------------|
-| `publication_date` | When article became available | ArticleDate > PubDate |
-| `date_entered` | When entered into PubMed | entrez |
-| `date_completed` | When MEDLINE indexing completed | DateCompleted |
-| `date_revised` | When record last revised | DateRevised |
+**File:** `migrations/017_add_pub_date_fields.sql`
 
-### Code Changes
+```sql
+-- Add new columns to articles table
+ALTER TABLE articles ADD COLUMN pub_year INT NULL;
+ALTER TABLE articles ADD COLUMN pub_month INT NULL;
+ALTER TABLE articles ADD COLUMN pub_day INT NULL;
 
-**1. research_article_converters.py:112**
-```python
-# Current:
-publication_date=metadata.get('pub_date') or pubmed_article.publication_date,
+-- Add new columns to wip_articles table
+ALTER TABLE wip_articles ADD COLUMN pub_year INT NULL;
+ALTER TABLE wip_articles ADD COLUMN pub_month INT NULL;
+ALTER TABLE wip_articles ADD COLUMN pub_day INT NULL;
 
-# Change to:
-publication_date=metadata.get('article_date') or metadata.get('pub_date') or pubmed_article.publication_date,
+-- Migrate existing data (best effort from old publication_date)
+UPDATE articles SET
+    pub_year = YEAR(publication_date),
+    pub_month = MONTH(publication_date),
+    pub_day = DAY(publication_date)
+WHERE publication_date IS NOT NULL;
 ```
 
-**2. pubmed_service.py:540**
-```python
-# Current:
-publication_date=article.pub_date if article.pub_date else None,
+### Legacy Fields
 
-# Change to:
-publication_date=article.article_date if article.article_date else article.pub_date,
-```
+The following fields are deprecated but may still exist in the database:
+- `publication_date` (Date) - Old fabricated-precision date
+- `year` (String) - Old year-only field
 
-**3. Similar changes in:**
-- `routers/tools.py:203`
-- `routers/tablizer.py:97`
-- `retrieval_testing_service.py:210`
-
-**4. Remove redundant field:**
-- Remove `date_published` from CanonicalResearchArticle (or rename to `date_published_print`)
+New code should use `pub_year`, `pub_month`, `pub_day` exclusively.
 
 ---
 
@@ -249,22 +316,41 @@ publication_date=article.article_date if article.article_date else article.pub_d
 
 | File | Purpose |
 |------|---------|
-| `services/pubmed_service.py` | PubMedArticle parsing, CanonicalPubMedArticle creation |
-| `schemas/canonical_types.py` | CanonicalPubMedArticle, CanonicalResearchArticle definitions |
+| `services/pubmed_service.py` | PubMedArticle parsing with honest date extraction |
+| `schemas/canonical_types.py` | CanonicalPubMedArticle, CanonicalResearchArticle with pub_year/month/day |
 | `schemas/research_article_converters.py` | Conversion between types |
-| `services/wip_article_service.py` | WipArticle creation |
-| `services/article_service.py` | Article creation |
-| `schemas/report.py` | ReportArticle definition |
-| `services/report_service.py` | ReportArticle population |
+| `services/wip_article_service.py` | WipArticle creation with date fields |
+| `services/article_service.py` | Article creation with date fields |
+| `schemas/article.py` | Article schema with pub_year/month/day |
+| `schemas/report.py` | ReportArticle schema with pub_year/month/day |
+| `schemas/research_stream.py` | WipArticle schema with pub_year/month/day |
+| `models.py` | Database models with pub_year/month/day columns |
+| `migrations/017_add_pub_date_fields.sql` | Database migration |
 
 ---
 
 ## 8. Frontend Types
 
-| Backend | Frontend | Notes |
-|---------|----------|-------|
-| CanonicalResearchArticle | CanonicalResearchArticle | 1:1 mirror |
-| CanonicalPubMedArticle | (not on FE) | Backend-only |
-| WipArticle (model) | WipArticle | FE missing publication_date |
-| Article (model) | Article | 1:1 mirror |
-| ReportArticle | ReportArticle | 1:1 mirror |
+| Backend | Frontend Location | Notes |
+|---------|-------------------|-------|
+| CanonicalResearchArticle | `types/canonical_types.ts` | 1:1 mirror with pub_year/month/day |
+| CanonicalPubMedArticle | (not on FE) | Backend-only transient type |
+| WipArticle (model) | `types/research-stream.ts` | Has pub_year/month/day |
+| Article (model) | `types/article.ts` | Has pub_year/month/day |
+| ReportArticle | `types/report.ts` | Has pub_year/month/day |
+
+### Frontend Utility Files
+
+| File | Purpose |
+|------|---------|
+| `utils/dateUtils.ts` | `formatPubDate()`, `formatArticleDate()`, `getYearString()` |
+
+---
+
+## 9. Benefits of This Approach
+
+1. **Honesty** - We only display what we actually know
+2. **Clarity** - Users see "Jan 2026" not "Jan 1, 2026" for month-precision dates
+3. **Simplicity** - No complex date parsing/formatting logic scattered throughout
+4. **Flexibility** - Easy to adjust display format in one place
+5. **Source agnostic** - Works for PubMed, Google Scholar, or any future source
