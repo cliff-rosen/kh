@@ -841,7 +841,7 @@ SUGGESTED_ACTIONS:
                 "authors": article.authors or [],
                 "abstract": article.abstract,
                 "journal": article.journal,
-                "year": str(article.publication_date.year) if article.publication_date else None,
+                "year": str(article.pub_year) if article.pub_year else None,
                 "relevance_score": assoc.relevance_score,
                 "relevance_rationale": assoc.relevance_rationale,
                 "category": assoc.presentation_categories[0] if assoc.presentation_categories else None

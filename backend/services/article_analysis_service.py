@@ -206,14 +206,13 @@ def build_stance_item(stream: Any, article: Any, article_summary: Optional[str] 
 
     Args:
         stream: ResearchStream (or object with stream_name, purpose)
-        article: Article (or object with title, authors, journal, year/publication_year, abstract)
+        article: Article (or object with title, authors, journal, pub_year, abstract)
         article_summary: Optional AI summary (e.g., from association.ai_summary)
 
     Returns:
         Item dict ready for analyze_article_stance
     """
-    # Handle both 'year' and 'publication_year' field names
-    year = getattr(article, 'year', None) or getattr(article, 'publication_year', None)
+    year = getattr(article, 'pub_year', None) or getattr(article, 'year', None)
 
     return {
         "stream_name": getattr(stream, 'stream_name', None) or "Unknown",

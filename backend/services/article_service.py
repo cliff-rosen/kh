@@ -124,7 +124,6 @@ class ArticleService:
                 title=wip_article.title,
                 url=wip_article.url,
                 authors=wip_article.authors,
-                publication_date=wip_article.publication_date,  # Legacy field
                 summary=wip_article.summary,
                 abstract=wip_article.abstract,
                 full_text=wip_article.full_text,
@@ -135,8 +134,6 @@ class ArticleService:
                 volume=wip_article.volume,
                 issue=wip_article.issue,
                 pages=wip_article.pages,
-                year=wip_article.year,  # Legacy field
-                # New honest date fields
                 pub_year=wip_article.pub_year,
                 pub_month=wip_article.pub_month,
                 pub_day=wip_article.pub_day,

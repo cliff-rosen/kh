@@ -194,7 +194,7 @@ export interface ArticleInfo {
     abstract?: string;
     authors?: string[];
     journal?: string;
-    publication_year?: number;
+    pub_year?: number;
     pmid?: string;
     doi?: string;
 }

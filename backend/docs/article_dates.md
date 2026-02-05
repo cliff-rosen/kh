@@ -287,13 +287,13 @@ UPDATE articles SET
 WHERE publication_date IS NOT NULL;
 ```
 
-### Legacy Fields
+### Legacy Fields (Removed)
 
-The following fields are deprecated but may still exist in the database:
-- `publication_date` (Date) - Old fabricated-precision date
-- `year` (String) - Old year-only field
+The following fields have been removed from both the code and database:
+- `publication_date` (Date) - Old fabricated-precision date (dropped in migration 018)
+- `year` (String) - Old year-only field (dropped in migration 018)
 
-New code should use `pub_year`, `pub_month`, `pub_day` exclusively.
+All code uses `pub_year`, `pub_month`, `pub_day` exclusively.
 
 ---
 

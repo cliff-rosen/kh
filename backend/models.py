@@ -304,7 +304,6 @@ class WipArticle(Base):
     title = Column(String(500), nullable=False)
     url = Column(String(1000))
     authors = Column(JSON, default=list)
-    publication_date = Column(Date)  # LEGACY: May have fabricated precision
     abstract = Column(Text)
     summary = Column(Text)
     full_text = Column(Text)
@@ -321,7 +320,6 @@ class WipArticle(Base):
     volume = Column(String(50))
     issue = Column(String(50))
     pages = Column(String(50))
-    year = Column(String(4))  # LEGACY: Use pub_year instead
 
     # Source-specific identifier (e.g., PubMed ID, Semantic Scholar ID, etc.)
     source_specific_id = Column(String(255), index=True)
@@ -356,6 +354,11 @@ class WipArticle(Base):
     execution = relationship("PipelineExecution", back_populates="wip_articles")
     curator = relationship("User", foreign_keys=[curated_by])
 
+    @property
+    def year(self):
+        """Computed from pub_year for backward compatibility."""
+        return str(self.pub_year) if self.pub_year else None
+
 
 class Article(Base):
     """Individual articles from information sources"""
@@ -366,7 +369,6 @@ class Article(Base):
     title = Column(String(500), nullable=False)
     url = Column(String(1000))
     authors = Column(JSON, default=list)  # List of author names
-    publication_date = Column(Date)  # LEGACY: May have fabricated precision
     summary = Column(Text)  # Original summary
     ai_summary = Column(Text)  # AI-generated summary
     full_text = Column(Text)  # Full article text
@@ -385,7 +387,6 @@ class Article(Base):
     pmid = Column(String(20), index=True)  # PubMed ID
     abstract = Column(Text)  # Full abstract text
     comp_date = Column(Date)  # Completion date
-    year = Column(String(4))  # LEGACY: Use pub_year instead
     journal = Column(String(255))  # Journal name
     volume = Column(String(50))  # Journal volume
     issue = Column(String(50))  # Journal issue
@@ -399,6 +400,11 @@ class Article(Base):
     source = relationship("InformationSource", back_populates="articles")
     report_associations = relationship("ReportArticleAssociation", back_populates="article")
     feedback = relationship("UserFeedback", back_populates="article")
+
+    @property
+    def year(self):
+        """Computed from pub_year for backward compatibility."""
+        return str(self.pub_year) if self.pub_year else None
 
 
 class Report(Base):

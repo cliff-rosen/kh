@@ -323,7 +323,7 @@ export default function ArticleViewerModal({
                     abstract: article.abstract,
                     authors: article.authors,
                     journal: article.journal,
-                    publication_year: article.pub_year,
+                    pub_year: article.pub_year,
                     pmid: article.pmid,
                     doi: article.doi
                 },

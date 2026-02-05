@@ -152,7 +152,7 @@ async def analyze_article_stance_endpoint(
         if stream.llm_config and stream.llm_config.get("stance_analysis"):
             model_config = stream.llm_config["stance_analysis"]
 
-        # Build item for analysis (request.article has publication_year instead of year)
+        # Build item for analysis
         item = build_stance_item(stream, request.article)
 
         # Call article_analysis_service directly (uses call_llm pattern)

@@ -997,7 +997,7 @@ Synthesize a comprehensive answer with citations.""",
                     metadata={
                         "pmid": article.source_id,
                         "authors": article.authors,
-                        "publication_date": article.publication_date,
+                        "pub_year": article.pub_year,
                         "journal": article.journal
                     }
                 )

@@ -119,8 +119,6 @@ class PubMedArticle:
         journal = ""
         medium = ""
         year = ""
-        month = ""
-        day = ""
         volume = ""
         issue = ""
         pages = ""
@@ -128,8 +126,6 @@ class PubMedArticle:
         date_revised = ""
         article_date = ""
         entry_date = ""
-        pub_date = ""
-
         if PMID_node is not None:
             PMID = PMID_node.text
         logger.debug(f"Processing article PMID: {PMID}")
@@ -184,8 +180,6 @@ class PubMedArticle:
             except (ValueError, TypeError):
                 pass
 
-            # Build legacy pub_date string for backward compatibility
-            pub_date = year
             if pubdate_node is not None:
                 month_node = pubdate_node.find(".//Month")
                 day_node = pubdate_node.find(".//Day")
@@ -194,26 +188,13 @@ class PubMedArticle:
                     # Handle text months (Jan, Feb, etc.) or numeric
                     if month_text.lower()[:3] in month_map:
                         pub_month = month_map[month_text.lower()[:3]]
-                        month_num = str(pub_month).zfill(2)
                     elif month_text.isdigit():
                         pub_month = int(month_text)
-                        month_num = month_text.zfill(2)
-                    else:
-                        month_num = (
-                            "01"  # Default if unrecognized (but don't set pub_month)
-                        )
-                    pub_date += f"-{month_num}"
-                    # Add day only if actually present
                     if day_node is not None and day_node.text:
                         try:
                             pub_day = int(day_node.text.strip())
-                            pub_date += f"-{day_node.text.strip().zfill(2)}"
                         except (ValueError, TypeError):
-                            pub_date += "-01"
-                    else:
-                        pub_date += "-01"
-                else:
-                    pub_date += "-01-01"  # Default to Jan 1 if no month
+                            pass
 
         # Use the earlier of journal PubDate vs ArticleDate (electronic pub date)
         # PubMed displays the earlier date as the publication date. An article in
@@ -287,21 +268,17 @@ class PubMedArticle:
                     elif id_type == "doi" and article_id.text:
                         doi = article_id.text
 
-        citation = f"{authors} {title} {journal}. {year};{volume}({issue}):{pages}."
-
         return PubMedArticle(
             PMID=PMID,
             comp_date=date_completed,
             date_revised=date_revised,
             article_date=article_date,
             entry_date=entry_date,
-            pub_date=pub_date,
             title=title,
             abstract=abstract,
             authors=authors,
             journal=journal,
             medium=medium,
-            year=year,
             volume=volume,
             issue=issue,
             pages=pages,
@@ -353,8 +330,6 @@ class PubMedArticle:
                 journal += f" ({publisher_node.text})"
 
         # Extract publication date from Book/PubDate - parse honestly
-        year = ""
-        pub_date = ""
         pub_year: Optional[int] = None
         pub_month: Optional[int] = None
         pub_day: Optional[int] = None
@@ -365,21 +340,15 @@ class PubMedArticle:
                 year_node = pubdate_node.find(".//Year")
                 month_node = pubdate_node.find(".//Month")
                 if year_node is not None and year_node.text:
-                    year = year_node.text
                     try:
-                        pub_year = int(year)
+                        pub_year = int(year_node.text)
                     except (ValueError, TypeError):
                         pass
-                    pub_date = year
                     if month_node is not None and month_node.text:
                         try:
                             pub_month = int(month_node.text)
                         except (ValueError, TypeError):
                             pass
-                        month = month_node.text.zfill(2)
-                        pub_date += f"-{month}-01"
-                    else:
-                        pub_date += "-01-01"
 
         # Extract authors (same structure as regular articles)
         author_list_node = book_document.find(".//AuthorList")
@@ -425,13 +394,11 @@ class PubMedArticle:
             date_revised="",
             article_date="",
             entry_date="",
-            pub_date=pub_date,
             title=title,
             abstract=abstract,
             authors=authors,
             journal=journal,
             medium="Book",
-            year=year,
             volume="",
             issue="",
             pages="",
@@ -449,7 +416,6 @@ class PubMedArticle:
         self.abstract = kwargs["abstract"]
         self.authors = kwargs["authors"]
         self.journal = kwargs["journal"]
-        self.year = kwargs["year"]  # Legacy: string year
         self.volume = kwargs["volume"]
         self.issue = kwargs["issue"]
         self.pages = kwargs["pages"]
@@ -457,18 +423,20 @@ class PubMedArticle:
         self.pmc_id = kwargs.get("pmc_id", "")
         self.doi = kwargs.get("doi", "")
         self.full_text = kwargs.get("full_text", "")  # Full text from PMC if fetched
-        # New honest date fields - only set if actually present in source
+        # Honest date fields - only set if actually present in source
         self.pub_year: Optional[int] = kwargs.get("pub_year")
         self.pub_month: Optional[int] = kwargs.get("pub_month")
         self.pub_day: Optional[int] = kwargs.get("pub_day")
-        # Legacy date fields
+        # PubMed-specific date fields
         self.comp_date = kwargs["comp_date"]
         self.date_revised = kwargs.get("date_revised", "")
         self.article_date = kwargs.get("article_date", "")
         self.entry_date = kwargs.get("entry_date", "")
-        self.pub_date = kwargs.get(
-            "pub_date", ""
-        )  # Legacy: full date string (may have fabricated precision)
+
+    @property
+    def year(self) -> str:
+        """Computed from pub_year for backward compatibility."""
+        return str(self.pub_year) if self.pub_year else ""
 
     def __str__(self) -> str:
         line = "===================================================\n"

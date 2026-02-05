@@ -205,19 +205,6 @@ class WipArticleService:
         )
 
         for article in articles:
-            pub_year = article.pub_year
-            pub_month = article.pub_month
-            pub_day = article.pub_day
-
-            # Build legacy publication_date from honest fields for backward compat
-            pub_date = None
-            if pub_year and pub_month and pub_day:
-                try:
-                    from datetime import date as date_type
-                    pub_date = date_type(pub_year, pub_month, pub_day)
-                except (ValueError, TypeError):
-                    pass
-
             wip_article = WipArticle(
                 research_stream_id=research_stream_id,
                 pipeline_execution_id=execution_id,
@@ -226,17 +213,14 @@ class WipArticleService:
                 title=article.title,
                 url=article.url,
                 authors=article.authors or [],
-                publication_date=pub_date,  # Legacy field
                 abstract=article.abstract,
                 full_text=article.full_text,  # Full text from PMC if fetched during search
                 pmid=article.pmid or (article.id if article.source == "pubmed" else None),
                 doi=article.doi,
                 journal=article.journal,
-                year=str(pub_year) if pub_year else None,  # Legacy field
-                # New honest date fields
-                pub_year=pub_year,
-                pub_month=pub_month,
-                pub_day=pub_day,
+                pub_year=article.pub_year,
+                pub_month=article.pub_month,
+                pub_day=article.pub_day,
                 source_specific_id=article.id,
                 is_duplicate=False,
                 passed_semantic_filter=None,
