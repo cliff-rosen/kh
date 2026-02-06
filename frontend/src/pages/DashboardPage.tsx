@@ -128,51 +128,50 @@ export default function DashboardPage() {
                     </div>
                 )}
 
-                {/* Favorites Section */}
-                {!isLoading && !starredLoading && starredArticles.length > 0 && (
+                {/* Favorites Section - always show when streams exist */}
+                {!isLoading && !starredLoading && researchStreams.length > 0 && (
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
-                        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                             <div className="flex items-center gap-2">
                                 <StarIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                                     Favorites
                                 </h2>
                             </div>
-                            <button
-                                onClick={() => {
-                                    trackEvent('dashboard_quick_action', { action: 'view_all_starred' });
-                                    navigate('/starred');
-                                }}
-                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                            >
-                                View All
-                            </button>
                         </div>
-                        <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {starredArticles.map((article) => (
-                                <div
-                                    key={`${article.report_id}-${article.article_id}`}
-                                    onClick={() => handleStarredArticleClick(article)}
-                                    className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                                >
-                                    <div className="flex items-start gap-3">
-                                        <StarIcon className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-1" />
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                                {article.title}
-                                            </h3>
-                                            <div className="flex flex-wrap gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                {article.journal && <span>{article.journal}</span>}
-                                                {article.pub_year && (
-                                                    <span>• {formatArticleDate(article.pub_year, article.pub_month, article.pub_day)}</span>
-                                                )}
-                                                <span>• {article.stream_name}</span>
+                        {starredArticles.length === 0 ? (
+                            <div className="px-6 py-8 text-center">
+                                <p className="text-gray-500 dark:text-gray-400">
+                                    Your favorite articles will appear here. Star articles from reports to add them to your favorites.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                                {starredArticles.map((article) => (
+                                    <div
+                                        key={`${article.report_id}-${article.article_id}`}
+                                        onClick={() => handleStarredArticleClick(article)}
+                                        className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <StarIcon className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-1" />
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                                    {article.title}
+                                                </h3>
+                                                <div className="flex flex-wrap gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    {article.journal && <span>{article.journal}</span>}
+                                                    {article.pub_year && (
+                                                        <span>• {formatArticleDate(article.pub_year, article.pub_month, article.pub_day)}</span>
+                                                    )}
+                                                    <span>• {article.stream_name}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 

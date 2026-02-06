@@ -314,8 +314,12 @@ export default function ReportsPage() {
         }
     };
 
-    // Handle article deep-link from URL parameter
+    // Handle article deep-link from URL parameter (only on initial load)
+    const [articleDeepLinkHandled, setArticleDeepLinkHandled] = useState(false);
     useEffect(() => {
+        // Only handle deep-link once per page load, not on every report change
+        if (articleDeepLinkHandled) return;
+
         const articleParam = searchParams.get('article');
         if (articleParam && selectedReport?.articles) {
             const articleId = Number(articleParam);
@@ -326,13 +330,14 @@ export default function ReportsPage() {
                 setArticleViewerInitialIndex(articleIndex);
                 setArticleViewerIsFiltered(false);
                 setArticleViewerOpen(true);
-                // Clear the article param from URL to prevent re-opening on navigation
-                const newParams = new URLSearchParams(searchParams);
-                newParams.delete('article');
-                window.history.replaceState({}, '', `${window.location.pathname}?${newParams.toString()}`);
             }
+            // Mark as handled and clear the URL param
+            setArticleDeepLinkHandled(true);
+            const newParams = new URLSearchParams(searchParams);
+            newParams.delete('article');
+            window.history.replaceState({}, '', `${window.location.pathname}?${newParams.toString()}`);
         }
-    }, [selectedReport, searchParams]);
+    }, [selectedReport, searchParams, articleDeepLinkHandled]);
 
     const handleReportClick = (report: Report) => {
         track('report_select', { report_id: report.report_id, report_name: report.report_name });
