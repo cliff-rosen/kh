@@ -39,6 +39,7 @@ from . import new_stream
 from . import reports
 from . import tablizer
 from . import article_viewer
+from . import artifacts
 
 
 # =============================================================================

@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { PlusIcon, TrashIcon, CheckIcon, XMarkIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { PlusIcon, TrashIcon, CheckIcon, XMarkIcon, Cog6ToothIcon, ChatBubbleLeftRightIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
+import { useChatContext } from '../../context/ChatContext';
+import ChatTray from '../chat/ChatTray';
 import type { Artifact, ArtifactCategory } from '../../types/artifact';
 
 const TYPE_BADGES: Record<string, string> = {
@@ -48,6 +50,9 @@ interface EditState {
     category: string;
 }
 
+type SortField = 'artifact_type' | 'title' | 'status' | 'category' | 'created_at';
+type SortDir = 'asc' | 'desc';
+
 function RadioGroup({ label, value, options, onChange }: {
     label: string;
     value: string;
@@ -89,6 +94,65 @@ function RadioGroup({ label, value, options, onChange }: {
     );
 }
 
+function FilterPills({ label, value, options, onChange }: {
+    label: string;
+    value: string;
+    options: { value: string; label: string; color?: string }[];
+    onChange: (v: string) => void;
+}) {
+    return (
+        <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-1">{label}:</span>
+            <button
+                onClick={() => onChange('')}
+                className={`px-2 py-0.5 text-xs rounded-full transition-colors ${
+                    !value
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                }`}
+            >
+                All
+            </button>
+            {options.map((opt) => (
+                <button
+                    key={opt.value}
+                    onClick={() => onChange(value === opt.value ? '' : opt.value)}
+                    className={`px-2 py-0.5 text-xs rounded-full transition-colors ${
+                        value === opt.value
+                            ? (opt.color || 'bg-purple-600 text-white')
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                    }`}
+                >
+                    {opt.label}
+                </button>
+            ))}
+        </div>
+    );
+}
+
+function SortHeader({ label, field, sortField, sortDir, onSort }: {
+    label: string;
+    field: SortField;
+    sortField: SortField;
+    sortDir: SortDir;
+    onSort: (f: SortField) => void;
+}) {
+    const active = sortField === field;
+    return (
+        <button
+            onClick={() => onSort(field)}
+            className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        >
+            {label}
+            {active ? (
+                sortDir === 'asc' ? <ChevronUpIcon className="h-3 w-3" /> : <ChevronDownIcon className="h-3 w-3" />
+            ) : (
+                <span className="h-3 w-3" />
+            )}
+        </button>
+    );
+}
+
 export function ArtifactList() {
     const [artifacts, setArtifacts] = useState<Artifact[]>([]);
     const [categories, setCategories] = useState<ArtifactCategory[]>([]);
@@ -99,6 +163,10 @@ export function ArtifactList() {
     const [filterType, setFilterType] = useState<string>('');
     const [filterStatus, setFilterStatus] = useState<string>('');
     const [filterCategory, setFilterCategory] = useState<string>('');
+
+    // Sorting
+    const [sortField, setSortField] = useState<SortField>('created_at');
+    const [sortDir, setSortDir] = useState<SortDir>('desc');
 
     // Multi-select
     const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -121,6 +189,10 @@ export function ArtifactList() {
     const [showCategoryManager, setShowCategoryManager] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
 
+    // Chat
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const { setContext } = useChatContext();
+
     useEffect(() => {
         loadCategories();
     }, []);
@@ -128,6 +200,24 @@ export function ArtifactList() {
     useEffect(() => {
         loadArtifacts();
     }, [filterType, filterStatus, filterCategory]);
+
+    // Update chat context when artifacts/filters/selection change
+    useEffect(() => {
+        setContext({
+            current_page: 'artifacts',
+            artifacts: artifacts.map(a => ({
+                id: a.id,
+                title: a.title,
+                artifact_type: a.artifact_type,
+                status: a.status,
+                category: a.category,
+                description: a.description,
+            })),
+            categories: categories.map(c => ({ id: c.id, name: c.name })),
+            filters: { type: filterType, status: filterStatus, category: filterCategory },
+            selected_count: selected.size,
+        });
+    }, [artifacts, categories, filterType, filterStatus, filterCategory, selected.size, setContext]);
 
     const loadCategories = async () => {
         try {
@@ -154,6 +244,49 @@ export function ArtifactList() {
             setIsLoading(false);
         }
     };
+
+    // ==================== Sorting ====================
+
+    const handleSort = useCallback((field: SortField) => {
+        setSortDir(prev => sortField === field ? (prev === 'asc' ? 'desc' : 'asc') : 'asc');
+        setSortField(field);
+    }, [sortField]);
+
+    const sortedArtifacts = useMemo(() => {
+        const sorted = [...artifacts];
+        const dir = sortDir === 'asc' ? 1 : -1;
+        sorted.sort((a, b) => {
+            let aVal: string, bVal: string;
+            switch (sortField) {
+                case 'artifact_type':
+                    aVal = a.artifact_type;
+                    bVal = b.artifact_type;
+                    break;
+                case 'title':
+                    aVal = a.title.toLowerCase();
+                    bVal = b.title.toLowerCase();
+                    break;
+                case 'status':
+                    aVal = a.status;
+                    bVal = b.status;
+                    break;
+                case 'category':
+                    aVal = (a.category || '').toLowerCase();
+                    bVal = (b.category || '').toLowerCase();
+                    break;
+                case 'created_at':
+                    aVal = a.created_at;
+                    bVal = b.created_at;
+                    break;
+                default:
+                    return 0;
+            }
+            if (aVal < bVal) return -1 * dir;
+            if (aVal > bVal) return 1 * dir;
+            return 0;
+        });
+        return sorted;
+    }, [artifacts, sortField, sortDir]);
 
     // ==================== Category Management ====================
 
@@ -305,10 +438,10 @@ export function ArtifactList() {
     };
 
     const toggleSelectAll = () => {
-        if (selected.size === artifacts.length) {
+        if (selected.size === sortedArtifacts.length) {
             setSelected(new Set());
         } else {
-            setSelected(new Set(artifacts.map((a) => a.id)));
+            setSelected(new Set(sortedArtifacts.map((a) => a.id)));
         }
     };
 
@@ -354,6 +487,17 @@ export function ArtifactList() {
         }
     }, [editing?.id]);
 
+    const chatContext = useMemo(() => ({
+        current_page: 'artifacts',
+        artifacts: artifacts.map(a => ({
+            id: a.id, title: a.title, artifact_type: a.artifact_type,
+            status: a.status, category: a.category, description: a.description,
+        })),
+        categories: categories.map(c => ({ id: c.id, name: c.name })),
+        filters: { type: filterType, status: filterStatus, category: filterCategory },
+        selected_count: selected.size,
+    }), [artifacts, categories, filterType, filterStatus, filterCategory, selected.size]);
+
     if (isLoading && artifacts.length === 0) {
         return (
             <div className="flex items-center justify-center py-12">
@@ -362,242 +506,256 @@ export function ArtifactList() {
         );
     }
 
-    const COL_COUNT = 7; // checkbox + 5 data cols + actions
+    const COL_COUNT = 7;
     const hasSelection = selected.size > 0;
 
     return (
-        <div className="space-y-6">
-            {/* Header with Filters and Create Button */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+        <div className="flex gap-0">
+            {/* Chat Tray */}
+            <ChatTray
+                initialContext={chatContext}
+                isOpen={isChatOpen}
+                onOpenChange={setIsChatOpen}
+            />
+
+            {/* Main Content */}
+            <div className="flex-1 min-w-0 space-y-4">
+                {/* Header row: title + action buttons */}
+                <div className="flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                         Artifacts ({artifacts.length})
                     </h2>
-                    <select
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setIsChatOpen(!isChatOpen)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm border rounded-lg transition-colors ${
+                                isChatOpen
+                                    ? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-400'
+                                    : 'text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            }`}
+                            title="Toggle Chat"
+                        >
+                            <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                            Chat
+                        </button>
+                        <button
+                            onClick={() => setShowCategoryManager(true)}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                            title="Manage Categories"
+                        >
+                            <Cog6ToothIcon className="h-4 w-4" />
+                            Categories
+                        </button>
+                        <button
+                            onClick={() => setShowCreateDialog(true)}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                        >
+                            <PlusIcon className="h-5 w-5" />
+                            Create Artifact
+                        </button>
+                    </div>
+                </div>
+
+                {/* Filter Pills - always visible */}
+                <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <FilterPills
+                        label="Type"
                         value={filterType}
-                        onChange={(e) => setFilterType(e.target.value)}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                        <option value="">All Types</option>
-                        <option value="bug">Bug</option>
-                        <option value="feature">Feature</option>
-                    </select>
-                    <select
+                        options={[
+                            { value: 'bug', label: 'Bug', color: 'bg-red-600 text-white' },
+                            { value: 'feature', label: 'Feature', color: 'bg-blue-600 text-white' },
+                        ]}
+                        onChange={setFilterType}
+                    />
+                    <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
+                    <FilterPills
+                        label="Status"
                         value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                        <option value="">All Statuses</option>
-                        {STATUS_OPTIONS.map(o => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                    </select>
-                    <select
-                        value={filterCategory}
-                        onChange={(e) => setFilterCategory(e.target.value)}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                        <option value="">All Categories</option>
-                        {categories.map((cat) => (
-                            <option key={cat.id} value={cat.name}>{cat.name}</option>
-                        ))}
-                    </select>
+                        options={STATUS_OPTIONS.map(o => ({
+                            value: o.value,
+                            label: o.label,
+                            color: o.value === 'open' ? 'bg-yellow-500 text-white'
+                                : o.value === 'in_progress' ? 'bg-blue-600 text-white'
+                                : o.value === 'backburner' ? 'bg-gray-500 text-white'
+                                : 'bg-green-600 text-white',
+                        }))}
+                        onChange={setFilterStatus}
+                    />
+                    {categories.length > 0 && (
+                        <>
+                            <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
+                            <FilterPills
+                                label="Category"
+                                value={filterCategory}
+                                options={categories.map(cat => ({
+                                    value: cat.name,
+                                    label: cat.name,
+                                    color: 'bg-purple-600 text-white',
+                                }))}
+                                onChange={setFilterCategory}
+                            />
+                        </>
+                    )}
                 </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setShowCategoryManager(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                        title="Manage Categories"
-                    >
-                        <Cog6ToothIcon className="h-4 w-4" />
-                        Categories
-                    </button>
-                    <button
-                        onClick={() => setShowCreateDialog(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                    >
-                        <PlusIcon className="h-5 w-5" />
-                        Create Artifact
-                    </button>
-                </div>
-            </div>
 
-            {error && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
-                    {error}
-                </div>
-            )}
+                {error && (
+                    <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
+                        {error}
+                    </div>
+                )}
 
-            {/* Bulk Actions Bar */}
-            {hasSelection && (
-                <div className="flex items-center gap-3 px-4 py-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-                    <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
-                        {selected.size} selected
-                    </span>
-                    <div className="h-4 w-px bg-purple-300 dark:bg-purple-700" />
+                {/* Bulk Actions Bar */}
+                {hasSelection && (
+                    <div className="flex items-center gap-3 px-4 py-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                        <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                            {selected.size} selected
+                        </span>
+                        <div className="h-4 w-px bg-purple-300 dark:bg-purple-700" />
 
-                    {/* Bulk Status */}
-                    <select
-                        defaultValue=""
-                        onChange={(e) => { if (e.target.value) handleBulkStatus(e.target.value); e.target.value = ''; }}
-                        className="px-2 py-1 text-sm border border-purple-300 dark:border-purple-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                        <option value="" disabled>Set Status...</option>
-                        {STATUS_OPTIONS.map(o => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                    </select>
+                        {/* Bulk Status */}
+                        <select
+                            defaultValue=""
+                            onChange={(e) => { if (e.target.value) handleBulkStatus(e.target.value); e.target.value = ''; }}
+                            className="px-2 py-1 text-sm border border-purple-300 dark:border-purple-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
+                            <option value="" disabled>Set Status...</option>
+                            {STATUS_OPTIONS.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                        </select>
 
-                    {/* Bulk Category */}
-                    <select
-                        defaultValue=""
-                        onChange={(e) => { if (e.target.value !== '') handleBulkCategory(e.target.value); e.target.value = ''; }}
-                        className="px-2 py-1 text-sm border border-purple-300 dark:border-purple-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                        <option value="" disabled>Set Category...</option>
-                        <option value=" ">Clear Category</option>
-                        {categories.map((cat) => (
-                            <option key={cat.id} value={cat.name}>{cat.name}</option>
-                        ))}
-                    </select>
+                        {/* Bulk Category */}
+                        <select
+                            defaultValue=""
+                            onChange={(e) => { if (e.target.value !== '') handleBulkCategory(e.target.value); e.target.value = ''; }}
+                            className="px-2 py-1 text-sm border border-purple-300 dark:border-purple-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
+                            <option value="" disabled>Set Category...</option>
+                            <option value=" ">Clear Category</option>
+                            {categories.map((cat) => (
+                                <option key={cat.id} value={cat.name}>{cat.name}</option>
+                            ))}
+                        </select>
 
-                    <div className="h-4 w-px bg-purple-300 dark:bg-purple-700" />
+                        <div className="h-4 w-px bg-purple-300 dark:bg-purple-700" />
 
-                    {/* Bulk Delete */}
-                    <button
-                        onClick={handleBulkDelete}
-                        className="inline-flex items-center gap-1 px-2 py-1 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                    >
-                        <TrashIcon className="h-4 w-4" />
-                        Delete
-                    </button>
+                        {/* Bulk Delete */}
+                        <button
+                            onClick={handleBulkDelete}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                        >
+                            <TrashIcon className="h-4 w-4" />
+                            Delete
+                        </button>
 
-                    <button
-                        onClick={() => setSelected(new Set())}
-                        className="ml-auto text-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200"
-                    >
-                        Clear selection
-                    </button>
-                </div>
-            )}
+                        <button
+                            onClick={() => setSelected(new Set())}
+                            className="ml-auto text-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200"
+                        >
+                            Clear selection
+                        </button>
+                    </div>
+                )}
 
-            {/* Artifacts Table */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-900">
-                        <tr>
-                            <th className="px-3 py-3 w-10">
-                                <input
-                                    type="checkbox"
-                                    checked={artifacts.length > 0 && selected.size === artifacts.length}
-                                    onChange={toggleSelectAll}
-                                    className="rounded text-purple-600 focus:ring-purple-500"
-                                />
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">
-                                Type
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Title
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">
-                                Status
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-36">
-                                Category
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">
-                                Created
-                            </th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {artifacts.map((artifact) => {
-                            const isEditing = editing?.id === artifact.id;
-                            const isSelected = selected.has(artifact.id);
+                {/* Artifacts Table */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-900">
+                            <tr>
+                                <th className="px-3 py-3 w-10">
+                                    <input
+                                        type="checkbox"
+                                        checked={sortedArtifacts.length > 0 && selected.size === sortedArtifacts.length}
+                                        onChange={toggleSelectAll}
+                                        className="rounded text-purple-600 focus:ring-purple-500"
+                                    />
+                                </th>
+                                <th className="px-4 py-3 text-left w-24">
+                                    <SortHeader label="Type" field="artifact_type" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                                </th>
+                                <th className="px-4 py-3 text-left">
+                                    <SortHeader label="Title" field="title" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                                </th>
+                                <th className="px-4 py-3 text-left w-32">
+                                    <SortHeader label="Status" field="status" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                                </th>
+                                <th className="px-4 py-3 text-left w-36">
+                                    <SortHeader label="Category" field="category" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                                </th>
+                                <th className="px-4 py-3 text-left w-28">
+                                    <SortHeader label="Created" field="created_at" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                                </th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {sortedArtifacts.map((artifact) => {
+                                const isEditing = editing?.id === artifact.id;
+                                const isSelected = selected.has(artifact.id);
 
-                            if (isEditing) {
-                                return (
-                                    <tr key={artifact.id}>
-                                        <td colSpan={COL_COUNT} className="px-0 py-0">
-                                            <div
-                                                className="bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500 px-6 py-4"
-                                                onKeyDown={handleKeyDown}
-                                            >
-                                                {/* Title */}
-                                                <div className="mb-3">
-                                                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Title</label>
-                                                    <input
-                                                        ref={titleInputRef}
-                                                        type="text"
-                                                        value={editing.title}
-                                                        onChange={(e) => setEditing({ ...editing, title: e.target.value })}
-                                                        onKeyDown={handleTextKeyDown}
-                                                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                                    />
-                                                </div>
+                                if (isEditing) {
+                                    return (
+                                        <tr key={artifact.id}>
+                                            <td colSpan={COL_COUNT} className="px-0 py-0">
+                                                <div
+                                                    className="bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500 px-6 py-4"
+                                                    onKeyDown={handleKeyDown}
+                                                >
+                                                    {/* Title */}
+                                                    <div className="mb-3">
+                                                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Title</label>
+                                                        <input
+                                                            ref={titleInputRef}
+                                                            type="text"
+                                                            value={editing.title}
+                                                            onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                                                            onKeyDown={handleTextKeyDown}
+                                                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                                        />
+                                                    </div>
 
-                                                {/* Description */}
-                                                <div className="mb-4">
-                                                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Description</label>
-                                                    <textarea
-                                                        value={editing.description}
-                                                        onChange={(e) => setEditing({ ...editing, description: e.target.value })}
-                                                        onKeyDown={handleKeyDown}
-                                                        placeholder="Description..."
-                                                        rows={3}
-                                                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y"
-                                                    />
-                                                </div>
+                                                    {/* Description */}
+                                                    <div className="mb-4">
+                                                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Description</label>
+                                                        <textarea
+                                                            value={editing.description}
+                                                            onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                                                            onKeyDown={handleKeyDown}
+                                                            placeholder="Description..."
+                                                            rows={3}
+                                                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y"
+                                                        />
+                                                    </div>
 
-                                                {/* Type, Status, Category as radio groups side by side */}
-                                                <div className="flex gap-8 mb-4">
-                                                    <RadioGroup
-                                                        label="Type"
-                                                        value={editing.artifact_type}
-                                                        options={[
-                                                            { value: 'bug', label: 'Bug', color: TYPE_BADGES.bug },
-                                                            { value: 'feature', label: 'Feature', color: TYPE_BADGES.feature },
-                                                        ]}
-                                                        onChange={(v) => setEditing({ ...editing, artifact_type: v as 'bug' | 'feature' })}
-                                                    />
-                                                    <RadioGroup
-                                                        label="Status"
-                                                        value={editing.status}
-                                                        options={STATUS_OPTIONS.map(o => ({
-                                                            value: o.value,
-                                                            label: o.label,
-                                                            color: STATUS_BADGES[o.value],
-                                                        }))}
-                                                        onChange={(v) => setEditing({ ...editing, status: v })}
-                                                    />
-                                                    <div>
-                                                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Category</div>
-                                                        <div className="flex flex-col gap-1">
-                                                            <label
-                                                                className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors text-sm ${
-                                                                    !editing.category
-                                                                        ? 'bg-purple-50 dark:bg-purple-900/20'
-                                                                        : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                                                                }`}
-                                                            >
-                                                                <input
-                                                                    type="radio"
-                                                                    name="edit-category"
-                                                                    checked={!editing.category}
-                                                                    onChange={() => setEditing({ ...editing, category: '' })}
-                                                                    className="text-purple-600 focus:ring-purple-500"
-                                                                />
-                                                                <span className="text-gray-400 dark:text-gray-500 italic">None</span>
-                                                            </label>
-                                                            {categories.map((cat) => (
+                                                    {/* Type, Status, Category as radio groups side by side */}
+                                                    <div className="flex gap-8 mb-4">
+                                                        <RadioGroup
+                                                            label="Type"
+                                                            value={editing.artifact_type}
+                                                            options={[
+                                                                { value: 'bug', label: 'Bug', color: TYPE_BADGES.bug },
+                                                                { value: 'feature', label: 'Feature', color: TYPE_BADGES.feature },
+                                                            ]}
+                                                            onChange={(v) => setEditing({ ...editing, artifact_type: v as 'bug' | 'feature' })}
+                                                        />
+                                                        <RadioGroup
+                                                            label="Status"
+                                                            value={editing.status}
+                                                            options={STATUS_OPTIONS.map(o => ({
+                                                                value: o.value,
+                                                                label: o.label,
+                                                                color: STATUS_BADGES[o.value],
+                                                            }))}
+                                                            onChange={(v) => setEditing({ ...editing, status: v })}
+                                                        />
+                                                        <div>
+                                                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Category</div>
+                                                            <div className="flex flex-col gap-1">
                                                                 <label
-                                                                    key={cat.id}
                                                                     className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors text-sm ${
-                                                                        editing.category === cat.name
+                                                                        !editing.category
                                                                             ? 'bg-purple-50 dark:bg-purple-900/20'
                                                                             : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
                                                                     }`}
@@ -605,119 +763,138 @@ export function ArtifactList() {
                                                                     <input
                                                                         type="radio"
                                                                         name="edit-category"
-                                                                        checked={editing.category === cat.name}
-                                                                        onChange={() => setEditing({ ...editing, category: cat.name })}
+                                                                        checked={!editing.category}
+                                                                        onChange={() => setEditing({ ...editing, category: '' })}
                                                                         className="text-purple-600 focus:ring-purple-500"
                                                                     />
-                                                                    <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${getCategoryColor(cat.name, categories)}`}>
-                                                                        {cat.name}
-                                                                    </span>
+                                                                    <span className="text-gray-400 dark:text-gray-500 italic">None</span>
                                                                 </label>
-                                                            ))}
+                                                                {categories.map((cat) => (
+                                                                    <label
+                                                                        key={cat.id}
+                                                                        className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors text-sm ${
+                                                                            editing.category === cat.name
+                                                                                ? 'bg-purple-50 dark:bg-purple-900/20'
+                                                                                : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                                                        }`}
+                                                                    >
+                                                                        <input
+                                                                            type="radio"
+                                                                            name="edit-category"
+                                                                            checked={editing.category === cat.name}
+                                                                            onChange={() => setEditing({ ...editing, category: cat.name })}
+                                                                            className="text-purple-600 focus:ring-purple-500"
+                                                                        />
+                                                                        <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${getCategoryColor(cat.name, categories)}`}>
+                                                                            {cat.name}
+                                                                        </span>
+                                                                    </label>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Actions */}
+                                                    <div className="flex items-center justify-between pt-2 border-t border-purple-200 dark:border-purple-800">
+                                                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                                                            Enter to save &middot; Esc to cancel
+                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={cancelEdit}
+                                                                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                                                            >
+                                                                <XMarkIcon className="h-4 w-4" />
+                                                                Cancel
+                                                            </button>
+                                                            <button
+                                                                onClick={() => saveEdit()}
+                                                                disabled={isSaving || !editing.title.trim()}
+                                                                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                                                            >
+                                                                <CheckIcon className="h-4 w-4" />
+                                                                {isSaving ? 'Saving...' : 'Save'}
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                }
 
-                                                {/* Actions */}
-                                                <div className="flex items-center justify-between pt-2 border-t border-purple-200 dark:border-purple-800">
-                                                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                                                        Enter to save &middot; Esc to cancel
-                                                    </span>
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={cancelEdit}
-                                                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
-                                                        >
-                                                            <XMarkIcon className="h-4 w-4" />
-                                                            Cancel
-                                                        </button>
-                                                        <button
-                                                            onClick={() => saveEdit()}
-                                                            disabled={isSaving || !editing.title.trim()}
-                                                            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
-                                                        >
-                                                            <CheckIcon className="h-4 w-4" />
-                                                            {isSaving ? 'Saving...' : 'Save'}
-                                                        </button>
-                                                    </div>
-                                                </div>
+                                return (
+                                    <tr
+                                        key={artifact.id}
+                                        onClick={() => handleRowClick(artifact)}
+                                        className={`cursor-pointer transition-colors ${
+                                            isSelected
+                                                ? 'bg-purple-50/50 dark:bg-purple-900/10'
+                                                : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                        }`}
+                                    >
+                                        <td className="px-3 py-3 w-10" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={(e) => toggleSelect(artifact.id, e)}
+                                                className="rounded text-purple-600 focus:ring-purple-500"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap">
+                                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${TYPE_BADGES[artifact.artifact_type] || ''}`}>
+                                                {artifact.artifact_type}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="font-medium text-gray-900 dark:text-white">
+                                                {artifact.title}
                                             </div>
+                                            {artifact.description && (
+                                                <div className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-md">
+                                                    {artifact.description}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap">
+                                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${STATUS_BADGES[artifact.status] || ''}`}>
+                                                {STATUS_LABELS[artifact.status] || artifact.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap">
+                                            {artifact.category ? (
+                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getCategoryColor(artifact.category, categories)}`}>
+                                                    {artifact.category}
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-400 dark:text-gray-500 text-xs">-</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                            {new Date(artifact.created_at).toLocaleDateString()}
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-right text-sm" onClick={(e) => e.stopPropagation()}>
+                                            <button
+                                                onClick={(e) => handleDelete(e, artifact.id)}
+                                                className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                                                title="Delete"
+                                            >
+                                                <TrashIcon className="h-5 w-5" />
+                                            </button>
                                         </td>
                                     </tr>
                                 );
-                            }
-
-                            return (
-                                <tr
-                                    key={artifact.id}
-                                    onClick={() => handleRowClick(artifact)}
-                                    className={`cursor-pointer transition-colors ${
-                                        isSelected
-                                            ? 'bg-purple-50/50 dark:bg-purple-900/10'
-                                            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                                    }`}
-                                >
-                                    <td className="px-3 py-3 w-10" onClick={(e) => e.stopPropagation()}>
-                                        <input
-                                            type="checkbox"
-                                            checked={isSelected}
-                                            onChange={(e) => toggleSelect(artifact.id, e)}
-                                            className="rounded text-purple-600 focus:ring-purple-500"
-                                        />
-                                    </td>
-                                    <td className="px-4 py-3 whitespace-nowrap">
-                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${TYPE_BADGES[artifact.artifact_type] || ''}`}>
-                                            {artifact.artifact_type}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="font-medium text-gray-900 dark:text-white">
-                                            {artifact.title}
-                                        </div>
-                                        {artifact.description && (
-                                            <div className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-md">
-                                                {artifact.description}
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 whitespace-nowrap">
-                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${STATUS_BADGES[artifact.status] || ''}`}>
-                                            {STATUS_LABELS[artifact.status] || artifact.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3 whitespace-nowrap">
-                                        {artifact.category ? (
-                                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getCategoryColor(artifact.category, categories)}`}>
-                                                {artifact.category}
-                                            </span>
-                                        ) : (
-                                            <span className="text-gray-400 dark:text-gray-500 text-xs">-</span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                        {new Date(artifact.created_at).toLocaleDateString()}
-                                    </td>
-                                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm" onClick={(e) => e.stopPropagation()}>
-                                        <button
-                                            onClick={(e) => handleDelete(e, artifact.id)}
-                                            className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                                            title="Delete"
-                                        >
-                                            <TrashIcon className="h-5 w-5" />
-                                        </button>
+                            })}
+                            {sortedArtifacts.length === 0 && (
+                                <tr>
+                                    <td colSpan={COL_COUNT} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                        No artifacts found
                                     </td>
                                 </tr>
-                            );
-                        })}
-                        {artifacts.length === 0 && (
-                            <tr>
-                                <td colSpan={COL_COUNT} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                                    No artifacts found
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* Create Dialog */}
