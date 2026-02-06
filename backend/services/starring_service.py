@@ -22,8 +22,8 @@ class StarringService:
     """
     Service for per-user article starring operations.
 
-    Provides methods for toggling stars, checking star status,
-    and retrieving starred articles with context.
+    Provides methods for toggling stars and retrieving starred articles.
+    Note: is_starred status is baked into articles via report_service.get_report_with_articles().
     """
 
     def __init__(self, db: AsyncSession):
@@ -75,49 +75,6 @@ class StarringService:
             await self.db.commit()
             logger.info(f"User {user_id} starred article {article_id} in report {report_id}")
             return True
-
-    async def is_starred(
-        self,
-        user_id: int,
-        report_id: int,
-        article_id: int
-    ) -> bool:
-        """Check if an article is starred by a user in a specific report."""
-        result = await self.db.execute(
-            select(UserArticleStar.id).where(
-                and_(
-                    UserArticleStar.user_id == user_id,
-                    UserArticleStar.report_id == report_id,
-                    UserArticleStar.article_id == article_id
-                )
-            )
-        )
-        return result.scalars().first() is not None
-
-    async def get_starred_for_report(
-        self,
-        user_id: int,
-        report_id: int
-    ) -> List[int]:
-        """
-        Get list of starred article IDs for a user in a specific report.
-
-        Args:
-            user_id: The user's ID
-            report_id: The report to check
-
-        Returns:
-            List of article IDs that are starred
-        """
-        result = await self.db.execute(
-            select(UserArticleStar.article_id).where(
-                and_(
-                    UserArticleStar.user_id == user_id,
-                    UserArticleStar.report_id == report_id
-                )
-            )
-        )
-        return list(result.scalars().all())
 
     async def get_starred_for_stream(
         self,
