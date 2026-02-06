@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { PlusIcon, TrashIcon, CheckIcon, XMarkIcon, Cog6ToothIcon, ChatBubbleLeftRightIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
-import { useChatContext } from '../../context/ChatContext';
 import ChatTray from '../chat/ChatTray';
 import type { Artifact, ArtifactCategory } from '../../types/artifact';
 
@@ -191,7 +190,6 @@ export function ArtifactList() {
 
     // Chat
     const [isChatOpen, setIsChatOpen] = useState(false);
-    const { setContext } = useChatContext();
 
     useEffect(() => {
         loadCategories();
@@ -200,24 +198,6 @@ export function ArtifactList() {
     useEffect(() => {
         loadArtifacts();
     }, [filterType, filterStatus, filterCategory]);
-
-    // Update chat context when artifacts/filters/selection change
-    useEffect(() => {
-        setContext({
-            current_page: 'artifacts',
-            artifacts: artifacts.map(a => ({
-                id: a.id,
-                title: a.title,
-                artifact_type: a.artifact_type,
-                status: a.status,
-                category: a.category,
-                description: a.description,
-            })),
-            categories: categories.map(c => ({ id: c.id, name: c.name })),
-            filters: { type: filterType, status: filterStatus, category: filterCategory },
-            selected_count: selected.size,
-        });
-    }, [artifacts, categories, filterType, filterStatus, filterCategory, selected.size, setContext]);
 
     const loadCategories = async () => {
         try {
@@ -510,7 +490,7 @@ export function ArtifactList() {
     const hasSelection = selected.size > 0;
 
     return (
-        <div className="flex gap-0">
+        <div className="-mx-4 -mb-8 h-[calc(100vh-12rem)] flex">
             {/* Chat Tray */}
             <ChatTray
                 initialContext={chatContext}
@@ -519,25 +499,25 @@ export function ArtifactList() {
             />
 
             {/* Main Content */}
-            <div className="flex-1 min-w-0 space-y-4">
+            <div className="flex-1 min-w-0 overflow-y-auto px-4 py-2 relative">
+                {/* Floating chat toggle button */}
+                {!isChatOpen && (
+                    <button
+                        onClick={() => setIsChatOpen(true)}
+                        className="fixed bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
+                        title="Open chat"
+                    >
+                        <ChatBubbleLeftRightIcon className="h-6 w-6" />
+                    </button>
+                )}
+
+                <div className="space-y-4">
                 {/* Header row: title + action buttons */}
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                         Artifacts ({artifacts.length})
                     </h2>
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setIsChatOpen(!isChatOpen)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm border rounded-lg transition-colors ${
-                                isChatOpen
-                                    ? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-400'
-                                    : 'text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
-                            }`}
-                            title="Toggle Chat"
-                        >
-                            <ChatBubbleLeftRightIcon className="h-4 w-4" />
-                            Chat
-                        </button>
                         <button
                             onClick={() => setShowCategoryManager(true)}
                             className="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -895,6 +875,7 @@ export function ArtifactList() {
                         </tbody>
                     </table>
                 </div>
+            </div>
             </div>
 
             {/* Create Dialog */}
