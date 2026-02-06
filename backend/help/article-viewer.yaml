@@ -17,6 +17,7 @@ sections:
       - Complete abstract
       - AI-generated summary
       - Links to PubMed and DOI
+      - Star button to add to your favorites
 
       **Workspace Tabs:**
       - **Analysis** - Stance analysis results (if configured)

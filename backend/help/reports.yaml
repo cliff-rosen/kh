@@ -186,3 +186,29 @@ sections:
       **Limitations:**
       - Cannot access the full text of papers (only abstracts/summaries)
       - Cannot modify reports or settings (members)
+
+  - category: reports
+    topic: favorites
+    title: Favorites
+    summary: Starring articles and viewing your favorites
+    roles: [member, org_admin, platform_admin]
+    order: 16
+    content: |
+      Star articles to save them for quick access later.
+
+      **Starring Articles:**
+      - Click the star icon on any article card
+      - Or use the star button in the Article Viewer header
+      - Starred articles show a filled star icon
+
+      **Viewing Favorites:**
+      - Click "Favorites" in the left sidebar
+      - Shows all your starred articles for the current stream
+      - Each favorite displays with its full context (AI summary, analysis, etc.)
+      - Click any favorite to open it in the Article Viewer
+
+      **Key Behaviors:**
+      - Favorites are personal - only you see your starred articles
+      - Favorites persist across sessions
+      - Each favorite remembers which report it came from
+      - Unstar by clicking the star icon again

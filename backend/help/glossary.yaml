@@ -74,14 +74,30 @@ sections:
 
       The AI summary highlights findings relevant to your specific topic, even if they're buried in a broader paper.
 
-      ## Stars and Notes
+      ## Favorites (Starring)
 
-      Personal annotations you can add to articles:
+      Mark articles as favorites for quick access later.
 
-      - **Star** - Mark an article as important for later reference
-      - **Notes** - Add your own comments or observations
+      **How to star an article:**
+      - Click the star icon on any article card in a report
+      - Or click the star button in the Article Viewer header
 
-      Stars and notes persist across sessions and are private to your account.
+      **Viewing your favorites:**
+      - In the report sidebar, click "Favorites" to see all starred articles for that stream
+      - Favorites show the article with its full context (AI summary, stance analysis, etc.)
+      - Click any favorite to open it in the Article Viewer
+
+      **Key behaviors:**
+      - Stars are personal - only you see your starred articles
+      - Stars persist across sessions
+      - Each favorite remembers which report it came from
+
+      ## Notes
+
+      Add your own comments or observations to articles.
+
+      - Notes are saved per article and persist across sessions
+      - Notes are visible to other users in your organization
 
       ## Category Assignment
 
@@ -157,7 +173,8 @@ sections:
       **Features:**
       - Full abstract and AI summary
       - Filter score and reasoning
-      - Star and notes functionality
+      - Star button to add to favorites
+      - Notes for personal annotations
       - Link to original PubMed entry
 
       ## Tablizer
