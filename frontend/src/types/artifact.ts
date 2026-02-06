@@ -10,6 +10,7 @@ export interface Artifact {
   description: string | null;
   artifact_type: string;  // "bug" | "feature"
   status: string;         // "open" | "in_progress" | "closed"
+  category: string | null;
   created_by: number;
   created_at: string;
   updated_at: string;

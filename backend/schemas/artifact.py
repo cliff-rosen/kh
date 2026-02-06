@@ -16,6 +16,7 @@ class Artifact(BaseModel):
     description: Optional[str] = None
     artifact_type: str  # "bug" | "feature"
     status: str         # "open" | "in_progress" | "closed"
+    category: Optional[str] = None
     created_by: int
     created_at: datetime
     updated_at: datetime

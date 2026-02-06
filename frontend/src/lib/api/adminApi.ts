@@ -411,11 +411,12 @@ export const adminApi = {
   /**
    * Get all artifacts with optional filters (platform admin only)
    */
-  async getArtifacts(params?: { type?: string; status?: string }): Promise<Artifact[]> {
+  async getArtifacts(params?: { type?: string; status?: string; category?: string }): Promise<Artifact[]> {
     const response = await api.get('/api/admin/artifacts', {
       params: {
         type: params?.type || undefined,
         status_filter: params?.status || undefined,
+        category: params?.category || undefined,
       },
     });
     return response.data;
@@ -424,7 +425,7 @@ export const adminApi = {
   /**
    * Create a new artifact (platform admin only)
    */
-  async createArtifact(data: { title: string; artifact_type: string; description?: string }): Promise<Artifact> {
+  async createArtifact(data: { title: string; artifact_type: string; description?: string; category?: string }): Promise<Artifact> {
     const response = await api.post('/api/admin/artifacts', data);
     return response.data;
   },
@@ -432,7 +433,7 @@ export const adminApi = {
   /**
    * Update an artifact (platform admin only)
    */
-  async updateArtifact(id: number, data: { title?: string; description?: string; status?: string; artifact_type?: string }): Promise<Artifact> {
+  async updateArtifact(id: number, data: { title?: string; description?: string; status?: string; artifact_type?: string; category?: string }): Promise<Artifact> {
     const response = await api.put(`/api/admin/artifacts/${id}`, data);
     return response.data;
   },

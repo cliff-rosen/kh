@@ -27,14 +27,17 @@ class ArtifactService:
         self,
         artifact_type: Optional[str] = None,
         status: Optional[str] = None,
+        category: Optional[str] = None,
     ) -> List[Artifact]:
-        """List all artifacts with optional type and status filters."""
+        """List all artifacts with optional type, status, and category filters."""
         stmt = select(Artifact).order_by(Artifact.created_at.desc())
 
         if artifact_type:
             stmt = stmt.where(Artifact.artifact_type == ArtifactType(artifact_type))
         if status:
             stmt = stmt.where(Artifact.status == ArtifactStatus(status))
+        if category:
+            stmt = stmt.where(Artifact.category == category)
 
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
@@ -52,12 +55,14 @@ class ArtifactService:
         artifact_type: str,
         created_by: int,
         description: Optional[str] = None,
+        category: Optional[str] = None,
     ) -> Artifact:
         """Create a new artifact."""
         artifact = Artifact(
             title=title,
             description=description,
             artifact_type=ArtifactType(artifact_type),
+            category=category,
             created_by=created_by,
         )
         self.db.add(artifact)
@@ -72,6 +77,7 @@ class ArtifactService:
         description: Optional[str] = None,
         status: Optional[str] = None,
         artifact_type: Optional[str] = None,
+        category: Optional[str] = None,
     ) -> Optional[Artifact]:
         """Update an existing artifact. Returns None if not found."""
         artifact = await self.get_artifact_by_id(artifact_id)
@@ -86,6 +92,8 @@ class ArtifactService:
             artifact.status = ArtifactStatus(status)
         if artifact_type is not None:
             artifact.artifact_type = ArtifactType(artifact_type)
+        if category is not None:
+            artifact.category = category if category != '' else None
 
         await self.db.commit()
         await self.db.refresh(artifact)

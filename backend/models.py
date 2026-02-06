@@ -884,6 +884,7 @@ class Artifact(Base):
     description = Column(Text, nullable=True)
     artifact_type = Column(Enum(ArtifactType, values_callable=lambda x: [e.value for e in x], name='artifacttype'), nullable=False)
     status = Column(Enum(ArtifactStatus, values_callable=lambda x: [e.value for e in x], name='artifactstatus'), nullable=False, default=ArtifactStatus.OPEN)
+    category = Column(String(100), nullable=True)
     created_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

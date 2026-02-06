@@ -1503,6 +1503,7 @@ class ArtifactCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Artifact title")
     artifact_type: str = Field(..., description="Type: 'bug' or 'feature'")
     description: Optional[str] = Field(None, description="Artifact description")
+    category: Optional[str] = Field(None, max_length=100, description="Category tag")
 
 
 class ArtifactUpdate(BaseModel):
@@ -1512,6 +1513,7 @@ class ArtifactUpdate(BaseModel):
     description: Optional[str] = None
     status: Optional[str] = None
     artifact_type: Optional[str] = None
+    category: Optional[str] = Field(None, max_length=100)
 
 
 @router.get(
@@ -1522,17 +1524,18 @@ class ArtifactUpdate(BaseModel):
 async def list_artifacts(
     type: Optional[str] = None,
     status_filter: Optional[str] = None,
+    category: Optional[str] = None,
     current_user: User = Depends(require_platform_admin),
     artifact_service: ArtifactService = Depends(get_artifact_service),
 ):
-    """Get all artifacts with optional type and status filters. Platform admin only."""
+    """Get all artifacts with optional type, status, and category filters. Platform admin only."""
     logger.info(
-        f"list_artifacts - admin_user_id={current_user.user_id}, type={type}, status={status_filter}"
+        f"list_artifacts - admin_user_id={current_user.user_id}, type={type}, status={status_filter}, category={category}"
     )
 
     try:
         artifacts = await artifact_service.list_artifacts(
-            artifact_type=type, status=status_filter
+            artifact_type=type, status=status_filter, category=category
         )
         result = [ArtifactSchema.model_validate(a, from_attributes=True) for a in artifacts]
         logger.info(f"list_artifacts complete - count={len(result)}")
@@ -1604,6 +1607,7 @@ async def create_artifact(
             artifact_type=data.artifact_type,
             created_by=current_user.user_id,
             description=data.description,
+            category=data.category,
         )
         logger.info(f"create_artifact complete - artifact_id={artifact.id}")
         return ArtifactSchema.model_validate(artifact, from_attributes=True)
@@ -1641,6 +1645,7 @@ async def update_artifact(
             description=data.description,
             status=data.status,
             artifact_type=data.artifact_type,
+            category=data.category,
         )
         if not artifact:
             raise HTTPException(
