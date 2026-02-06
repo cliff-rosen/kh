@@ -1,4 +1,5 @@
 import { ChevronLeftIcon, ChevronRightIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { StarIcon } from '@heroicons/react/24/solid';
 import { Report } from '../../types';
 
 export interface ReportSidebarProps {
@@ -8,6 +9,9 @@ export interface ReportSidebarProps {
     onToggleCollapse: () => void;
     onSelectReport: (report: Report) => void;
     onDeleteReport?: (reportId: number, reportName: string) => void;
+    starredCount?: number;
+    showStarredSelected?: boolean;
+    onSelectStarred?: () => void;
 }
 
 export default function ReportSidebar({
@@ -16,7 +20,10 @@ export default function ReportSidebar({
     collapsed,
     onToggleCollapse,
     onSelectReport,
-    onDeleteReport
+    onDeleteReport,
+    starredCount = 0,
+    showStarredSelected = false,
+    onSelectStarred
 }: ReportSidebarProps) {
     return (
         <div className={`transition-all duration-300 ${collapsed ? 'w-12' : 'w-80'} flex-shrink-0`}>
@@ -37,11 +44,34 @@ export default function ReportSidebar({
                 {/* Reports List */}
                 {!collapsed && (
                     <div className="space-y-4">
+                        {/* Favorites Link - at top */}
+                        {onSelectStarred && (
+                            <div
+                                onClick={onSelectStarred}
+                                className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 cursor-pointer transition-all group ${
+                                    showStarredSelected
+                                        ? 'ring-2 ring-blue-600'
+                                        : 'hover:shadow-md'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <StarIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                    <h3 className="font-semibold text-gray-900 dark:text-white">
+                                        Favorites
+                                    </h3>
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    {starredCount} article{starredCount !== 1 ? 's' : ''}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Reports */}
                         {reports.map((report) => (
                             <div
                                 key={report.report_id}
                                 className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 cursor-pointer transition-all group ${
-                                    selectedReportId === report.report_id
+                                    selectedReportId === report.report_id && !showStarredSelected
                                         ? 'ring-2 ring-blue-600'
                                         : 'hover:shadow-md'
                                 }`}

@@ -849,6 +849,32 @@ class ToolTrace(Base):
 
 # === DEFECT / FEATURE TRACKER ===
 
+class UserArticleStar(Base):
+    """
+    Per-user article starring.
+
+    Each user can star articles within reports. Stars are personal -
+    other users cannot see each other's starred articles.
+    """
+    __tablename__ = "user_article_stars"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    report_id = Column(Integer, ForeignKey("reports.report_id", ondelete="CASCADE"), nullable=False, index=True)
+    article_id = Column(Integer, ForeignKey("articles.article_id", ondelete="CASCADE"), nullable=False, index=True)
+    starred_at = Column(DateTime, default=datetime.utcnow)
+
+    # Unique constraint: one star per user per article per report
+    __table_args__ = (
+        CheckConstraint('user_id IS NOT NULL AND report_id IS NOT NULL AND article_id IS NOT NULL', name='user_article_stars_not_null'),
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="article_stars")
+    report = relationship("Report")
+    article = relationship("Article")
+
+
 class Artifact(Base):
     """Bug/feature tracker for platform admins"""
     __tablename__ = "artifacts"
@@ -877,3 +903,4 @@ User.feedback = relationship("UserFeedback", back_populates="user")
 User.conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
 User.events = relationship("UserEvent", back_populates="user", cascade="all, delete-orphan")
 User.tool_traces = relationship("ToolTrace", back_populates="user", cascade="all, delete-orphan")
+User.article_stars = relationship("UserArticleStar", back_populates="user", cascade="all, delete-orphan")

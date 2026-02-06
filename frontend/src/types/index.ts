@@ -14,3 +14,4 @@ export * from './research-stream';
 export * from './semantic-space';
 export * from './report';
 export * from './document_analysis';
+export * from './starring';

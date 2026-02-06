@@ -4,9 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { reportApi } from '../lib/api/reportApi';
+import { starringApi } from '../lib/api/starringApi';
 import { trackEvent } from '../lib/api/trackingApi';
 import { showErrorToast } from '../lib/errorToast';
 import { Report } from '../types';
+import { StarredArticle } from '../types/starring';
+import { StarIcon } from '@heroicons/react/24/solid';
+import { formatArticleDate } from '../utils/dateUtils';
 
 export default function DashboardPage() {
     const { user, isPlatformAdmin, isOrgAdmin } = useAuth();
@@ -14,6 +18,8 @@ export default function DashboardPage() {
     const [recentReports, setRecentReports] = useState<Report[]>([]);
     const [reportsLoading, setReportsLoading] = useState(true);
     const [reportsError, setReportsError] = useState(false);
+    const [starredArticles, setStarredArticles] = useState<StarredArticle[]>([]);
+    const [starredLoading, setStarredLoading] = useState(true);
     const navigate = useNavigate();
 
     const canCreateStream = isPlatformAdmin || isOrgAdmin;
@@ -28,6 +34,13 @@ export default function DashboardPage() {
                 setReportsError(true);
             })
             .finally(() => setReportsLoading(false));
+
+        // Load recently starred articles
+        setStarredLoading(true);
+        starringApi.getAllStarred(5)
+            .then(response => setStarredArticles(response.articles))
+            .catch(err => console.error('Failed to load starred articles:', err))
+            .finally(() => setStarredLoading(false));
     }, [loadResearchStreams]);
 
     // Get stream name by ID
@@ -40,6 +53,11 @@ export default function DashboardPage() {
     const handleReportClick = (report: Report) => {
         trackEvent('dashboard_report_click', { report_id: report.report_id, stream_id: report.research_stream_id });
         navigate(`/reports?stream=${report.research_stream_id}&report=${report.report_id}`);
+    };
+
+    const handleStarredArticleClick = (article: StarredArticle) => {
+        trackEvent('dashboard_starred_article_click', { article_id: article.article_id, report_id: article.report_id });
+        navigate(`/reports?stream=${article.stream_id}&report=${article.report_id}&article=${article.article_id}`);
     };
 
     return (
@@ -106,6 +124,54 @@ export default function DashboardPage() {
                                     Create Research Stream
                                 </button>
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Favorites Section */}
+                {!isLoading && !starredLoading && starredArticles.length > 0 && (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
+                        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <StarIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                    Favorites
+                                </h2>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    trackEvent('dashboard_quick_action', { action: 'view_all_starred' });
+                                    navigate('/starred');
+                                }}
+                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                                View All
+                            </button>
+                        </div>
+                        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {starredArticles.map((article) => (
+                                <div
+                                    key={`${article.report_id}-${article.article_id}`}
+                                    onClick={() => handleStarredArticleClick(article)}
+                                    className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <StarIcon className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-1" />
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                                {article.title}
+                                            </h3>
+                                            <div className="flex flex-wrap gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                {article.journal && <span>{article.journal}</span>}
+                                                {article.pub_year && (
+                                                    <span>• {formatArticleDate(article.pub_year, article.pub_month, article.pub_day)}</span>
+                                                )}
+                                                <span>• {article.stream_name}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}

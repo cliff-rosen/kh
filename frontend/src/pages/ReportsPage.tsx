@@ -4,10 +4,12 @@ import { DocumentTextIcon, ChevronDownIcon, ChevronRightIcon, ChatBubbleLeftRigh
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
 import { ResearchStream, Category } from '../types';
+import { StarredArticle } from '../types/starring';
 import { PayloadHandler } from '../types/chat';
 
 import { reportApi } from '../lib/api/reportApi';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
+import { starringApi } from '../lib/api/starringApi';
 import { getReportConfig, type ReportConfigResponse } from '../lib/api/curationApi';
 import { showErrorToast } from '../lib/errorToast';
 import { useResearchStream } from '../context/ResearchStreamContext';
@@ -100,8 +102,88 @@ export default function ReportsPage() {
     const [articleViewerInitialIndex, setArticleViewerInitialIndex] = useState(0);
     const [articleViewerIsFiltered, setArticleViewerIsFiltered] = useState(false);
 
+    // Starring state - tracks which articles are starred for the current user
+    const [starredArticleIds, setStarredArticleIds] = useState<Set<number>>(new Set());
+
+    // Favorites view state
+    const [showingFavorites, setShowingFavorites] = useState(false);
+    const [streamFavorites, setStreamFavorites] = useState<StarredArticle[]>([]);
+    const [loadingFavorites, setLoadingFavorites] = useState(false);
+    const [streamFavoritesCount, setStreamFavoritesCount] = useState(0);
+
     const hasStreams = researchStreams.length > 0;
     const hasPipelineData = selectedReport?.pipeline_execution_id != null;
+
+    // Load starred articles when report changes
+    const loadStarredArticles = useCallback(async (reportId: number) => {
+        try {
+            const response = await starringApi.getStarredForReport(reportId);
+            setStarredArticleIds(new Set(response.starred_article_ids));
+        } catch (err) {
+            console.error('Failed to load starred articles:', err);
+            // Non-critical failure, just log
+        }
+    }, []);
+
+    // Load favorites for the current stream
+    const loadStreamFavorites = useCallback(async (streamId: number) => {
+        setLoadingFavorites(true);
+        try {
+            const response = await starringApi.getStarredForStream(streamId);
+            setStreamFavorites(response.articles);
+            setStreamFavoritesCount(response.articles.length); // Update count
+        } catch (err) {
+            console.error('Failed to load favorites:', err);
+            setStreamFavorites([]);
+        } finally {
+            setLoadingFavorites(false);
+        }
+    }, []);
+
+    // Handle selecting the favorites view
+    const handleSelectFavorites = useCallback(() => {
+        if (!selectedStream) return;
+        track('favorites_view', { stream_id: parseInt(selectedStream, 10) });
+        setShowingFavorites(true);
+        setSelectedReport(null);
+        loadStreamFavorites(parseInt(selectedStream, 10));
+    }, [selectedStream, track, loadStreamFavorites]);
+
+    // Handle toggling star for an article
+    const handleToggleStar = useCallback(async (articleId: number, reportIdOverride?: number) => {
+        // Use override (for favorites view) or selected report
+        const reportId = reportIdOverride || selectedReport?.report_id;
+        if (!reportId) return;
+
+        try {
+            const response = await starringApi.toggleStar(reportId, articleId);
+            setStarredArticleIds(prev => {
+                const next = new Set(prev);
+                if (response.is_starred) {
+                    next.add(articleId);
+                } else {
+                    next.delete(articleId);
+                }
+                return next;
+            });
+
+            // Update favorites count
+            setStreamFavoritesCount(prev => response.is_starred ? prev + 1 : Math.max(0, prev - 1));
+
+            // If in favorites view and unstarred, remove from list
+            if (showingFavorites && !response.is_starred) {
+                setStreamFavorites(prev => prev.filter(a => a.article_id !== articleId));
+            }
+
+            track('article_star_toggle', {
+                article_id: articleId,
+                report_id: reportId,
+                is_starred: response.is_starred
+            });
+        } catch (err) {
+            showErrorToast(err, 'Failed to update favorite');
+        }
+    }, [selectedReport, showingFavorites, track]);
 
     // Handle article updates from the modal (notes, enrichments)
     const handleArticleUpdate = useCallback((articleId: number, updates: { notes?: string; ai_enrichments?: any }) => {
@@ -174,12 +256,19 @@ export default function ReportsPage() {
                 setReports([]);
                 setSelectedReport(null);
                 setStreamDetails(null);
+                setShowingFavorites(false);
+                setStreamFavoritesCount(0);
                 try {
                     const stream = await researchStreamApi.getResearchStream(Number(selectedStream));
                     setStreamDetails(stream);
 
                     const streamReports = await reportApi.getReportsForStream(Number(selectedStream));
                     setReports(streamReports);
+
+                    // Load favorites count for the stream
+                    starringApi.getStarredCountForStream(Number(selectedStream))
+                        .then(response => setStreamFavoritesCount(response.count))
+                        .catch(() => setStreamFavoritesCount(0));
 
                     const reportParam = searchParams.get('report');
                     if (reportParam) {
@@ -212,9 +301,12 @@ export default function ReportsPage() {
         setLoadingReportDetails(true);
         setCollapsedCategories(new Set());
         setExecutiveSummaryCollapsed(false);
+        setStarredArticleIds(new Set()); // Clear while loading
         try {
             const reportDetails = await reportApi.getReportWithArticles(reportId);
             setSelectedReport(reportDetails);
+            // Load starred articles for this report
+            loadStarredArticles(reportId);
         } catch (err) {
             showErrorToast(err, 'Failed to load report');
         } finally {
@@ -244,6 +336,8 @@ export default function ReportsPage() {
 
     const handleReportClick = (report: Report) => {
         track('report_select', { report_id: report.report_id, report_name: report.report_name });
+        setShowingFavorites(false);
+        setArticleViewerOpen(false); // Close modal when switching reports
         loadReportDetails(report.report_id);
     };
 
@@ -529,6 +623,8 @@ export default function ReportsPage() {
                                                             article={article}
                                                             cardFormat={cardFormat}
                                                             onClick={() => openArticleViewer(selectedReport.articles, fullIndex)}
+                                                            isStarred={starredArticleIds.has(article.article_id)}
+                                                            onToggleStar={() => handleToggleStar(article.article_id)}
                                                         />
                                                     );
                                                 })}
@@ -556,6 +652,8 @@ export default function ReportsPage() {
                             article={article}
                             cardFormat={cardFormat}
                             onClick={() => openArticleViewer(selectedReport.articles, idx)}
+                            isStarred={starredArticleIds.has(article.article_id)}
+                            onToggleStar={() => handleToggleStar(article.article_id)}
                         />
                     ))}
                 </div>
@@ -633,11 +731,104 @@ export default function ReportsPage() {
                             }}
                             onSelectReport={handleReportClick}
                             onDeleteReport={isAdmin ? handleDeleteReport : undefined}
+                            starredCount={streamFavoritesCount}
+                            showStarredSelected={showingFavorites}
+                            onSelectStarred={handleSelectFavorites}
                         />
 
-                        {/* Report Details */}
+                        {/* Report Details or Favorites */}
                         <div className="flex-1 min-w-0">
-                            {loadingReportDetails ? (
+                            {showingFavorites ? (
+                                /* Favorites View */
+                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+                                    <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                            Favorites
+                                        </h2>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                            Your favorite articles from this stream
+                                        </p>
+                                    </div>
+                                    <div className="p-6">
+                                        {loadingFavorites ? (
+                                            <div className="text-center py-8">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                                                <p className="text-gray-600 dark:text-gray-400">Loading favorites...</p>
+                                            </div>
+                                        ) : streamFavorites.length === 0 ? (
+                                            <div className="text-center py-8">
+                                                <p className="text-gray-600 dark:text-gray-400">
+                                                    No favorites yet. Star articles from reports to add them here.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {streamFavorites.map((article, idx) => (
+                                                    <div
+                                                        key={`${article.report_id}-${article.article_id}`}
+                                                        className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 cursor-pointer hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all"
+                                                        onClick={() => {
+                                                            // Convert to ReportArticle format and open viewer
+                                                            const viewerArticles: ReportArticle[] = streamFavorites.map(a => ({
+                                                                article_id: a.article_id,
+                                                                title: a.title,
+                                                                authors: a.authors,
+                                                                journal: a.journal,
+                                                                pub_year: a.pub_year,
+                                                                pub_month: a.pub_month,
+                                                                pub_day: a.pub_day,
+                                                                pmid: a.pmid,
+                                                                doi: a.doi,
+                                                                abstract: a.abstract,
+                                                            }));
+                                                            setArticleViewerArticles(viewerArticles);
+                                                            setArticleViewerInitialIndex(idx);
+                                                            setArticleViewerIsFiltered(false);
+                                                            setArticleViewerOpen(true);
+                                                        }}
+                                                    >
+                                                        <div className="flex items-start gap-4">
+                                                            <div className="flex-1 min-w-0">
+                                                                <h4 className="font-medium text-blue-600 dark:text-blue-400 mb-1">
+                                                                    {article.title}
+                                                                </h4>
+                                                                {article.authors && article.authors.length > 0 && (
+                                                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                                                        {article.authors.slice(0, 3).join(', ')}
+                                                                        {article.authors.length > 3 && ` et al.`}
+                                                                    </p>
+                                                                )}
+                                                                <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-500">
+                                                                    {article.journal && <span>{article.journal}</span>}
+                                                                    {article.pub_year && <span>• {article.pub_year}</span>}
+                                                                    {article.pmid && <span>• PMID: {article.pmid}</span>}
+                                                                </div>
+                                                                <div className="mt-2">
+                                                                    <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">
+                                                                        {article.report_name}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleToggleStar(article.article_id, article.report_id);
+                                                                }}
+                                                                className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                                title="Remove from favorites"
+                                                            >
+                                                                <svg className="h-5 w-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+                                                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : loadingReportDetails ? (
                                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
                                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                                     <p className="text-gray-600 dark:text-gray-400">Loading report details...</p>
@@ -781,6 +972,8 @@ export default function ReportsPage() {
                         onArticleUpdate={handleArticleUpdate}
                         isFiltered={articleViewerIsFiltered}
                         reportTitle={selectedReport?.report_name}
+                        starredArticleIds={starredArticleIds}
+                        onToggleStar={handleToggleStar}
                     />
                 )}
             </div>

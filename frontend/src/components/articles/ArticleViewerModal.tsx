@@ -23,6 +23,7 @@ import { PayloadHandler } from '../../types/chat';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import StanceAnalysisDisplay, { getStanceInfo } from '../ui/StanceAnalysisDisplay';
 import ArticleNotes from './ArticleNotes';
+import StarButton from './StarButton';
 import { formatArticleDate, getYearString } from '../../utils/dateUtils';
 
 type WorkspaceTab = 'analysis' | 'notes' | 'links';
@@ -90,6 +91,10 @@ interface ArticleViewerModalProps {
     isFiltered?: boolean;
     /** Report title to display in the header (when viewing from a report) */
     reportTitle?: string;
+    /** Set of starred article IDs (for displaying star status) */
+    starredArticleIds?: Set<number>;
+    /** Callback when star is toggled - receives article_id and new starred state */
+    onToggleStar?: (articleId: number) => void;
 }
 
 export default function ArticleViewerModal({
@@ -100,7 +105,9 @@ export default function ArticleViewerModal({
     chatPayloadHandlers,
     onArticleUpdate,
     isFiltered = false,
-    reportTitle
+    reportTitle,
+    starredArticleIds,
+    onToggleStar
 }: ArticleViewerModalProps) {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const rawArticle = articles[currentIndex];
@@ -434,6 +441,14 @@ export default function ArticleViewerModal({
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        {/* Star button - only show if we have starring props and a DB-backed article */}
+                        {onToggleStar && articleId && (
+                            <StarButton
+                                isStarred={starredArticleIds?.has(articleId) ?? false}
+                                onToggle={() => onToggleStar(articleId)}
+                                size="md"
+                            />
+                        )}
                         <button
                             type="button"
                             onClick={handleClose}

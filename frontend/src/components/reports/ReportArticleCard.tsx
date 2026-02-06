@@ -2,17 +2,22 @@ import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { ReportArticle } from '../../types';
 import { CardFormat } from './ReportHeader';
 import { formatArticleDate } from '../../utils/dateUtils';
+import StarButton from '../articles/StarButton';
 
 export interface ReportArticleCardProps {
     article: ReportArticle;
     cardFormat?: CardFormat;
     onClick?: () => void;
+    isStarred?: boolean;
+    onToggleStar?: () => void;
 }
 
 export default function ReportArticleCard({
     article,
     cardFormat = 'compact',
-    onClick
+    onClick,
+    isStarred = false,
+    onToggleStar
 }: ReportArticleCardProps) {
     return (
         <div
@@ -69,9 +74,18 @@ export default function ReportArticleCard({
                         </p>
                     )}
                 </div>
-                {onClick && (
-                    <ChevronRightIcon className="h-5 w-5 text-gray-400 flex-shrink-0 mt-1" />
-                )}
+                <div className="flex items-center gap-1 flex-shrink-0 mt-1">
+                    {onToggleStar && (
+                        <StarButton
+                            isStarred={isStarred}
+                            onToggle={onToggleStar}
+                            size="sm"
+                        />
+                    )}
+                    {onClick && (
+                        <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                    )}
+                </div>
             </div>
         </div>
     );
