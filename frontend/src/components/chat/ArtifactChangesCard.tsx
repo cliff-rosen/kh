@@ -35,10 +35,28 @@ interface ExistingArtifact {
     description: string | null;
 }
 
+/** A single step in the execution progress list */
+export interface ProgressStep {
+    label: string;
+    status: 'pending' | 'running' | 'done' | 'error';
+    error?: string;
+}
+
+/**
+ * The executor callback. The card calls this with the selected changes.
+ * It should process items one at a time and call `onProgress` after each step.
+ * The steps array is pre-built by the card; the executor updates statuses.
+ */
+export type AcceptExecutor = (
+    data: { category_operations?: CategoryOperation[]; changes: ArtifactChange[] },
+    steps: ProgressStep[],
+    onProgress: (steps: ProgressStep[]) => void,
+) => Promise<void>;
+
 interface ArtifactChangesCardProps {
     proposal: ArtifactChangesProposal;
     existingArtifacts?: ExistingArtifact[];
-    onAccept?: (data: { category_operations?: CategoryOperation[]; changes: ArtifactChange[] }) => void;
+    onAccept?: AcceptExecutor;
     onReject?: () => void;
 }
 
@@ -89,30 +107,31 @@ export default function ArtifactChangesCard({
     onReject,
 }: ArtifactChangesCardProps) {
     const catOps = proposal.category_operations || [];
+    const changes = proposal.changes || [];
     const artifactMap = useMemo(() => {
         const map = new Map<number, ExistingArtifact>();
         existingArtifacts?.forEach(a => map.set(a.id, a));
         return map;
     }, [existingArtifacts]);
     const [checked, setChecked] = useState<Set<number>>(
-        () => new Set(proposal.changes.map((_, i) => i))
+        () => new Set(changes.map((_, i) => i))
     );
     const [catChecked, setCatChecked] = useState<Set<number>>(
         () => new Set(catOps.map((_, i) => i))
     );
-    const [isAccepted, setIsAccepted] = useState(false);
     const [isRejected, setIsRejected] = useState(false);
-    const [appliedCount, setAppliedCount] = useState(0);
+
+    // Progress state — null means not started, array means executing/done
+    const [progressSteps, setProgressSteps] = useState<ProgressStep[] | null>(null);
+    const isExecuting = progressSteps !== null;
+    const isComplete = progressSteps !== null && progressSteps.every(s => s.status === 'done' || s.status === 'error');
 
     // Build dependency map: for each artifact change index, which catOp indices it depends on.
-    // An artifact depends on a category op if:
-    //   - The artifact's category matches a "create" op's name
-    //   - The artifact's category matches a "rename" op's new_name
     const dependencyMap = useMemo(() => {
-        const map = new Map<number, number[]>(); // artifact index -> catOp indices
+        const map = new Map<number, number[]>();
         if (catOps.length === 0) return map;
 
-        proposal.changes.forEach((change, changeIdx) => {
+        changes.forEach((change, changeIdx) => {
             if (!change.category) return;
             const deps: number[] = [];
             catOps.forEach((op, opIdx) => {
@@ -127,16 +146,14 @@ export default function ArtifactChangesCard({
             }
         });
         return map;
-    }, [proposal.changes, catOps]);
+    }, [changes, catOps]);
 
-    // Check if an artifact change has all its category deps met
     const isBlocked = useCallback((changeIdx: number): boolean => {
         const deps = dependencyMap.get(changeIdx);
         if (!deps) return false;
         return deps.some(opIdx => !catChecked.has(opIdx));
     }, [dependencyMap, catChecked]);
 
-    // Get the category name that's blocking an artifact change
     const getBlockingCategory = useCallback((changeIdx: number): string | null => {
         const deps = dependencyMap.get(changeIdx);
         if (!deps) return null;
@@ -151,7 +168,7 @@ export default function ArtifactChangesCard({
     }, [dependencyMap, catChecked, catOps]);
 
     const toggleCheck = (idx: number) => {
-        if (isBlocked(idx)) return; // can't check blocked items
+        if (isBlocked(idx)) return;
         setChecked(prev => {
             const next = new Set(prev);
             if (next.has(idx)) next.delete(idx); else next.add(idx);
@@ -169,21 +186,16 @@ export default function ArtifactChangesCard({
                 next.add(idx);
             }
 
-            // Update dependent artifact changes
             setChecked(prevChecked => {
                 const nextChecked = new Set(prevChecked);
                 dependencyMap.forEach((deps, changeIdx) => {
                     if (!deps.includes(idx)) return;
                     if (wasChecked) {
-                        // Category was unchecked — uncheck dependent artifacts
-                        // (only if ALL their deps are now unmet)
                         const allDepsMet = deps.every(d => d === idx ? false : next.has(d));
                         if (!allDepsMet) {
                             nextChecked.delete(changeIdx);
                         }
                     } else {
-                        // Category was re-checked — re-check dependent artifacts
-                        // (only if all deps are now met)
                         const allDepsMet = deps.every(d => d === idx ? true : next.has(d));
                         if (allDepsMet) {
                             nextChecked.add(changeIdx);
@@ -197,17 +209,60 @@ export default function ArtifactChangesCard({
         });
     };
 
-    const handleAccept = () => {
-        // Filter out any blocked artifact changes (safety check)
-        const selectedChanges = proposal.changes.filter((_, i) => checked.has(i) && !isBlocked(i));
+    /** Build human-readable step labels for each selected operation */
+    const buildStepLabels = useCallback((
+        selectedCatOps: CategoryOperation[],
+        selectedChanges: ArtifactChange[],
+    ): ProgressStep[] => {
+        const steps: ProgressStep[] = [];
+
+        // Category ops
+        for (const op of selectedCatOps) {
+            if (op.action === 'create') {
+                steps.push({ label: `Create category "${op.name}"`, status: 'pending' });
+            } else if (op.action === 'rename') {
+                steps.push({ label: `Rename category "${op.old_name || '#' + op.id}" to "${op.new_name}"`, status: 'pending' });
+            } else if (op.action === 'delete') {
+                steps.push({ label: `Delete category "${op.name || '#' + op.id}"`, status: 'pending' });
+            }
+        }
+
+        // Artifact changes
+        for (const change of selectedChanges) {
+            const existing = change.id ? artifactMap.get(change.id) : undefined;
+            if (change.action === 'create') {
+                steps.push({ label: `Create "${change.title}"`, status: 'pending' });
+            } else if (change.action === 'update') {
+                const name = existing?.title || change.title || `#${change.id}`;
+                steps.push({ label: `Update "${name}"`, status: 'pending' });
+            } else if (change.action === 'delete') {
+                const name = existing?.title || change.title_hint || `#${change.id}`;
+                steps.push({ label: `Delete "${name}"`, status: 'pending' });
+            }
+        }
+
+        // Final refresh step
+        steps.push({ label: 'Refreshing list', status: 'pending' });
+
+        return steps;
+    }, [artifactMap]);
+
+    const handleAccept = async () => {
+        const selectedChanges = changes.filter((_, i) => checked.has(i) && !isBlocked(i));
         const selectedCatOps = catOps.filter((_, i) => catChecked.has(i));
         if (selectedChanges.length === 0 && selectedCatOps.length === 0) return;
-        setAppliedCount(selectedChanges.length + selectedCatOps.length);
-        setIsAccepted(true);
-        onAccept?.({
-            category_operations: selectedCatOps.length > 0 ? selectedCatOps : undefined,
-            changes: selectedChanges,
-        });
+
+        const steps = buildStepLabels(selectedCatOps, selectedChanges);
+        setProgressSteps(steps);
+
+        await onAccept?.(
+            {
+                category_operations: selectedCatOps.length > 0 ? selectedCatOps : undefined,
+                changes: selectedChanges,
+            },
+            steps,
+            (updated) => setProgressSteps([...updated]),
+        );
     };
 
     const handleReject = () => {
@@ -215,13 +270,84 @@ export default function ArtifactChangesCard({
         onReject?.();
     };
 
-    if (isAccepted) {
+    // ── Progress view ──
+    if (progressSteps !== null) {
+        const doneCount = progressSteps.filter(s => s.status === 'done').length;
+        const errorCount = progressSteps.filter(s => s.status === 'error').length;
+        const total = progressSteps.length;
+
         return (
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                <div className="flex items-center gap-2 text-green-800 dark:text-green-200">
-                    <CheckIcon className="h-5 w-5" />
-                    <span className="font-medium">Applied {appliedCount} change{appliedCount !== 1 ? 's' : ''}. List is refreshing.</span>
+            <div className="space-y-3">
+                {/* Progress header */}
+                <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {isComplete
+                            ? errorCount > 0
+                                ? `Completed with ${errorCount} error${errorCount !== 1 ? 's' : ''}`
+                                : 'All changes applied'
+                            : 'Applying changes...'
+                        }
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {doneCount}/{total}
+                    </span>
                 </div>
+
+                {/* Progress bar */}
+                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                        className={`h-full transition-all duration-300 ease-out rounded-full ${errorCount > 0 ? 'bg-amber-500' : 'bg-green-500'}`}
+                        style={{ width: `${((doneCount + errorCount) / total) * 100}%` }}
+                    />
+                </div>
+
+                {/* Step list */}
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                    {progressSteps.map((step, i) => (
+                        <div
+                            key={i}
+                            className={`flex items-center gap-2.5 px-3 py-1.5 rounded text-sm transition-opacity ${
+                                step.status === 'pending' ? 'opacity-40' : ''
+                            }`}
+                        >
+                            <StepIcon status={step.status} />
+                            <span className={`flex-1 min-w-0 truncate ${
+                                step.status === 'done' ? 'text-gray-500 dark:text-gray-400' :
+                                step.status === 'running' ? 'text-gray-900 dark:text-gray-100 font-medium' :
+                                step.status === 'error' ? 'text-red-600 dark:text-red-400' :
+                                'text-gray-400 dark:text-gray-500'
+                            }`}>
+                                {step.label}
+                            </span>
+                            {step.error && (
+                                <span className="text-xs text-red-500 dark:text-red-400 truncate max-w-[200px]" title={step.error}>
+                                    {step.error}
+                                </span>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                {/* Done summary */}
+                {isComplete && (
+                    <div className={`mt-2 p-3 rounded-lg ${
+                        errorCount > 0
+                            ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'
+                            : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                    }`}>
+                        <div className={`flex items-center gap-2 text-sm font-medium ${
+                            errorCount > 0
+                                ? 'text-amber-800 dark:text-amber-200'
+                                : 'text-green-800 dark:text-green-200'
+                        }`}>
+                            <CheckIcon className="h-4 w-4" />
+                            <span>
+                                {doneCount} change{doneCount !== 1 ? 's' : ''} applied
+                                {errorCount > 0 && `, ${errorCount} failed`}
+                            </span>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -237,9 +363,9 @@ export default function ArtifactChangesCard({
         );
     }
 
-    const creates = proposal.changes.filter(c => c.action === 'create');
-    const updates = proposal.changes.filter(c => c.action === 'update');
-    const deletes = proposal.changes.filter(c => c.action === 'delete');
+    const creates = changes.filter(c => c.action === 'create');
+    const updates = changes.filter(c => c.action === 'update');
+    const deletes = changes.filter(c => c.action === 'delete');
     const groups = [
         { label: 'Create', items: creates, action: 'create' as const },
         { label: 'Update', items: updates, action: 'update' as const },
@@ -247,9 +373,9 @@ export default function ArtifactChangesCard({
     ].filter(g => g.items.length > 0);
 
     // Count only non-blocked checked items
-    const effectiveChecked = proposal.changes.filter((_, i) => checked.has(i) && !isBlocked(i)).length;
+    const effectiveChecked = changes.filter((_, i) => checked.has(i) && !isBlocked(i)).length;
     const totalSelected = effectiveChecked + catChecked.size;
-    const totalItems = proposal.changes.length + catOps.length;
+    const totalItems = changes.length + catOps.length;
 
     return (
         <div>
@@ -323,7 +449,7 @@ export default function ArtifactChangesCard({
                             </div>
                             <div className="space-y-1.5">
                                 {group.items.map(change => {
-                                    const globalIdx = proposal.changes.indexOf(change);
+                                    const globalIdx = changes.indexOf(change);
                                     const blocked = isBlocked(globalIdx);
                                     const isChecked = checked.has(globalIdx) && !blocked;
                                     const blockingCat = blocked ? getBlockingCategory(globalIdx) : null;
@@ -364,7 +490,7 @@ export default function ArtifactChangesCard({
             <div className="flex gap-3">
                 <button
                     onClick={handleAccept}
-                    disabled={totalSelected === 0}
+                    disabled={totalSelected === 0 || isExecuting}
                     className="flex-1 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
                 >
                     <CheckIcon className="h-5 w-5" />
@@ -372,7 +498,8 @@ export default function ArtifactChangesCard({
                 </button>
                 <button
                     onClick={handleReject}
-                    className="px-6 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 shadow-sm"
+                    disabled={isExecuting}
+                    className="px-6 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <XMarkIcon className="h-5 w-5" />
                     Reject
@@ -381,6 +508,28 @@ export default function ArtifactChangesCard({
         </div>
     );
 }
+
+// ── Step status icon for progress view ──
+
+function StepIcon({ status }: { status: ProgressStep['status'] }) {
+    if (status === 'done') {
+        return <CheckIcon className="h-4 w-4 flex-shrink-0 text-green-500" />;
+    }
+    if (status === 'error') {
+        return <XMarkIcon className="h-4 w-4 flex-shrink-0 text-red-500" />;
+    }
+    if (status === 'running') {
+        return (
+            <div className="h-4 w-4 flex-shrink-0 flex items-center justify-center">
+                <div className="h-3 w-3 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+    // pending
+    return <div className="h-4 w-4 flex-shrink-0 rounded-full border-2 border-gray-300 dark:border-gray-600" />;
+}
+
+// ── Sub-components ──
 
 function CategoryOpDetail({ op }: { op: CategoryOperation }) {
     if (op.action === 'create') {
@@ -445,10 +594,8 @@ function ChangeDetail({ change, existing }: { change: ArtifactChange; existing?:
     }
 
     if (change.action === 'update') {
-        // Show the artifact title so user knows which item this is
         const displayTitle = existing?.title || change.title || `#${change.id}`;
 
-        // Build field-by-field diffs
         const diffs: { label: string; oldVal: string | null; newVal: string | null }[] = [];
         if (change.title !== undefined && change.title !== existing?.title) {
             diffs.push({ label: 'Title', oldVal: existing?.title ?? null, newVal: change.title });

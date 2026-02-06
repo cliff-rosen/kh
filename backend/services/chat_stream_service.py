@@ -556,7 +556,10 @@ class ChatStreamService:
         llm_payloads = [c for c in payload_configs if c.llm_instructions]
         if llm_payloads:
             payload_instructions = "\n\n".join([c.llm_instructions for c in llm_payloads])
-            parts.append(f"STRUCTURED RESPONSES:\n{payload_instructions}")
+            parts.append(
+                "STRUCTURED RESPONSES (write these as TEXT in your message, NOT as tool calls):\n"
+                + payload_instructions
+            )
 
         # Client Actions
         client_actions = get_client_actions(current_page)

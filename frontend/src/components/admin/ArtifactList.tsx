@@ -3,7 +3,7 @@ import { PlusIcon, TrashIcon, CheckIcon, XMarkIcon, Cog6ToothIcon, ChatBubbleLef
 import { adminApi } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
 import ChatTray from '../chat/ChatTray';
-import ArtifactChangesCard from '../chat/ArtifactChangesCard';
+import ArtifactChangesCard, { type AcceptExecutor } from '../chat/ArtifactChangesCard';
 import type { PayloadHandler } from '../../types/chat';
 import type { Artifact, ArtifactCategory } from '../../types/artifact';
 
@@ -480,32 +480,51 @@ export function ArtifactList() {
         selected_count: selected.size,
     }), [artifacts, categories, filterType, filterStatus, filterCategory, selected.size]);
 
-    const handleApplyArtifactChanges = useCallback(async (data: {
-        category_operations?: Array<{ action: string; id?: number; name?: string; new_name?: string }>;
-        changes: Array<{ action: string; id?: number; title?: string; artifact_type?: string; status?: string; category?: string; description?: string }>;
-    }) => {
-        try {
-            // Phase 1: Apply category operations FIRST
-            if (data.category_operations) {
-                // Batch all creates together
-                const catCreates = data.category_operations.filter(op => op.action === 'create' && op.name);
-                if (catCreates.length > 0) {
-                    await adminApi.bulkCreateArtifactCategories(catCreates.map(op => op.name!));
-                }
-                // Then renames and deletes sequentially
-                for (const op of data.category_operations) {
-                    if (op.action === 'rename' && op.id && op.new_name) {
+    /** Step-by-step executor: processes each operation individually and reports progress */
+    const handleApplyArtifactChanges: AcceptExecutor = useCallback(async (data, steps, onProgress) => {
+        let stepIdx = 0;
+
+        const markRunning = () => {
+            steps[stepIdx].status = 'running';
+            onProgress(steps);
+        };
+        const markDone = () => {
+            steps[stepIdx].status = 'done';
+            onProgress(steps);
+            stepIdx++;
+        };
+        const markError = (err: unknown) => {
+            steps[stepIdx].status = 'error';
+            steps[stepIdx].error = err instanceof Error ? err.message : String(err);
+            onProgress(steps);
+            stepIdx++;
+        };
+
+        // Phase 1: Category operations (each gets its own step)
+        if (data.category_operations) {
+            for (const op of data.category_operations) {
+                markRunning();
+                try {
+                    if (op.action === 'create' && op.name) {
+                        await adminApi.bulkCreateArtifactCategories([op.name]);
+                    } else if (op.action === 'rename' && op.id && op.new_name) {
                         await adminApi.renameArtifactCategory(op.id, op.new_name);
                     } else if (op.action === 'delete' && op.id) {
                         await adminApi.deleteArtifactCategory(op.id);
                     }
+                    markDone();
+                } catch (err) {
+                    markError(err);
                 }
-                // Refresh categories so artifact changes can use them
-                await loadCategories();
             }
+            // Refresh categories so artifact changes can use them
+            await loadCategories();
+        }
 
-            // Phase 2: Apply artifact changes
-            for (const change of data.changes) {
+        // Phase 2: Artifact changes (each gets its own step)
+        for (const change of data.changes) {
+            markRunning();
+            try {
                 if (change.action === 'create') {
                     const created = await adminApi.createArtifact({
                         title: change.title || 'Untitled',
@@ -527,12 +546,20 @@ export function ArtifactList() {
                 } else if (change.action === 'delete' && change.id) {
                     await adminApi.deleteArtifact(change.id);
                 }
+                markDone();
+            } catch (err) {
+                markError(err);
             }
+        }
 
+        // Final step: refresh
+        markRunning();
+        try {
             await loadArtifacts();
             await loadCategories();
+            markDone();
         } catch (err) {
-            setError(handleApiError(err));
+            markError(err);
         }
     }, []);
 
@@ -542,8 +569,8 @@ export function ArtifactList() {
                 <ArtifactChangesCard
                     proposal={payload}
                     existingArtifacts={artifacts}
-                    onAccept={(data) => {
-                        handleApplyArtifactChanges(data);
+                    onAccept={async (data, steps, onProgress) => {
+                        await handleApplyArtifactChanges(data, steps, onProgress);
                         callbacks.onAccept?.(data);
                     }}
                     onReject={callbacks.onReject}

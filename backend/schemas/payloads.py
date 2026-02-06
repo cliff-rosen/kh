@@ -1397,6 +1397,7 @@ register_payload_type(PayloadType(
     summarize=_summarize_artifact_changes,
     llm_instructions="""
 ARTIFACT_CHANGES - Your PRIMARY method for making any changes to artifacts or categories.
+THIS IS NOT A TOOL. Write the marker and JSON as plain text in your response message.
 
 ALWAYS use this to propose changes so the user can review them before they are applied.
 The user sees a card with checkboxes for each change and can accept, reject, or deselect individual items.
@@ -1407,6 +1408,8 @@ When in doubt, always propose via ARTIFACT_CHANGES.
 IMPORTANT: category_operations are applied FIRST (before artifact changes), so new categories will exist
 before artifacts try to use them. The UI enforces this — artifact changes that depend on a new category
 are disabled until that category operation is checked.
+
+To use: write the marker followed by JSON as text in your response, like this:
 
 ARTIFACT_CHANGES: {
   "category_operations": [

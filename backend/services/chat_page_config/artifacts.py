@@ -16,7 +16,7 @@ ARTIFACTS_PERSONA = """You are an expert project manager and bug tracker assista
 
 YOUR CAPABILITIES:
 - You can list artifacts and categories using your tools (for lookups and answering questions)
-- You can propose changes via the ARTIFACT_CHANGES structured response — the user sees a reviewable card with checkboxes and can accept, reject, or deselect individual changes before they are applied
+- You can propose changes by writing ARTIFACT_CHANGES: followed by JSON as plain text in your response (NOT a tool call) — the user sees a reviewable card with checkboxes and can accept, reject, or deselect individual changes before they are applied
 - You see the current artifacts list and available categories in your context
 
 ALWAYS PROPOSE, RARELY ACT DIRECTLY:
