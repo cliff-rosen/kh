@@ -12,7 +12,7 @@ import type {
   StreamSubscriptionStatus
 } from '../../types/organization';
 import type { User, UserList } from '../../types/user';
-import type { Artifact } from '../../types/artifact';
+import type { Artifact, ArtifactCategory } from '../../types/artifact';
 
 // Import ResearchStream type from existing types
 interface ResearchStream {
@@ -443,6 +443,33 @@ export const adminApi = {
    */
   async deleteArtifact(id: number): Promise<void> {
     await api.delete(`/api/admin/artifacts/${id}`);
+  },
+
+  // ==================== Artifact Bulk Operations ====================
+
+  async bulkUpdateArtifacts(ids: number[], data: { status?: string; category?: string }): Promise<{ updated: number }> {
+    const response = await api.post('/api/admin/artifacts/bulk-update', { ids, ...data });
+    return response.data;
+  },
+
+  async bulkDeleteArtifacts(ids: number[]): Promise<void> {
+    await api.post('/api/admin/artifacts/bulk-delete', { ids });
+  },
+
+  // ==================== Artifact Categories ====================
+
+  async getArtifactCategories(): Promise<ArtifactCategory[]> {
+    const response = await api.get('/api/admin/artifact-categories');
+    return response.data;
+  },
+
+  async createArtifactCategory(name: string): Promise<ArtifactCategory> {
+    const response = await api.post('/api/admin/artifact-categories', { name });
+    return response.data;
+  },
+
+  async deleteArtifactCategory(id: number): Promise<void> {
+    await api.delete(`/api/admin/artifact-categories/${id}`);
   },
 };
 

@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
-from models import Artifact, ArtifactType, ArtifactStatus
+from models import Artifact, ArtifactCategory, ArtifactType, ArtifactStatus
 from database import get_async_db
 
 logger = logging.getLogger(__name__)
@@ -109,6 +109,59 @@ class ArtifactService:
         await self.db.delete(artifact)
         await self.db.commit()
         return title
+
+
+    async def bulk_update_artifacts(
+        self,
+        artifact_ids: List[int],
+        status: Optional[str] = None,
+        category: Optional[str] = None,
+    ) -> int:
+        """Bulk update status and/or category for multiple artifacts. Returns count updated."""
+        if not artifact_ids:
+            return 0
+
+        stmt = select(Artifact).where(Artifact.id.in_(artifact_ids))
+        result = await self.db.execute(stmt)
+        artifacts = list(result.scalars().all())
+
+        for artifact in artifacts:
+            if status is not None:
+                artifact.status = ArtifactStatus(status)
+            if category is not None:
+                artifact.category = category if category != '' else None
+
+        await self.db.commit()
+        return len(artifacts)
+
+    # ==================== Category Management ====================
+
+    async def list_categories(self) -> List[ArtifactCategory]:
+        """List all artifact categories, sorted by name."""
+        stmt = select(ArtifactCategory).order_by(ArtifactCategory.name)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def create_category(self, name: str) -> ArtifactCategory:
+        """Create a new artifact category."""
+        cat = ArtifactCategory(name=name.strip())
+        self.db.add(cat)
+        await self.db.commit()
+        await self.db.refresh(cat)
+        return cat
+
+    async def delete_category(self, category_id: int) -> Optional[str]:
+        """Delete a category by ID. Returns the name if deleted, None if not found."""
+        result = await self.db.execute(
+            select(ArtifactCategory).where(ArtifactCategory.id == category_id)
+        )
+        cat = result.scalars().first()
+        if not cat:
+            return None
+        name = cat.name
+        await self.db.delete(cat)
+        await self.db.commit()
+        return name
 
 
 async def get_artifact_service(

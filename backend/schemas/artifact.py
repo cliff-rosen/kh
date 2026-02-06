@@ -5,8 +5,18 @@ Mirrors frontend types/artifact.ts for easy cross-reference.
 """
 
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
+
+
+class ArtifactCategory(BaseModel):
+    """Artifact category domain object."""
+    id: int
+    name: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 class Artifact(BaseModel):

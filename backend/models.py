@@ -102,6 +102,7 @@ class ArtifactStatus(str, PyEnum):
     """Status of an artifact"""
     OPEN = "open"
     IN_PROGRESS = "in_progress"
+    BACKBURNER = "backburner"
     CLOSED = "closed"
 
 
@@ -873,6 +874,15 @@ class UserArticleStar(Base):
     user = relationship("User", back_populates="article_stars")
     report = relationship("Report")
     article = relationship("Article")
+
+
+class ArtifactCategory(Base):
+    """Managed categories for organizing artifacts"""
+    __tablename__ = "artifact_categories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, unique=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Artifact(Base):

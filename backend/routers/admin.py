@@ -17,7 +17,7 @@ from models import User, UserRole, ChatConfig
 from services import auth_service
 from services.organization_service import OrganizationService, get_organization_service
 from services.artifact_service import ArtifactService, get_artifact_service
-from schemas.artifact import Artifact as ArtifactSchema
+from schemas.artifact import Artifact as ArtifactSchema, ArtifactCategory as ArtifactCategorySchema
 from services.user_service import UserService, get_user_service
 from services.subscription_service import SubscriptionService, get_subscription_service
 from services.invitation_service import InvitationService, get_invitation_service
@@ -1497,6 +1497,95 @@ async def update_system_config_endpoint(
 # ==================== Artifact Management ====================
 
 
+# --- Artifact Categories ---
+
+
+class ArtifactCategoryCreate(BaseModel):
+    """Request schema for creating an artifact category."""
+    name: str = Field(..., min_length=1, max_length=100, description="Category name")
+
+
+@router.get(
+    "/artifact-categories",
+    response_model=List[ArtifactCategorySchema],
+    summary="List all artifact categories",
+)
+async def list_artifact_categories(
+    current_user: User = Depends(require_platform_admin),
+    artifact_service: ArtifactService = Depends(get_artifact_service),
+):
+    """Get all artifact categories. Platform admin only."""
+    try:
+        cats = await artifact_service.list_categories()
+        return [ArtifactCategorySchema.model_validate(c, from_attributes=True) for c in cats]
+    except Exception as e:
+        logger.error(f"list_artifact_categories failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list artifact categories: {str(e)}",
+        )
+
+
+@router.post(
+    "/artifact-categories",
+    response_model=ArtifactCategorySchema,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create an artifact category",
+)
+async def create_artifact_category(
+    data: ArtifactCategoryCreate,
+    current_user: User = Depends(require_platform_admin),
+    artifact_service: ArtifactService = Depends(get_artifact_service),
+):
+    """Create a new artifact category. Platform admin only."""
+    try:
+        cat = await artifact_service.create_category(name=data.name)
+        return ArtifactCategorySchema.model_validate(cat, from_attributes=True)
+    except Exception as e:
+        logger.error(f"create_artifact_category failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create artifact category: {str(e)}",
+        )
+
+
+@router.delete(
+    "/artifact-categories/{category_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete an artifact category",
+)
+async def delete_artifact_category(
+    category_id: int,
+    current_user: User = Depends(require_platform_admin),
+    artifact_service: ArtifactService = Depends(get_artifact_service),
+):
+    """Delete an artifact category by ID. Platform admin only."""
+    try:
+        name = await artifact_service.delete_category(category_id)
+        if not name:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Category not found"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"delete_artifact_category failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete artifact category: {str(e)}",
+        )
+
+
+# --- Artifacts ---
+
+
+class ArtifactBulkUpdate(BaseModel):
+    """Request schema for bulk-updating artifacts."""
+    ids: List[int] = Field(..., min_length=1, description="Artifact IDs to update")
+    status: Optional[str] = Field(None, description="New status for all")
+    category: Optional[str] = Field(None, description="New category for all (empty string to clear)")
+
+
 class ArtifactCreate(BaseModel):
     """Request schema for creating an artifact."""
 
@@ -1694,4 +1783,66 @@ async def delete_artifact(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete artifact: {str(e)}",
+        )
+
+
+@router.post(
+    "/artifacts/bulk-update",
+    summary="Bulk update artifacts",
+)
+async def bulk_update_artifacts(
+    data: ArtifactBulkUpdate,
+    current_user: User = Depends(require_platform_admin),
+    artifact_service: ArtifactService = Depends(get_artifact_service),
+):
+    """Bulk update status and/or category for multiple artifacts. Platform admin only."""
+    logger.info(
+        f"bulk_update_artifacts - admin_user_id={current_user.user_id}, ids={data.ids}, status={data.status}, category={data.category}"
+    )
+
+    try:
+        count = await artifact_service.bulk_update_artifacts(
+            artifact_ids=data.ids,
+            status=data.status,
+            category=data.category,
+        )
+        return {"updated": count}
+
+    except Exception as e:
+        logger.error(f"bulk_update_artifacts failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to bulk update artifacts: {str(e)}",
+        )
+
+
+class ArtifactBulkDelete(BaseModel):
+    """Request schema for bulk-deleting artifacts."""
+    ids: List[int] = Field(..., min_length=1, description="Artifact IDs to delete")
+
+
+@router.post(
+    "/artifacts/bulk-delete",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Bulk delete artifacts",
+)
+async def bulk_delete_artifacts(
+    data: ArtifactBulkDelete,
+    current_user: User = Depends(require_platform_admin),
+    artifact_service: ArtifactService = Depends(get_artifact_service),
+):
+    """Bulk delete multiple artifacts by ID. Platform admin only."""
+    logger.info(
+        f"bulk_delete_artifacts - admin_user_id={current_user.user_id}, ids={data.ids}"
+    )
+
+    try:
+        for artifact_id in data.ids:
+            await artifact_service.delete_artifact(artifact_id)
+
+    except Exception as e:
+        logger.error(f"bulk_delete_artifacts failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to bulk delete artifacts: {str(e)}",
         )

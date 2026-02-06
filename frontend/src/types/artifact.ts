@@ -4,6 +4,12 @@
  * Mirrors backend schemas/artifact.py for easy cross-reference.
  */
 
+export interface ArtifactCategory {
+  id: number;
+  name: string;
+  created_at: string;
+}
+
 export interface Artifact {
   id: number;
   title: string;
