@@ -519,7 +519,7 @@ class ChatStreamService:
             sections.append(f"== CONVERSATION DATA ==\n{payload_manifest}")
 
         # 6. CAPABILITIES (tools + payloads + client actions)
-        capabilities = self._build_capabilities_section(current_page, active_tab, active_subtab)
+        capabilities = self._build_capabilities_section(current_page, active_tab, active_subtab, user_role=user_role)
         if capabilities:
             sections.append(f"== CAPABILITIES ==\n{capabilities}")
 
@@ -537,7 +537,8 @@ class ChatStreamService:
         self,
         current_page: str,
         active_tab: Optional[str],
-        active_subtab: Optional[str]
+        active_subtab: Optional[str],
+        user_role: Optional[str] = None
     ) -> str:
         """Build capabilities section listing available tools, payloads, and client actions."""
         from tools.registry import get_tools_for_page
@@ -545,7 +546,7 @@ class ChatStreamService:
         parts = []
 
         # Tools
-        tools = get_tools_for_page(current_page, active_tab, active_subtab)
+        tools = get_tools_for_page(current_page, active_tab, active_subtab, user_role=user_role)
         if tools:
             tool_lines = [f"- {t.name}: {t.description}" for t in tools]
             parts.append("TOOLS:\n" + "\n".join(tool_lines))
