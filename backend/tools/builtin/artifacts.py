@@ -113,9 +113,9 @@ async def execute_create_artifact(
     if not title:
         return "Error: title is required."
     if not artifact_type:
-        return "Error: type is required (must be 'bug' or 'feature')."
-    if artifact_type not in ("bug", "feature"):
-        return "Error: type must be 'bug' or 'feature'."
+        return "Error: type is required (must be 'bug', 'feature', or 'task')."
+    if artifact_type not in ("bug", "feature", "task"):
+        return "Error: type must be 'bug', 'feature', or 'task'."
 
     try:
         service = ArtifactService(db)
@@ -160,8 +160,8 @@ async def execute_update_artifact(
         if params["status"] not in ("open", "in_progress", "backburner", "closed"):
             return "Error: status must be 'open', 'in_progress', 'backburner', or 'closed'."
     if "type" in params and params["type"]:
-        if params["type"] not in ("bug", "feature"):
-            return "Error: type must be 'bug' or 'feature'."
+        if params["type"] not in ("bug", "feature", "task"):
+            return "Error: type must be 'bug', 'feature', or 'task'."
 
     try:
         service = ArtifactService(db)
@@ -379,13 +379,13 @@ async def execute_delete_artifact_category(
 
 register_tool(ToolConfig(
     name="list_artifacts",
-    description="List all bugs and feature requests. Optionally filter by type (bug/feature), status (open/in_progress/backburner/closed), and category.",
+    description="List all bugs, feature requests, and tasks. Optionally filter by type (bug/feature/task), status (open/in_progress/backburner/closed), and category.",
     input_schema={
         "type": "object",
         "properties": {
             "type": {
                 "type": "string",
-                "enum": ["bug", "feature"],
+                "enum": ["bug", "feature", "task"],
                 "description": "Filter by artifact type."
             },
             "status": {
@@ -407,18 +407,18 @@ register_tool(ToolConfig(
 
 register_tool(ToolConfig(
     name="create_artifact",
-    description="Create a new bug report or feature request. Provide a title, type (bug or feature), and optional description and category.",
+    description="Create a new bug report, feature request, or task. Provide a title, type (bug, feature, or task), and optional description and category.",
     input_schema={
         "type": "object",
         "properties": {
             "title": {
                 "type": "string",
-                "description": "Title of the bug or feature request."
+                "description": "Title of the artifact."
             },
             "type": {
                 "type": "string",
-                "enum": ["bug", "feature"],
-                "description": "Type: 'bug' or 'feature'."
+                "enum": ["bug", "feature", "task"],
+                "description": "Type: 'bug', 'feature', or 'task'."
             },
             "description": {
                 "type": "string",
@@ -439,7 +439,7 @@ register_tool(ToolConfig(
 
 register_tool(ToolConfig(
     name="update_artifact",
-    description="Update an existing bug or feature request. You can change the title, description, status, type, or category.",
+    description="Update an existing artifact (bug, feature, or task). You can change the title, description, status, type, or category.",
     input_schema={
         "type": "object",
         "properties": {
@@ -462,7 +462,7 @@ register_tool(ToolConfig(
             },
             "type": {
                 "type": "string",
-                "enum": ["bug", "feature"],
+                "enum": ["bug", "feature", "task"],
                 "description": "New type (optional)."
             },
             "category": {
@@ -480,7 +480,7 @@ register_tool(ToolConfig(
 
 register_tool(ToolConfig(
     name="delete_artifact",
-    description="Delete a bug or feature request by its ID.",
+    description="Delete an artifact (bug, feature, or task) by its ID.",
     input_schema={
         "type": "object",
         "properties": {

@@ -34,7 +34,7 @@ IMPORTANT - CATEGORIES:
 
 ARTIFACT FIELDS:
 - title: Short descriptive name
-- type: "bug" (defects, issues) or "feature" (enhancements, requests)
+- type: "bug" (defects, issues), "feature" (enhancements, requests), or "task" (general work items)
 - status: "open" (new/active), "in_progress" (being worked on), "backburner" (deprioritized), "closed" (done/resolved)
 - category: Optional grouping label (e.g., "UI", "Backend", "Performance")
 - description: Optional detailed text
@@ -61,7 +61,7 @@ def build_context(context: Dict[str, Any]) -> str:
 Current status: No artifacts found (may be filtered).
 
 WHAT ARE ARTIFACTS:
-Artifacts are bugs and feature requests tracked by platform admins. Each has a type (bug/feature),
+Artifacts are bugs, feature requests, and tasks tracked by platform admins. Each has a type (bug/feature/task),
 status (open, in_progress, backburner, closed), an optional category for grouping, and a description.
 
 You can help the user:
