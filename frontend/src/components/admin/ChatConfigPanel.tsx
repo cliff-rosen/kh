@@ -736,7 +736,7 @@ export function ChatConfigPanel() {
                                                         <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
                                                             Page Persona
                                                         </h4>
-                                                        <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 max-h-48 overflow-y-auto">
+                                                        <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
                                                             <pre className="text-xs font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400">
                                                                 {identityInfo.has_override
                                                                     ? identityInfo.content
@@ -2312,31 +2312,6 @@ export function ChatConfigPanel() {
 }
 
 // Helper Components
-
-function SummaryCard({ icon: Icon, label, value, details, isText = false }: {
-    icon: React.ComponentType<{ className?: string }>;
-    label: string;
-    value: string | number;
-    details: string;
-    isText?: boolean;
-}) {
-    return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-            <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                    <Icon className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">{label}</div>
-                    <div className={`font-semibold text-gray-900 dark:text-white ${isText ? 'text-sm' : 'text-2xl'}`}>
-                        {value}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{details}</div>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 function StatusIcon({ active }: { active: boolean }) {
     return active ? (
