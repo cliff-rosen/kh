@@ -1396,13 +1396,17 @@ register_payload_type(PayloadType(
     parser=make_json_parser("artifact_changes"),
     summarize=_summarize_artifact_changes,
     llm_instructions="""
-ARTIFACT_CHANGES - Use when the user asks to reorganize, re-categorize, or batch-modify multiple artifacts at once.
+ARTIFACT_CHANGES - Your PRIMARY method for making any changes to artifacts or categories.
 
-When you output this payload, the user will see a reviewable card with checkboxes for each proposed change.
-They can accept or reject individual changes before applying.
+ALWAYS use this to propose changes so the user can review them before they are applied.
+The user sees a card with checkboxes for each change and can accept, reject, or deselect individual items.
+
+Only skip this for trivially simple, single-item operations the user explicitly requested (e.g., "delete #42").
+When in doubt, always propose via ARTIFACT_CHANGES.
 
 IMPORTANT: category_operations are applied FIRST (before artifact changes), so new categories will exist
-before artifacts try to use them.
+before artifacts try to use them. The UI enforces this — artifact changes that depend on a new category
+are disabled until that category operation is checked.
 
 ARTIFACT_CHANGES: {
   "category_operations": [
@@ -1438,8 +1442,7 @@ ARTIFACT_CHANGES: {
 }
 
 Guidelines:
-- Only propose bulk changes when the user explicitly asks to reorganize, re-categorize, or batch-modify
-- For single-item changes, use the individual tools instead
+- This is the preferred way to make changes — always propose, let the user decide
 - Include reasoning to explain your proposal
 - If artifact changes need NEW categories, include them in category_operations
 - For updates, only include fields that are actually changing

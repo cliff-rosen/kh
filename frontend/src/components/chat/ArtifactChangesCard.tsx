@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { CheckIcon, XMarkIcon, PlusIcon, PencilIcon, TrashIcon, TagIcon } from '@heroicons/react/24/solid';
+import { useState, useMemo, useCallback } from 'react';
+import { CheckIcon, XMarkIcon, PlusIcon, PencilIcon, TrashIcon, TagIcon, ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 
 interface CategoryOperation {
     action: 'create' | 'rename' | 'delete';
@@ -88,7 +88,54 @@ export default function ArtifactChangesCard({
     const [isRejected, setIsRejected] = useState(false);
     const [appliedCount, setAppliedCount] = useState(0);
 
+    // Build dependency map: for each artifact change index, which catOp indices it depends on.
+    // An artifact depends on a category op if:
+    //   - The artifact's category matches a "create" op's name
+    //   - The artifact's category matches a "rename" op's new_name
+    const dependencyMap = useMemo(() => {
+        const map = new Map<number, number[]>(); // artifact index -> catOp indices
+        if (catOps.length === 0) return map;
+
+        proposal.changes.forEach((change, changeIdx) => {
+            if (!change.category) return;
+            const deps: number[] = [];
+            catOps.forEach((op, opIdx) => {
+                if (op.action === 'create' && op.name === change.category) {
+                    deps.push(opIdx);
+                } else if (op.action === 'rename' && op.new_name === change.category) {
+                    deps.push(opIdx);
+                }
+            });
+            if (deps.length > 0) {
+                map.set(changeIdx, deps);
+            }
+        });
+        return map;
+    }, [proposal.changes, catOps]);
+
+    // Check if an artifact change has all its category deps met
+    const isBlocked = useCallback((changeIdx: number): boolean => {
+        const deps = dependencyMap.get(changeIdx);
+        if (!deps) return false;
+        return deps.some(opIdx => !catChecked.has(opIdx));
+    }, [dependencyMap, catChecked]);
+
+    // Get the category name that's blocking an artifact change
+    const getBlockingCategory = useCallback((changeIdx: number): string | null => {
+        const deps = dependencyMap.get(changeIdx);
+        if (!deps) return null;
+        for (const opIdx of deps) {
+            if (!catChecked.has(opIdx)) {
+                const op = catOps[opIdx];
+                if (op.action === 'create') return op.name || 'new category';
+                if (op.action === 'rename') return op.new_name || 'renamed category';
+            }
+        }
+        return null;
+    }, [dependencyMap, catChecked, catOps]);
+
     const toggleCheck = (idx: number) => {
+        if (isBlocked(idx)) return; // can't check blocked items
         setChecked(prev => {
             const next = new Set(prev);
             if (next.has(idx)) next.delete(idx); else next.add(idx);
@@ -99,13 +146,44 @@ export default function ArtifactChangesCard({
     const toggleCatCheck = (idx: number) => {
         setCatChecked(prev => {
             const next = new Set(prev);
-            if (next.has(idx)) next.delete(idx); else next.add(idx);
+            const wasChecked = next.has(idx);
+            if (wasChecked) {
+                next.delete(idx);
+            } else {
+                next.add(idx);
+            }
+
+            // Update dependent artifact changes
+            setChecked(prevChecked => {
+                const nextChecked = new Set(prevChecked);
+                dependencyMap.forEach((deps, changeIdx) => {
+                    if (!deps.includes(idx)) return;
+                    if (wasChecked) {
+                        // Category was unchecked — uncheck dependent artifacts
+                        // (only if ALL their deps are now unmet)
+                        const allDepsMet = deps.every(d => d === idx ? false : next.has(d));
+                        if (!allDepsMet) {
+                            nextChecked.delete(changeIdx);
+                        }
+                    } else {
+                        // Category was re-checked — re-check dependent artifacts
+                        // (only if all deps are now met)
+                        const allDepsMet = deps.every(d => d === idx ? true : next.has(d));
+                        if (allDepsMet) {
+                            nextChecked.add(changeIdx);
+                        }
+                    }
+                });
+                return nextChecked;
+            });
+
             return next;
         });
     };
 
     const handleAccept = () => {
-        const selectedChanges = proposal.changes.filter((_, i) => checked.has(i));
+        // Filter out any blocked artifact changes (safety check)
+        const selectedChanges = proposal.changes.filter((_, i) => checked.has(i) && !isBlocked(i));
         const selectedCatOps = catOps.filter((_, i) => catChecked.has(i));
         if (selectedChanges.length === 0 && selectedCatOps.length === 0) return;
         setAppliedCount(selectedChanges.length + selectedCatOps.length);
@@ -152,7 +230,9 @@ export default function ArtifactChangesCard({
         { label: 'Delete', items: deletes, action: 'delete' as const },
     ].filter(g => g.items.length > 0);
 
-    const totalSelected = checked.size + catChecked.size;
+    // Count only non-blocked checked items
+    const effectiveChecked = proposal.changes.filter((_, i) => checked.has(i) && !isBlocked(i)).length;
+    const totalSelected = effectiveChecked + catChecked.size;
     const totalItems = proposal.changes.length + catOps.length;
 
     return (
@@ -228,23 +308,32 @@ export default function ArtifactChangesCard({
                             <div className="space-y-1.5">
                                 {group.items.map(change => {
                                     const globalIdx = proposal.changes.indexOf(change);
-                                    const isChecked = checked.has(globalIdx);
+                                    const blocked = isBlocked(globalIdx);
+                                    const isChecked = checked.has(globalIdx) && !blocked;
+                                    const blockingCat = blocked ? getBlockingCategory(globalIdx) : null;
                                     const Icon = style.icon;
 
                                     return (
                                         <label
                                             key={globalIdx}
-                                            className={`flex items-start gap-3 p-3 rounded-lg border-l-4 ${style.border} ${style.bg} cursor-pointer transition-opacity ${!isChecked ? 'opacity-50' : ''}`}
+                                            className={`flex items-start gap-3 p-3 rounded-lg border-l-4 ${style.border} ${style.bg} transition-opacity ${blocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${!isChecked && !blocked ? 'opacity-50' : ''}`}
                                         >
                                             <input
                                                 type="checkbox"
                                                 checked={isChecked}
                                                 onChange={() => toggleCheck(globalIdx)}
-                                                className="mt-0.5 rounded text-purple-600 focus:ring-purple-500"
+                                                disabled={blocked}
+                                                className="mt-0.5 rounded text-purple-600 focus:ring-purple-500 disabled:opacity-50"
                                             />
                                             <Icon className={`h-4 w-4 mt-0.5 flex-shrink-0 ${style.iconColor}`} />
                                             <div className="flex-1 min-w-0">
                                                 <ChangeDetail change={change} />
+                                                {blocked && blockingCat && (
+                                                    <div className="flex items-center gap-1 mt-1 text-xs text-amber-600 dark:text-amber-400">
+                                                        <ExclamationTriangleIcon className="h-3 w-3 flex-shrink-0" />
+                                                        <span>Requires category: {blockingCat}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         </label>
                                     );
