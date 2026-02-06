@@ -25,11 +25,6 @@ class ToggleStarResponse(BaseModel):
     is_starred: bool
 
 
-class StarredArticleIdsResponse(BaseModel):
-    """Response containing list of starred article IDs"""
-    starred_article_ids: List[int]
-
-
 class StarredCountResponse(BaseModel):
     """Response containing count of starred articles"""
     count: int
@@ -110,38 +105,6 @@ async def toggle_star(
     except Exception as e:
         logger.error(f"toggle_star failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to toggle star: {str(e)}")
-
-
-@router.get("/reports/{report_id}", response_model=StarredArticleIdsResponse)
-async def get_starred_for_report(
-    report_id: int,
-    starring_service: StarringService = Depends(get_starring_service),
-    report_service: ReportService = Depends(get_report_service),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get list of starred article IDs for the current user in a specific report.
-    """
-    logger.info(f"get_starred_for_report - user_id={current_user.user_id}, report_id={report_id}")
-
-    try:
-        # Verify user has access to the report
-        await report_service.get_report_with_access(report_id, current_user.user_id)
-
-        # Get starred article IDs
-        starred_ids = await starring_service.get_starred_for_report(
-            user_id=current_user.user_id,
-            report_id=report_id
-        )
-
-        logger.info(f"get_starred_for_report complete - count={len(starred_ids)}")
-        return StarredArticleIdsResponse(starred_article_ids=starred_ids)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"get_starred_for_report failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get starred articles: {str(e)}")
 
 
 @router.get("/streams/{stream_id}", response_model=ReportArticlesResponse)

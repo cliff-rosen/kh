@@ -11,14 +11,6 @@ export const starringApi = {
     },
 
     /**
-     * Get list of starred article IDs for a specific report
-     */
-    async getStarredForReport(reportId: number): Promise<{ starred_article_ids: number[] }> {
-        const response = await api.get(`/api/stars/reports/${reportId}`);
-        return response.data;
-    },
-
-    /**
      * Get all starred articles for a specific stream
      */
     async getStarredForStream(streamId: number): Promise<{ articles: ReportArticle[] }> {

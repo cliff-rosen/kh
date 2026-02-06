@@ -103,9 +103,6 @@ export default function ReportsPage() {
     const [articleViewerInitialIndex, setArticleViewerInitialIndex] = useState(0);
     const [articleViewerIsFiltered, setArticleViewerIsFiltered] = useState(false);
 
-    // Starring state - tracks which articles are starred for the current user
-    const [starredArticleIds, setStarredArticleIds] = useState<Set<number>>(new Set());
-
     // Favorites view state
     const [showingFavorites, setShowingFavorites] = useState(false);
     const [streamFavorites, setStreamFavorites] = useState<ReportArticle[]>([]);
@@ -114,17 +111,6 @@ export default function ReportsPage() {
 
     const hasStreams = researchStreams.length > 0;
     const hasPipelineData = selectedReport?.pipeline_execution_id != null;
-
-    // Load starred articles when report changes
-    const loadStarredArticles = useCallback(async (reportId: number) => {
-        try {
-            const response = await starringApi.getStarredForReport(reportId);
-            setStarredArticleIds(new Set(response.starred_article_ids));
-        } catch (err) {
-            console.error('Failed to load starred articles:', err);
-            // Non-critical failure, just log
-        }
-    }, []);
 
     // Load favorites for the current stream
     const loadStreamFavorites = useCallback(async (streamId: number) => {
@@ -158,15 +144,25 @@ export default function ReportsPage() {
 
         try {
             const response = await starringApi.toggleStar(reportId, articleId);
-            setStarredArticleIds(prev => {
-                const next = new Set(prev);
-                if (response.is_starred) {
-                    next.add(articleId);
-                } else {
-                    next.delete(articleId);
-                }
-                return next;
-            });
+
+            // Update is_starred on the article in selectedReport
+            if (selectedReport) {
+                setSelectedReport(prev => prev ? {
+                    ...prev,
+                    articles: prev.articles?.map(article =>
+                        article.article_id === articleId
+                            ? { ...article, is_starred: response.is_starred }
+                            : article
+                    )
+                } : null);
+            }
+
+            // Update is_starred in articleViewerArticles (for modal)
+            setArticleViewerArticles(prev => prev.map(article =>
+                article.article_id === articleId
+                    ? { ...article, is_starred: response.is_starred }
+                    : article
+            ));
 
             // Update favorites count
             setStreamFavoritesCount(prev => response.is_starred ? prev + 1 : Math.max(0, prev - 1));
@@ -302,12 +298,9 @@ export default function ReportsPage() {
         setLoadingReportDetails(true);
         setCollapsedCategories(new Set());
         setExecutiveSummaryCollapsed(false);
-        setStarredArticleIds(new Set()); // Clear while loading
         try {
             const reportDetails = await reportApi.getReportWithArticles(reportId);
             setSelectedReport(reportDetails);
-            // Load starred articles for this report
-            loadStarredArticles(reportId);
         } catch (err) {
             showErrorToast(err, 'Failed to load report');
         } finally {
@@ -629,7 +622,7 @@ export default function ReportsPage() {
                                                             article={article}
                                                             cardFormat={cardFormat}
                                                             onClick={() => openArticleViewer(selectedReport.articles, fullIndex)}
-                                                            isStarred={starredArticleIds.has(article.article_id)}
+                                                            isStarred={article.is_starred ?? false}
                                                             onToggleStar={() => handleToggleStar(article.article_id)}
                                                         />
                                                     );
@@ -658,7 +651,7 @@ export default function ReportsPage() {
                             article={article}
                             cardFormat={cardFormat}
                             onClick={() => openArticleViewer(selectedReport.articles, idx)}
-                            isStarred={starredArticleIds.has(article.article_id)}
+                            isStarred={article.is_starred ?? false}
                             onToggleStar={() => handleToggleStar(article.article_id)}
                         />
                     ))}
@@ -983,7 +976,6 @@ export default function ReportsPage() {
                         onArticleUpdate={handleArticleUpdate}
                         isFiltered={articleViewerIsFiltered}
                         reportTitle={selectedReport?.report_name}
-                        starredArticleIds={starredArticleIds}
                         onToggleStar={handleToggleStar}
                     />
                 )}
