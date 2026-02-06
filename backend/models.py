@@ -894,13 +894,19 @@ class Artifact(Base):
     description = Column(Text, nullable=True)
     artifact_type = Column(Enum(ArtifactType, values_callable=lambda x: [e.value for e in x], name='artifacttype'), nullable=False)
     status = Column(Enum(ArtifactStatus, values_callable=lambda x: [e.value for e in x], name='artifactstatus'), nullable=False, default=ArtifactStatus.OPEN)
-    category = Column(String(100), nullable=True)
+    category_id = Column(Integer, ForeignKey("artifact_categories.id", ondelete="SET NULL"), nullable=True, index=True)
     created_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     creator = relationship("User")
+    category_rel = relationship("ArtifactCategory", lazy="joined")
+
+    @property
+    def category(self):
+        """Return category name for API compatibility."""
+        return self.category_rel.name if self.category_rel else None
 
 
 # Add relationships to User model

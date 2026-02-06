@@ -285,10 +285,15 @@ export function ArtifactList() {
     };
 
     const handleDeleteCategory = async (id: number) => {
-        if (!confirm('Delete this category? Artifacts using it will keep their current category text.')) return;
+        if (!confirm('Delete this category? Artifacts using it will become uncategorized.')) return;
         try {
-            await adminApi.deleteArtifactCategory(id);
+            const result = await adminApi.deleteArtifactCategory(id);
+            if (result.affected_count > 0) {
+                setError(null);
+                alert(`Deleted '${result.name}'. ${result.affected_count} artifact(s) are now uncategorized.`);
+            }
             await loadCategories();
+            await loadArtifacts();
         } catch (err) {
             setError(handleApiError(err));
         }

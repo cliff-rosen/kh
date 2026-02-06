@@ -1591,7 +1591,6 @@ async def bulk_create_artifact_categories(
 
 @router.delete(
     "/artifact-categories/{category_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete an artifact category",
 )
 async def delete_artifact_category(
@@ -1599,13 +1598,15 @@ async def delete_artifact_category(
     current_user: User = Depends(require_platform_admin),
     artifact_service: ArtifactService = Depends(get_artifact_service),
 ):
-    """Delete an artifact category by ID. Platform admin only."""
+    """Delete an artifact category by ID. Returns affected artifact count. Platform admin only."""
     try:
-        name = await artifact_service.delete_category(category_id)
-        if not name:
+        result = await artifact_service.delete_category(category_id)
+        if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Category not found"
             )
+        name, affected_count = result
+        return {"name": name, "affected_count": affected_count}
     except HTTPException:
         raise
     except Exception as e:
@@ -1627,7 +1628,7 @@ async def rename_artifact_category(
     current_user: User = Depends(require_platform_admin),
     artifact_service: ArtifactService = Depends(get_artifact_service),
 ):
-    """Rename an artifact category. Also updates all artifacts using the old name. Platform admin only."""
+    """Rename an artifact category. Artifacts reference by FK so they automatically reflect the new name. Platform admin only."""
     try:
         cat = await artifact_service.rename_category(category_id, new_name=data.name)
         if not cat:
@@ -1770,6 +1771,8 @@ async def create_artifact(
         logger.info(f"create_artifact complete - artifact_id={artifact.id}")
         return ArtifactSchema.model_validate(artifact, from_attributes=True)
 
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -1812,6 +1815,8 @@ async def update_artifact(
         logger.info(f"update_artifact complete - artifact_id={artifact_id}")
         return ArtifactSchema.model_validate(artifact, from_attributes=True)
 
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -1877,6 +1882,8 @@ async def bulk_update_artifacts(
         )
         return {"updated": count}
 
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"bulk_update_artifacts failed: {e}", exc_info=True)
         raise HTTPException(

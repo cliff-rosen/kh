@@ -5,9 +5,9 @@ Service for managing bugs and feature requests (platform admin defect tracker).
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
@@ -23,6 +23,18 @@ class ArtifactService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _resolve_category_id(self, category_name: Optional[str]) -> Optional[int]:
+        """Resolve a category name to its ID. Returns None if name is empty/None."""
+        if not category_name or category_name.strip() == '':
+            return None
+        result = await self.db.execute(
+            select(ArtifactCategory.id).where(ArtifactCategory.name == category_name.strip())
+        )
+        cat_id = result.scalar_one_or_none()
+        if cat_id is None:
+            raise ValueError(f"Category '{category_name}' not found")
+        return cat_id
+
     async def list_artifacts(
         self,
         artifact_type: Optional[str] = None,
@@ -37,7 +49,7 @@ class ArtifactService:
         if status:
             stmt = stmt.where(Artifact.status == ArtifactStatus(status))
         if category:
-            stmt = stmt.where(Artifact.category == category)
+            stmt = stmt.join(Artifact.category_rel).where(ArtifactCategory.name == category)
 
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
@@ -58,11 +70,12 @@ class ArtifactService:
         category: Optional[str] = None,
     ) -> Artifact:
         """Create a new artifact."""
+        category_id = await self._resolve_category_id(category)
         artifact = Artifact(
             title=title,
             description=description,
             artifact_type=ArtifactType(artifact_type),
-            category=category,
+            category_id=category_id,
             created_by=created_by,
         )
         self.db.add(artifact)
@@ -93,7 +106,7 @@ class ArtifactService:
         if artifact_type is not None:
             artifact.artifact_type = ArtifactType(artifact_type)
         if category is not None:
-            artifact.category = category if category != '' else None
+            artifact.category_id = await self._resolve_category_id(category if category != '' else None)
 
         await self.db.commit()
         await self.db.refresh(artifact)
@@ -121,6 +134,12 @@ class ArtifactService:
         if not artifact_ids:
             return 0
 
+        # Resolve category_id once for all artifacts
+        category_id = None
+        resolve_category = category is not None
+        if resolve_category:
+            category_id = await self._resolve_category_id(category if category != '' else None)
+
         stmt = select(Artifact).where(Artifact.id.in_(artifact_ids))
         result = await self.db.execute(stmt)
         artifacts = list(result.scalars().all())
@@ -128,8 +147,8 @@ class ArtifactService:
         for artifact in artifacts:
             if status is not None:
                 artifact.status = ArtifactStatus(status)
-            if category is not None:
-                artifact.category = category if category != '' else None
+            if resolve_category:
+                artifact.category_id = category_id
 
         await self.db.commit()
         return len(artifacts)
@@ -151,7 +170,7 @@ class ArtifactService:
         return cat
 
     async def rename_category(self, category_id: int, new_name: str) -> Optional[ArtifactCategory]:
-        """Rename a category. Also updates all artifacts using the old name. Returns None if not found."""
+        """Rename a category. With FK, artifacts automatically reflect the new name. Returns None if not found."""
         result = await self.db.execute(
             select(ArtifactCategory).where(ArtifactCategory.id == category_id)
         )
@@ -159,32 +178,32 @@ class ArtifactService:
         if not cat:
             return None
 
-        old_name = cat.name
         cat.name = new_name.strip()
-
-        # Update all artifacts that reference the old category name
-        artifacts_result = await self.db.execute(
-            select(Artifact).where(Artifact.category == old_name)
-        )
-        for artifact in artifacts_result.scalars().all():
-            artifact.category = cat.name
-
         await self.db.commit()
         await self.db.refresh(cat)
         return cat
 
-    async def delete_category(self, category_id: int) -> Optional[str]:
-        """Delete a category by ID. Returns the name if deleted, None if not found."""
+    async def delete_category(self, category_id: int) -> Optional[Tuple[str, int]]:
+        """Delete a category by ID. Returns (name, affected_count) if deleted, None if not found.
+        DB cascades ON DELETE SET NULL, so affected artifacts become uncategorized."""
         result = await self.db.execute(
             select(ArtifactCategory).where(ArtifactCategory.id == category_id)
         )
         cat = result.scalars().first()
         if not cat:
             return None
+
         name = cat.name
+
+        # Count affected artifacts before deleting
+        count_result = await self.db.execute(
+            select(func.count()).select_from(Artifact).where(Artifact.category_id == category_id)
+        )
+        affected_count = count_result.scalar() or 0
+
         await self.db.delete(cat)
         await self.db.commit()
-        return name
+        return (name, affected_count)
 
 
 async def get_artifact_service(

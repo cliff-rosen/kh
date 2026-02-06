@@ -322,7 +322,7 @@ async def execute_rename_artifact_category(
     user_id: int,
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
-    """Rename an artifact category (also updates all artifacts using it)."""
+    """Rename an artifact category. Artifacts reference by FK so they automatically reflect the new name."""
     from services.artifact_service import ArtifactService
 
     category_id = params.get("id")
@@ -337,7 +337,7 @@ async def execute_rename_artifact_category(
         cat = await service.rename_category(int(category_id), new_name=new_name.strip())
         if not cat:
             return f"Error: Category #{category_id} not found."
-        return f"Renamed category #{cat.id} to: {cat.name} (artifacts updated)"
+        return f"Renamed category #{cat.id} to: {cat.name} (artifacts automatically reflect new name via FK)"
 
     except Exception as e:
         logger.error(f"Error renaming category: {e}", exc_info=True)
@@ -359,10 +359,14 @@ async def execute_delete_artifact_category(
 
     try:
         service = ArtifactService(db)
-        name = await service.delete_category(int(category_id))
-        if not name:
+        result = await service.delete_category(int(category_id))
+        if not result:
             return f"Error: Category #{category_id} not found."
-        return f"Deleted category #{category_id}: {name}"
+        name, affected_count = result
+        msg = f"Deleted category #{category_id}: {name}"
+        if affected_count > 0:
+            msg += f" ({affected_count} artifact(s) are now uncategorized)"
+        return msg
 
     except Exception as e:
         logger.error(f"Error deleting category: {e}", exc_info=True)
@@ -552,7 +556,7 @@ register_tool(ToolConfig(
 
 register_tool(ToolConfig(
     name="rename_artifact_category",
-    description="Rename an artifact category. All artifacts using the old name will be updated to the new name.",
+    description="Rename an artifact category. Artifacts reference by FK so they automatically reflect the new name.",
     input_schema={
         "type": "object",
         "properties": {
@@ -575,7 +579,7 @@ register_tool(ToolConfig(
 
 register_tool(ToolConfig(
     name="delete_artifact_category",
-    description="Delete an artifact category by ID. Artifacts using this category keep their category text but it won't appear in filters.",
+    description="Delete an artifact category by ID. Artifacts using this category become uncategorized (FK ON DELETE SET NULL).",
     input_schema={
         "type": "object",
         "properties": {

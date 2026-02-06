@@ -478,8 +478,9 @@ export const adminApi = {
     return response.data;
   },
 
-  async deleteArtifactCategory(id: number): Promise<void> {
-    await api.delete(`/api/admin/artifact-categories/${id}`);
+  async deleteArtifactCategory(id: number): Promise<{ name: string; affected_count: number }> {
+    const response = await api.delete(`/api/admin/artifact-categories/${id}`);
+    return response.data;
   },
 };
 
