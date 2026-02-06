@@ -40,14 +40,13 @@ def run_migration():
             ADD COLUMN category_id INTEGER
         """))
 
-        # Step 2: Backfill category_id from existing category string
+        # Step 2: Backfill category_id from existing category string (MariaDB JOIN syntax)
         print("Backfilling category_id from category names...")
         result = conn.execute(text("""
             UPDATE artifacts a
-            SET category_id = ac.id
-            FROM artifact_categories ac
-            WHERE a.category = ac.name
-              AND a.category IS NOT NULL
+            JOIN artifact_categories ac ON a.category = ac.name
+            SET a.category_id = ac.id
+            WHERE a.category IS NOT NULL
         """))
         print(f"  Backfilled {result.rowcount} artifacts with category_id.")
 
@@ -65,17 +64,15 @@ def run_migration():
             print("  Creating missing categories and backfilling...")
             for name in orphans:
                 conn.execute(text("""
-                    INSERT INTO artifact_categories (name)
+                    INSERT IGNORE INTO artifact_categories (name)
                     VALUES (:name)
-                    ON CONFLICT (name) DO NOTHING
                 """), {"name": name})
             # Re-backfill after creating missing categories
             result2 = conn.execute(text("""
                 UPDATE artifacts a
-                SET category_id = ac.id
-                FROM artifact_categories ac
-                WHERE a.category = ac.name
-                  AND a.category IS NOT NULL
+                JOIN artifact_categories ac ON a.category = ac.name
+                SET a.category_id = ac.id
+                WHERE a.category IS NOT NULL
                   AND a.category_id IS NULL
             """))
             print(f"  Backfilled {result2.rowcount} additional artifacts.")

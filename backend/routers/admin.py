@@ -1665,14 +1665,19 @@ class ArtifactCreate(BaseModel):
     category: Optional[str] = Field(None, max_length=100, description="Category tag")
 
 
+_UNSET = object()
+
+
 class ArtifactUpdate(BaseModel):
     """Request schema for updating an artifact."""
+
+    model_config = {"arbitrary_types_allowed": True}
 
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     status: Optional[str] = None
     artifact_type: Optional[str] = None
-    category: Optional[str] = Field(None, max_length=100)
+    category: Optional[str] = Field(default=_UNSET, max_length=100)
 
 
 @router.get(
@@ -1800,14 +1805,16 @@ async def update_artifact(
     )
 
     try:
-        artifact = await artifact_service.update_artifact(
+        kwargs = dict(
             artifact_id=artifact_id,
             title=data.title,
             description=data.description,
             status=data.status,
             artifact_type=data.artifact_type,
-            category=data.category,
         )
+        if data.category is not _UNSET:
+            kwargs["category"] = data.category
+        artifact = await artifact_service.update_artifact(**kwargs)
         if not artifact:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Artifact not found"

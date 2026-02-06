@@ -83,6 +83,8 @@ class ArtifactService:
         await self.db.refresh(artifact)
         return artifact
 
+    _UNSET = object()
+
     async def update_artifact(
         self,
         artifact_id: int,
@@ -90,7 +92,7 @@ class ArtifactService:
         description: Optional[str] = None,
         status: Optional[str] = None,
         artifact_type: Optional[str] = None,
-        category: Optional[str] = None,
+        category: Optional[str] = _UNSET,
     ) -> Optional[Artifact]:
         """Update an existing artifact. Returns None if not found."""
         artifact = await self.get_artifact_by_id(artifact_id)
@@ -105,8 +107,8 @@ class ArtifactService:
             artifact.status = ArtifactStatus(status)
         if artifact_type is not None:
             artifact.artifact_type = ArtifactType(artifact_type)
-        if category is not None:
-            artifact.category_id = await self._resolve_category_id(category if category != '' else None)
+        if category is not self._UNSET:
+            artifact.category_id = await self._resolve_category_id(category if category else None)
 
         await self.db.commit()
         await self.db.refresh(artifact)
