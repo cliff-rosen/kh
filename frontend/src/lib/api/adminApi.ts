@@ -403,8 +403,58 @@ export const adminApi = {
   async updateSystemConfig(data: SystemConfigUpdate): Promise<SystemConfig> {
     const response = await api.put('/api/admin/chat-config/system', data);
     return response.data;
-  }
+  },
+
+  // ==================== Artifact Management ====================
+
+  /**
+   * Get all artifacts with optional filters (platform admin only)
+   */
+  async getArtifacts(params?: { type?: string; status?: string }): Promise<Artifact[]> {
+    const response = await api.get('/api/admin/artifacts', {
+      params: {
+        type: params?.type || undefined,
+        status_filter: params?.status || undefined,
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Create a new artifact (platform admin only)
+   */
+  async createArtifact(data: { title: string; artifact_type: string; description?: string }): Promise<Artifact> {
+    const response = await api.post('/api/admin/artifacts', data);
+    return response.data;
+  },
+
+  /**
+   * Update an artifact (platform admin only)
+   */
+  async updateArtifact(id: number, data: { title?: string; description?: string; status?: string; artifact_type?: string }): Promise<Artifact> {
+    const response = await api.put(`/api/admin/artifacts/${id}`, data);
+    return response.data;
+  },
+
+  /**
+   * Delete an artifact (platform admin only)
+   */
+  async deleteArtifact(id: number): Promise<void> {
+    await api.delete(`/api/admin/artifacts/${id}`);
+  },
 };
+
+// Artifact types
+export interface Artifact {
+  id: number;
+  title: string;
+  description: string | null;
+  artifact_type: string;
+  status: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+}
 
 // Chat config types
 export interface PayloadTypeInfo {

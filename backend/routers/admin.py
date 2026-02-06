@@ -16,6 +16,8 @@ from database import get_async_db
 from models import User, UserRole, ChatConfig
 from services import auth_service
 from services.organization_service import OrganizationService, get_organization_service
+from services.artifact_service import ArtifactService, get_artifact_service
+from schemas.artifact import ArtifactResponse
 from services.user_service import UserService, get_user_service
 from services.subscription_service import SubscriptionService, get_subscription_service
 from services.invitation_service import InvitationService, get_invitation_service
@@ -1489,4 +1491,202 @@ async def update_system_config_endpoint(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update system config: {str(e)}",
+        )
+
+
+# ==================== Artifact Management ====================
+
+
+class ArtifactCreate(BaseModel):
+    """Request schema for creating an artifact."""
+
+    title: str = Field(..., min_length=1, max_length=255, description="Artifact title")
+    artifact_type: str = Field(..., description="Type: 'bug' or 'feature'")
+    description: Optional[str] = Field(None, description="Artifact description")
+
+
+class ArtifactUpdate(BaseModel):
+    """Request schema for updating an artifact."""
+
+    title: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    status: Optional[str] = None
+    artifact_type: Optional[str] = None
+
+
+@router.get(
+    "/artifacts",
+    response_model=List[ArtifactResponse],
+    summary="List all artifacts",
+)
+async def list_artifacts(
+    type: Optional[str] = None,
+    status_filter: Optional[str] = None,
+    current_user: User = Depends(require_platform_admin),
+    artifact_service: ArtifactService = Depends(get_artifact_service),
+):
+    """Get all artifacts with optional type and status filters. Platform admin only."""
+    logger.info(
+        f"list_artifacts - admin_user_id={current_user.user_id}, type={type}, status={status_filter}"
+    )
+
+    try:
+        artifacts = await artifact_service.list_artifacts(
+            artifact_type=type, status=status_filter
+        )
+        result = [ArtifactResponse.model_validate(a, from_attributes=True) for a in artifacts]
+        logger.info(f"list_artifacts complete - count={len(result)}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"list_artifacts failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list artifacts: {str(e)}",
+        )
+
+
+@router.get(
+    "/artifacts/{artifact_id}",
+    response_model=ArtifactResponse,
+    summary="Get artifact by ID",
+)
+async def get_artifact(
+    artifact_id: int,
+    current_user: User = Depends(require_platform_admin),
+    artifact_service: ArtifactService = Depends(get_artifact_service),
+):
+    """Get a single artifact by ID. Platform admin only."""
+    logger.info(
+        f"get_artifact - admin_user_id={current_user.user_id}, artifact_id={artifact_id}"
+    )
+
+    try:
+        artifact = await artifact_service.get_artifact_by_id(artifact_id)
+        if not artifact:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Artifact not found"
+            )
+        logger.info(f"get_artifact complete - artifact_id={artifact_id}")
+        return ArtifactResponse.model_validate(artifact, from_attributes=True)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_artifact failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get artifact: {str(e)}",
+        )
+
+
+@router.post(
+    "/artifacts",
+    response_model=ArtifactResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new artifact",
+)
+async def create_artifact(
+    data: ArtifactCreate,
+    current_user: User = Depends(require_platform_admin),
+    artifact_service: ArtifactService = Depends(get_artifact_service),
+):
+    """Create a new artifact. Platform admin only."""
+    logger.info(
+        f"create_artifact - admin_user_id={current_user.user_id}, title={data.title}, type={data.artifact_type}"
+    )
+
+    try:
+        artifact = await artifact_service.create_artifact(
+            title=data.title,
+            artifact_type=data.artifact_type,
+            created_by=current_user.user_id,
+            description=data.description,
+        )
+        logger.info(f"create_artifact complete - artifact_id={artifact.id}")
+        return ArtifactResponse.model_validate(artifact, from_attributes=True)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"create_artifact failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create artifact: {str(e)}",
+        )
+
+
+@router.put(
+    "/artifacts/{artifact_id}",
+    response_model=ArtifactResponse,
+    summary="Update an artifact",
+)
+async def update_artifact(
+    artifact_id: int,
+    data: ArtifactUpdate,
+    current_user: User = Depends(require_platform_admin),
+    artifact_service: ArtifactService = Depends(get_artifact_service),
+):
+    """Update an existing artifact. Platform admin only."""
+    logger.info(
+        f"update_artifact - admin_user_id={current_user.user_id}, artifact_id={artifact_id}"
+    )
+
+    try:
+        artifact = await artifact_service.update_artifact(
+            artifact_id=artifact_id,
+            title=data.title,
+            description=data.description,
+            status=data.status,
+            artifact_type=data.artifact_type,
+        )
+        if not artifact:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Artifact not found"
+            )
+        logger.info(f"update_artifact complete - artifact_id={artifact_id}")
+        return ArtifactResponse.model_validate(artifact, from_attributes=True)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_artifact failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update artifact: {str(e)}",
+        )
+
+
+@router.delete(
+    "/artifacts/{artifact_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete an artifact",
+)
+async def delete_artifact(
+    artifact_id: int,
+    current_user: User = Depends(require_platform_admin),
+    artifact_service: ArtifactService = Depends(get_artifact_service),
+):
+    """Delete an artifact by ID. Platform admin only."""
+    logger.info(
+        f"delete_artifact - admin_user_id={current_user.user_id}, artifact_id={artifact_id}"
+    )
+
+    try:
+        title = await artifact_service.delete_artifact(artifact_id)
+        if not title:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Artifact not found"
+            )
+        logger.info(f"delete_artifact complete - artifact_id={artifact_id}, title={title}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"delete_artifact failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete artifact: {str(e)}",
         )
