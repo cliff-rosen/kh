@@ -133,7 +133,6 @@ export function ChatConfigPanel() {
     const [helpError, setHelpError] = useState<string | null>(null);
     const [helpViewMode, setHelpViewMode] = useState<'content' | 'llm-view'>('content');
     const [isHelpMaximized, setIsHelpMaximized] = useState(false);
-    const [collapsedTopics, setCollapsedTopics] = useState<Set<string>>(new Set());
     const [selectedTopicIndex, setSelectedTopicIndex] = useState(0);
 
     // LLM View state
@@ -480,24 +479,11 @@ export function ChatConfigPanel() {
         ));
     };
 
-    const toggleTopicCollapse = (topicKey: string) => {
-        setCollapsedTopics(prev => {
-            const next = new Set(prev);
-            if (next.has(topicKey)) {
-                next.delete(topicKey);
-            } else {
-                next.add(topicKey);
-            }
-            return next;
-        });
-    };
-
     const closeHelpCategory = () => {
         setSelectedHelpCategory(null);
         setEditingTopics([]);
         setHelpError(null);
         setIsHelpMaximized(false);
-        setCollapsedTopics(new Set());
     };
 
     const saveHelpCategory = async () => {
@@ -622,41 +608,6 @@ export function ChatConfigPanel() {
 
     return (
         <div className="space-y-6">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <SummaryCard
-                    icon={CubeIcon}
-                    label="Payload Types"
-                    value={config.summary.total_payload_types}
-                    details={`${config.summary.global_payloads} global, ${config.summary.llm_payloads} LLM, ${config.summary.tool_payloads} tool`}
-                />
-                <SummaryCard
-                    icon={WrenchScrewdriverIcon}
-                    label="Tools"
-                    value={config.summary.total_tools}
-                    details={`${config.summary.global_tools} global`}
-                />
-                <SummaryCard
-                    icon={DocumentTextIcon}
-                    label="Pages"
-                    value={config.summary.total_pages}
-                    details="Configured pages"
-                />
-                <SummaryCard
-                    icon={BeakerIcon}
-                    label="Stream Instructions"
-                    value={config.summary.streams_with_instructions}
-                    details={`of ${config.summary.total_streams} streams`}
-                />
-                <SummaryCard
-                    icon={GlobeAltIcon}
-                    label="Resolution"
-                    value="global + page + tab + subtab"
-                    details="+ stream instructions"
-                    isText
-                />
-            </div>
-
             {/* Subtab Navigation */}
             <div className="border-b border-gray-200 dark:border-gray-700">
                 <nav className="-mb-px flex space-x-8">
@@ -712,8 +663,8 @@ export function ChatConfigPanel() {
                                                 key={page.page}
                                                 onClick={() => setSelectedPageName(page.page)}
                                                 className={`px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-700 ${selectedPageName === page.page
-                                                        ? 'bg-blue-50 dark:bg-blue-900/20'
-                                                        : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                                    ? 'bg-blue-50 dark:bg-blue-900/20'
+                                                    : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
                                                     }`}
                                             >
                                                 <div className="flex items-center gap-2">
@@ -934,8 +885,8 @@ export function ChatConfigPanel() {
                                         key={pt.name}
                                         onClick={() => setSelectedPayload(pt.name)}
                                         className={`px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-700 ${selectedPayload === pt.name
-                                                ? 'bg-blue-50 dark:bg-blue-900/20'
-                                                : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                            ? 'bg-blue-50 dark:bg-blue-900/20'
+                                            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
                                             }`}
                                     >
                                         <div className="flex items-center gap-2">
@@ -948,8 +899,8 @@ export function ChatConfigPanel() {
                                         </div>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded ${pt.source === 'llm'
-                                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                                    : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                                : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                                 }`}>
                                                 {pt.source}
                                             </span>
@@ -984,8 +935,8 @@ export function ChatConfigPanel() {
                                                     <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                                                         <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Source</div>
                                                         <div className={`mt-1 inline-flex px-2 py-1 text-sm font-medium rounded ${payload.source === 'llm'
-                                                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                                                : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                                            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                                             }`}>
                                                             {payload.source}
                                                         </div>
@@ -1384,8 +1335,8 @@ export function ChatConfigPanel() {
                                 <button
                                     onClick={() => setHelpViewMode('content')}
                                     className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${helpViewMode === 'content'
-                                            ? 'border-purple-500 text-purple-600 dark:text-purple-400'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                                        ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                                         }`}
                                 >
                                     <div className="flex items-center gap-2">
@@ -1396,8 +1347,8 @@ export function ChatConfigPanel() {
                                 <button
                                     onClick={() => setHelpViewMode('llm-view')}
                                     className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${helpViewMode === 'llm-view'
-                                            ? 'border-purple-500 text-purple-600 dark:text-purple-400'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                                        ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                                         }`}
                                 >
                                     <div className="flex items-center gap-2">
@@ -1512,8 +1463,8 @@ export function ChatConfigPanel() {
                                                                 key={`${topic.category}/${topic.topic}`}
                                                                 onClick={() => setSelectedTopicIndex(index)}
                                                                 className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isSelected
-                                                                        ? 'border-purple-500 text-purple-600 dark:text-purple-400'
-                                                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
+                                                                    ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
                                                                     }`}
                                                             >
                                                                 <span className="flex items-center gap-2">
@@ -1605,8 +1556,8 @@ export function ChatConfigPanel() {
                                                     key={role}
                                                     onClick={() => setSelectedPreviewRole(role)}
                                                     className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${selectedPreviewRole === role
-                                                            ? 'bg-purple-600 text-white'
-                                                            : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                                        ? 'bg-purple-600 text-white'
+                                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                                                         }`}
                                                 >
                                                     {role === 'member' ? 'Member' : role === 'org_admin' ? 'Org Admin' : 'Platform Admin'}
@@ -2284,8 +2235,8 @@ export function ChatConfigPanel() {
                                             key={`${topic.category}/${topic.topic}`}
                                             onClick={() => setSelectedTopicIndex(index)}
                                             className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${isSelected
-                                                    ? 'border-purple-500 text-purple-600 dark:text-purple-400'
-                                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
+                                                ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
                                                 }`}
                                         >
                                             <span className="flex items-center gap-2">
