@@ -55,6 +55,12 @@ class ReportArticle(BaseModel):
     presentation_categories: List[str] = []  # List of category IDs
     ai_summary: Optional[str] = None  # AI-generated summary from pipeline
     ai_enrichments: Optional[Dict[str, Any]] = None  # AI-generated enrichments (stance analysis, etc.)
+    # Context fields - populated when viewing favorites across multiple reports
+    report_id: Optional[int] = None
+    report_name: Optional[str] = None
+    stream_id: Optional[int] = None
+    stream_name: Optional[str] = None
+    starred_at: Optional[datetime] = None
 
 
 # ============================================================================

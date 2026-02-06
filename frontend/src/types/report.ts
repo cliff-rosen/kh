@@ -49,6 +49,12 @@ export interface ReportArticle {
     presentation_categories?: string[];  // List of category IDs
     ai_summary?: string | null;  // AI-generated summary from pipeline
     ai_enrichments?: ArticleEnrichments | null;
+    // Context fields - populated when viewing favorites across multiple reports
+    report_id?: number;
+    report_name?: string;
+    stream_id?: number;
+    stream_name?: string;
+    starred_at?: string;  // ISO datetime string
 }
 
 // ============================================================================

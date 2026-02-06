@@ -30,7 +30,6 @@ import StreamsPage from './pages/StreamsPage';
 import EditStreamPage from './pages/EditStreamPage';
 import RetrievalWizardPage from './pages/RetrievalWizardPage';
 import ReportsPage from './pages/ReportsPage';
-import StarredArticlesPage from './pages/StarredArticlesPage';
 import ToolsPage from './pages/ToolsPage';
 import AdminPage from './pages/AdminPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
@@ -67,8 +66,6 @@ function AppContent() {
             <Route path="/streams/:streamId/configure-retrieval" element={<RetrievalWizardPage />} />
             <Route path="/new-stream" element={<NewStreamPage />} />
             <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/starred" element={<StarredArticlesPage />} />
-            <Route path="/streams/:streamId/starred" element={<StarredArticlesPage />} />
             <Route path="/tools" element={<ToolsPage />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Navigate to="/profile" replace />} />

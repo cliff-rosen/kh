@@ -21,7 +21,7 @@ from models import (
     Report, ReportArticleAssociation, Article, WipArticle,
     ResearchStream, User, UserRole, StreamScope,
     OrgStreamSubscription, UserStreamSubscription, PipelineExecution,
-    ApprovalStatus
+    ApprovalStatus, UserArticleStar
 )
 from config.settings import settings
 from database import get_async_db
@@ -114,6 +114,13 @@ class ReportArticleInfo:
     """Article with association metadata."""
     article: Article
     association: ReportArticleAssociation
+    is_starred: bool = False  # Per-user starred status
+    # Context fields - populated when viewing starred articles across reports
+    report_id: Optional[int] = None
+    report_name: Optional[str] = None
+    stream_id: Optional[int] = None
+    stream_name: Optional[str] = None
+    starred_at: Optional[datetime] = None
 
 
 @dataclass
@@ -847,6 +854,7 @@ class ReportService:
         """Get report with its visible articles (async).
 
         Returns only articles where is_hidden=False, ordered by ranking.
+        Each article includes per-user is_starred status.
         Use get_curation_view for the full list including hidden articles.
         """
         access_result = await self.get_report_with_access(report_id, user_id, raise_on_not_found=False)
@@ -857,8 +865,24 @@ class ReportService:
         # Get visible articles using the canonical method
         visible_associations = await self.association_service.get_visible_for_report(report_id)
 
+        # Get user's starred article IDs for this report
+        starred_result = await self.db.execute(
+            select(UserArticleStar.article_id).where(
+                and_(
+                    UserArticleStar.user_id == user_id,
+                    UserArticleStar.report_id == report_id
+                )
+            )
+        )
+        starred_article_ids = set(starred_result.scalars().all())
+
+        # Build articles with per-user is_starred
         articles = [
-            ReportArticleInfo(article=assoc.article, association=assoc)
+            ReportArticleInfo(
+                article=assoc.article,
+                association=assoc,
+                is_starred=assoc.article.article_id in starred_article_ids
+            )
             for assoc in visible_associations
         ]
 

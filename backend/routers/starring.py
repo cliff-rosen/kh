@@ -8,10 +8,10 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime
 
 from models import User
-from services.starring_service import StarringService, get_starring_service, StarredArticle
+from schemas.report import ReportArticle
+from services.starring_service import StarringService, get_starring_service
 from services.report_service import ReportService, get_report_service
 from routers.auth import get_current_user
 
@@ -30,56 +30,49 @@ class StarredArticleIdsResponse(BaseModel):
     starred_article_ids: List[int]
 
 
-class StarredArticleResponse(BaseModel):
-    """Response containing a starred article with metadata"""
-    article_id: int
-    report_id: int
-    report_name: str
-    stream_id: int
-    stream_name: str
-    title: str
-    authors: List[str]
-    journal: Optional[str] = None
-    pub_year: Optional[int] = None
-    pub_month: Optional[int] = None
-    pub_day: Optional[int] = None
-    pmid: Optional[str] = None
-    doi: Optional[str] = None
-    abstract: Optional[str] = None
-    starred_at: datetime
-
-
-class StarredArticlesResponse(BaseModel):
-    """Response containing list of starred articles"""
-    articles: List[StarredArticleResponse]
-
-
 class StarredCountResponse(BaseModel):
     """Response containing count of starred articles"""
     count: int
 
 
+class ReportArticlesResponse(BaseModel):
+    """Response containing list of articles"""
+    articles: List[ReportArticle]
+
+
 router = APIRouter(prefix="/api/stars", tags=["starring"])
 
 
-def _starred_article_to_response(sa: StarredArticle) -> StarredArticleResponse:
-    """Convert StarredArticle dataclass to Pydantic response model"""
-    return StarredArticleResponse(
-        article_id=sa.article_id,
-        report_id=sa.report_id,
-        report_name=sa.report_name,
-        stream_id=sa.stream_id,
-        stream_name=sa.stream_name,
-        title=sa.title,
-        authors=sa.authors,
-        journal=sa.journal,
-        pub_year=sa.pub_year,
-        pub_month=sa.pub_month,
-        pub_day=sa.pub_day,
-        pmid=sa.pmid,
-        doi=sa.doi,
-        abstract=sa.abstract,
-        starred_at=sa.starred_at
+def _to_report_article(info) -> ReportArticle:
+    """Convert ReportArticleInfo dataclass to ReportArticle schema"""
+    article = info.article
+    assoc = info.association
+    return ReportArticle(
+        article_id=article.article_id,
+        title=article.title,
+        authors=article.authors or [],
+        journal=article.journal,
+        pmid=article.pmid,
+        doi=article.doi,
+        abstract=article.abstract,
+        url=article.url,
+        pub_year=article.pub_year,
+        pub_month=article.pub_month,
+        pub_day=article.pub_day,
+        relevance_score=assoc.relevance_score,
+        relevance_rationale=assoc.relevance_rationale,
+        ranking=assoc.ranking,
+        is_starred=info.is_starred,
+        is_read=assoc.is_read,
+        notes=assoc.notes,
+        presentation_categories=assoc.presentation_categories or [],
+        ai_summary=assoc.ai_summary,
+        ai_enrichments=assoc.ai_enrichments,
+        report_id=info.report_id,
+        report_name=info.report_name,
+        stream_id=info.stream_id,
+        stream_name=info.stream_name,
+        starred_at=info.starred_at
     )
 
 
@@ -151,7 +144,7 @@ async def get_starred_for_report(
         raise HTTPException(status_code=500, detail=f"Failed to get starred articles: {str(e)}")
 
 
-@router.get("/streams/{stream_id}", response_model=StarredArticlesResponse)
+@router.get("/streams/{stream_id}", response_model=ReportArticlesResponse)
 async def get_starred_for_stream(
     stream_id: int,
     starring_service: StarringService = Depends(get_starring_service),
@@ -160,21 +153,20 @@ async def get_starred_for_stream(
     """
     Get all starred articles for the current user in a specific research stream.
 
-    Returns full article metadata including report and stream context.
+    Returns full article metadata including enrichments and report/stream context.
     """
     logger.info(f"get_starred_for_stream - user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        # Get starred articles for stream
         starred = await starring_service.get_starred_for_stream(
             user_id=current_user.user_id,
             stream_id=stream_id
         )
 
-        articles = [_starred_article_to_response(sa) for sa in starred]
+        articles = [_to_report_article(sa) for sa in starred]
 
         logger.info(f"get_starred_for_stream complete - count={len(articles)}")
-        return StarredArticlesResponse(articles=articles)
+        return ReportArticlesResponse(articles=articles)
 
     except HTTPException:
         raise
@@ -210,7 +202,7 @@ async def get_starred_count_for_stream(
         raise HTTPException(status_code=500, detail=f"Failed to get starred count: {str(e)}")
 
 
-@router.get("", response_model=StarredArticlesResponse)
+@router.get("", response_model=ReportArticlesResponse)
 async def get_all_starred(
     limit: Optional[int] = None,
     starring_service: StarringService = Depends(get_starring_service),
@@ -229,10 +221,10 @@ async def get_all_starred(
             limit=limit
         )
 
-        articles = [_starred_article_to_response(sa) for sa in starred]
+        articles = [_to_report_article(sa) for sa in starred]
 
         logger.info(f"get_all_starred complete - count={len(articles)}")
-        return StarredArticlesResponse(articles=articles)
+        return ReportArticlesResponse(articles=articles)
 
     except HTTPException:
         raise

@@ -7,36 +7,15 @@ Each user's stars are personal and not shared with other users.
 
 import logging
 from typing import List, Optional
-from dataclasses import dataclass
-from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
 from fastapi import Depends
 
-from models import UserArticleStar, Report, Article, ResearchStream
+from models import UserArticleStar, Report, Article, ResearchStream, ReportArticleAssociation
 from database import get_async_db
+from services.report_service import ReportArticleInfo
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class StarredArticle:
-    """Article with starring metadata and context"""
-    article_id: int
-    report_id: int
-    report_name: str
-    stream_id: int
-    stream_name: str
-    title: str
-    authors: List[str]
-    journal: Optional[str]
-    pub_year: Optional[int]
-    pub_month: Optional[int]
-    pub_day: Optional[int]
-    pmid: Optional[str]
-    doi: Optional[str]
-    abstract: Optional[str]
-    starred_at: datetime
 
 
 class StarringService:
@@ -144,7 +123,7 @@ class StarringService:
         self,
         user_id: int,
         stream_id: int
-    ) -> List[StarredArticle]:
+    ) -> List[ReportArticleInfo]:
         """
         Get all starred articles for a user in a specific research stream.
 
@@ -153,13 +132,20 @@ class StarringService:
             stream_id: The research stream to get starred articles for
 
         Returns:
-            List of StarredArticle objects with full metadata
+            List of ReportArticleInfo objects with full metadata and context
         """
         result = await self.db.execute(
-            select(UserArticleStar, Article, Report, ResearchStream)
+            select(UserArticleStar, Article, Report, ResearchStream, ReportArticleAssociation)
             .join(Article, UserArticleStar.article_id == Article.article_id)
             .join(Report, UserArticleStar.report_id == Report.report_id)
             .join(ResearchStream, Report.research_stream_id == ResearchStream.stream_id)
+            .join(
+                ReportArticleAssociation,
+                and_(
+                    ReportArticleAssociation.report_id == UserArticleStar.report_id,
+                    ReportArticleAssociation.article_id == UserArticleStar.article_id
+                )
+            )
             .where(
                 and_(
                     UserArticleStar.user_id == user_id,
@@ -171,22 +157,15 @@ class StarringService:
 
         starred_articles = []
         for row in result.all():
-            star, article, report, stream = row
-            starred_articles.append(StarredArticle(
-                article_id=article.article_id,
+            star, article, report, stream, assoc = row
+            starred_articles.append(ReportArticleInfo(
+                article=article,
+                association=assoc,
+                is_starred=True,
                 report_id=report.report_id,
                 report_name=report.report_name,
                 stream_id=stream.stream_id,
                 stream_name=stream.stream_name,
-                title=article.title,
-                authors=article.authors or [],
-                journal=article.journal,
-                pub_year=article.pub_year,
-                pub_month=article.pub_month,
-                pub_day=article.pub_day,
-                pmid=article.pmid,
-                doi=article.doi,
-                abstract=article.abstract,
                 starred_at=star.starred_at
             ))
 
@@ -196,7 +175,7 @@ class StarringService:
         self,
         user_id: int,
         limit: Optional[int] = None
-    ) -> List[StarredArticle]:
+    ) -> List[ReportArticleInfo]:
         """
         Get all starred articles for a user across all streams.
 
@@ -205,13 +184,20 @@ class StarringService:
             limit: Optional limit on number of results (for dashboard)
 
         Returns:
-            List of StarredArticle objects with full metadata
+            List of ReportArticleInfo objects with full metadata and context
         """
         query = (
-            select(UserArticleStar, Article, Report, ResearchStream)
+            select(UserArticleStar, Article, Report, ResearchStream, ReportArticleAssociation)
             .join(Article, UserArticleStar.article_id == Article.article_id)
             .join(Report, UserArticleStar.report_id == Report.report_id)
             .join(ResearchStream, Report.research_stream_id == ResearchStream.stream_id)
+            .join(
+                ReportArticleAssociation,
+                and_(
+                    ReportArticleAssociation.report_id == UserArticleStar.report_id,
+                    ReportArticleAssociation.article_id == UserArticleStar.article_id
+                )
+            )
             .where(UserArticleStar.user_id == user_id)
             .order_by(UserArticleStar.starred_at.desc())
         )
@@ -223,22 +209,15 @@ class StarringService:
 
         starred_articles = []
         for row in result.all():
-            star, article, report, stream = row
-            starred_articles.append(StarredArticle(
-                article_id=article.article_id,
+            star, article, report, stream, assoc = row
+            starred_articles.append(ReportArticleInfo(
+                article=article,
+                association=assoc,
+                is_starred=True,
                 report_id=report.report_id,
                 report_name=report.report_name,
                 stream_id=stream.stream_id,
                 stream_name=stream.stream_name,
-                title=article.title,
-                authors=article.authors or [],
-                journal=article.journal,
-                pub_year=article.pub_year,
-                pub_month=article.pub_month,
-                pub_day=article.pub_day,
-                pmid=article.pmid,
-                doi=article.doi,
-                abstract=article.abstract,
                 starred_at=star.starred_at
             ))
 

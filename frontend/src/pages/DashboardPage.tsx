@@ -8,7 +8,7 @@ import { starringApi } from '../lib/api/starringApi';
 import { trackEvent } from '../lib/api/trackingApi';
 import { showErrorToast } from '../lib/errorToast';
 import { Report } from '../types';
-import { StarredArticle } from '../types/starring';
+import { ReportArticle } from '../types/report';
 import { StarIcon } from '@heroicons/react/24/solid';
 import { formatArticleDate } from '../utils/dateUtils';
 
@@ -18,7 +18,7 @@ export default function DashboardPage() {
     const [recentReports, setRecentReports] = useState<Report[]>([]);
     const [reportsLoading, setReportsLoading] = useState(true);
     const [reportsError, setReportsError] = useState(false);
-    const [starredArticles, setStarredArticles] = useState<StarredArticle[]>([]);
+    const [starredArticles, setStarredArticles] = useState<ReportArticle[]>([]);
     const [starredLoading, setStarredLoading] = useState(true);
     const navigate = useNavigate();
 
@@ -55,7 +55,7 @@ export default function DashboardPage() {
         navigate(`/reports?stream=${report.research_stream_id}&report=${report.report_id}`);
     };
 
-    const handleStarredArticleClick = (article: StarredArticle) => {
+    const handleStarredArticleClick = (article: ReportArticle) => {
         trackEvent('dashboard_starred_article_click', { article_id: article.article_id, report_id: article.report_id });
         navigate(`/reports?stream=${article.stream_id}&report=${article.report_id}&article=${article.article_id}`);
     };

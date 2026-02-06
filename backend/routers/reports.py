@@ -186,7 +186,7 @@ async def get_report_with_articles(
                 relevance_score=info.association.relevance_score,
                 relevance_rationale=info.association.relevance_rationale,
                 ranking=info.association.ranking,
-                is_starred=info.association.is_starred,
+                is_starred=info.is_starred,
                 is_read=info.association.is_read,
                 notes=info.association.notes,
                 presentation_categories=info.association.presentation_categories or [],

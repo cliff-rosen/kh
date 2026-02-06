@@ -4,7 +4,7 @@ import { DocumentTextIcon, ChevronDownIcon, ChevronRightIcon, ChatBubbleLeftRigh
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
 import { ResearchStream, Category } from '../types';
-import { StarredArticle } from '../types/starring';
+// Starring types - articles use ReportArticle with optional context fields
 import { PayloadHandler } from '../types/chat';
 
 import { reportApi } from '../lib/api/reportApi';
@@ -31,6 +31,7 @@ import {
     ReportView,
     CardFormat
 } from '../components/reports';
+import { getStanceInfo } from '../components/ui/StanceAnalysisDisplay';
 
 export default function ReportsPage() {
     const [searchParams] = useSearchParams();
@@ -107,7 +108,7 @@ export default function ReportsPage() {
 
     // Favorites view state
     const [showingFavorites, setShowingFavorites] = useState(false);
-    const [streamFavorites, setStreamFavorites] = useState<StarredArticle[]>([]);
+    const [streamFavorites, setStreamFavorites] = useState<ReportArticle[]>([]);
     const [loadingFavorites, setLoadingFavorites] = useState(false);
     const [streamFavoritesCount, setStreamFavoritesCount] = useState(0);
 
@@ -773,20 +774,8 @@ export default function ReportsPage() {
                                                         key={`${article.report_id}-${article.article_id}`}
                                                         className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 cursor-pointer hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all"
                                                         onClick={() => {
-                                                            // Convert to ReportArticle format and open viewer
-                                                            const viewerArticles: ReportArticle[] = streamFavorites.map(a => ({
-                                                                article_id: a.article_id,
-                                                                title: a.title,
-                                                                authors: a.authors,
-                                                                journal: a.journal,
-                                                                pub_year: a.pub_year,
-                                                                pub_month: a.pub_month,
-                                                                pub_day: a.pub_day,
-                                                                pmid: a.pmid,
-                                                                doi: a.doi,
-                                                                abstract: a.abstract,
-                                                            }));
-                                                            setArticleViewerArticles(viewerArticles);
+                                                            // FavoriteArticle is a superset of ReportArticle, use directly
+                                                            setArticleViewerArticles(streamFavorites);
                                                             setArticleViewerInitialIndex(idx);
                                                             setArticleViewerIsFiltered(false);
                                                             setArticleViewerOpen(true);
@@ -808,10 +797,27 @@ export default function ReportsPage() {
                                                                     {article.pub_year && <span>• {article.pub_year}</span>}
                                                                     {article.pmid && <span>• PMID: {article.pmid}</span>}
                                                                 </div>
-                                                                <div className="mt-2">
+                                                                {/* Show AI summary preview if available */}
+                                                                {article.ai_summary && (
+                                                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
+                                                                        {article.ai_summary}
+                                                                    </p>
+                                                                )}
+                                                                <div className="mt-2 flex flex-wrap items-center gap-2">
                                                                     <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">
                                                                         {article.report_name}
                                                                     </span>
+                                                                    {/* Show stance badge if available */}
+                                                                    {article.ai_enrichments?.stance_analysis && (() => {
+                                                                        const stanceInfo = getStanceInfo(article.ai_enrichments.stance_analysis.stance);
+                                                                        const StanceIcon = stanceInfo.icon;
+                                                                        return (
+                                                                            <span className={`text-xs px-2 py-0.5 rounded flex items-center gap-1 ${stanceInfo.bgColor} ${stanceInfo.color}`}>
+                                                                                <StanceIcon className="h-3 w-3" />
+                                                                                {stanceInfo.label}
+                                                                            </span>
+                                                                        );
+                                                                    })()}
                                                                 </div>
                                                             </div>
                                                             <button

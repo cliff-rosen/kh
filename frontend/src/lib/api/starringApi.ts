@@ -1,16 +1,11 @@
 import { api } from './index';
-import {
-    ToggleStarResponse,
-    StarredArticleIdsResponse,
-    StarredArticlesResponse,
-    StarredCountResponse
-} from '../../types/starring';
+import { ReportArticle } from '../../types/report';
 
 export const starringApi = {
     /**
      * Toggle the star status of an article for the current user
      */
-    async toggleStar(reportId: number, articleId: number): Promise<ToggleStarResponse> {
+    async toggleStar(reportId: number, articleId: number): Promise<{ is_starred: boolean }> {
         const response = await api.post(`/api/stars/reports/${reportId}/articles/${articleId}/toggle`);
         return response.data;
     },
@@ -18,7 +13,7 @@ export const starringApi = {
     /**
      * Get list of starred article IDs for a specific report
      */
-    async getStarredForReport(reportId: number): Promise<StarredArticleIdsResponse> {
+    async getStarredForReport(reportId: number): Promise<{ starred_article_ids: number[] }> {
         const response = await api.get(`/api/stars/reports/${reportId}`);
         return response.data;
     },
@@ -26,7 +21,7 @@ export const starringApi = {
     /**
      * Get all starred articles for a specific stream
      */
-    async getStarredForStream(streamId: number): Promise<StarredArticlesResponse> {
+    async getStarredForStream(streamId: number): Promise<{ articles: ReportArticle[] }> {
         const response = await api.get(`/api/stars/streams/${streamId}`);
         return response.data;
     },
@@ -34,7 +29,7 @@ export const starringApi = {
     /**
      * Get count of starred articles for a specific stream
      */
-    async getStarredCountForStream(streamId: number): Promise<StarredCountResponse> {
+    async getStarredCountForStream(streamId: number): Promise<{ count: number }> {
         const response = await api.get(`/api/stars/streams/${streamId}/count`);
         return response.data;
     },
@@ -42,7 +37,7 @@ export const starringApi = {
     /**
      * Get all starred articles for the current user
      */
-    async getAllStarred(limit?: number): Promise<StarredArticlesResponse> {
+    async getAllStarred(limit?: number): Promise<{ articles: ReportArticle[] }> {
         const params = limit ? `?limit=${limit}` : '';
         const response = await api.get(`/api/stars${params}`);
         return response.data;
