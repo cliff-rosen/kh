@@ -242,8 +242,8 @@ export function ArtifactList() {
                 title: toSave.title.trim(),
                 artifact_type: toSave.artifact_type,
                 status: toSave.status,
-                description: toSave.description.trim() || undefined,
-                category: toSave.category || undefined,
+                description: toSave.description.trim() || '',
+                category: toSave.category || '',
             });
             setEditing(null);
             await loadArtifacts();
