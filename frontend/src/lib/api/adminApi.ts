@@ -12,6 +12,7 @@ import type {
   StreamSubscriptionStatus
 } from '../../types/organization';
 import type { User, UserList } from '../../types/user';
+import type { Artifact } from '../../types/artifact';
 
 // Import ResearchStream type from existing types
 interface ResearchStream {
@@ -443,18 +444,6 @@ export const adminApi = {
     await api.delete(`/api/admin/artifacts/${id}`);
   },
 };
-
-// Artifact types
-export interface Artifact {
-  id: number;
-  title: string;
-  description: string | null;
-  artifact_type: string;
-  status: string;
-  created_by: number;
-  created_at: string;
-  updated_at: string;
-}
 
 // Chat config types
 export interface PayloadTypeInfo {

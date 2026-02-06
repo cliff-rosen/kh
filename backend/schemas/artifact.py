@@ -1,5 +1,7 @@
 """
 Artifact schemas for bug/feature tracking.
+
+Mirrors frontend types/artifact.ts for easy cross-reference.
 """
 
 from pydantic import BaseModel
@@ -7,8 +9,8 @@ from typing import Optional
 from datetime import datetime
 
 
-class ArtifactResponse(BaseModel):
-    """Full artifact response."""
+class Artifact(BaseModel):
+    """Artifact domain object."""
     id: int
     title: str
     description: Optional[str] = None

@@ -17,7 +17,7 @@ from models import User, UserRole, ChatConfig
 from services import auth_service
 from services.organization_service import OrganizationService, get_organization_service
 from services.artifact_service import ArtifactService, get_artifact_service
-from schemas.artifact import ArtifactResponse
+from schemas.artifact import Artifact as ArtifactSchema
 from services.user_service import UserService, get_user_service
 from services.subscription_service import SubscriptionService, get_subscription_service
 from services.invitation_service import InvitationService, get_invitation_service
@@ -1516,7 +1516,7 @@ class ArtifactUpdate(BaseModel):
 
 @router.get(
     "/artifacts",
-    response_model=List[ArtifactResponse],
+    response_model=List[ArtifactSchema],
     summary="List all artifacts",
 )
 async def list_artifacts(
@@ -1534,7 +1534,7 @@ async def list_artifacts(
         artifacts = await artifact_service.list_artifacts(
             artifact_type=type, status=status_filter
         )
-        result = [ArtifactResponse.model_validate(a, from_attributes=True) for a in artifacts]
+        result = [ArtifactSchema.model_validate(a, from_attributes=True) for a in artifacts]
         logger.info(f"list_artifacts complete - count={len(result)}")
         return result
 
@@ -1550,7 +1550,7 @@ async def list_artifacts(
 
 @router.get(
     "/artifacts/{artifact_id}",
-    response_model=ArtifactResponse,
+    response_model=ArtifactSchema,
     summary="Get artifact by ID",
 )
 async def get_artifact(
@@ -1570,7 +1570,7 @@ async def get_artifact(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Artifact not found"
             )
         logger.info(f"get_artifact complete - artifact_id={artifact_id}")
-        return ArtifactResponse.model_validate(artifact, from_attributes=True)
+        return ArtifactSchema.model_validate(artifact, from_attributes=True)
 
     except HTTPException:
         raise
@@ -1584,7 +1584,7 @@ async def get_artifact(
 
 @router.post(
     "/artifacts",
-    response_model=ArtifactResponse,
+    response_model=ArtifactSchema,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new artifact",
 )
@@ -1606,7 +1606,7 @@ async def create_artifact(
             description=data.description,
         )
         logger.info(f"create_artifact complete - artifact_id={artifact.id}")
-        return ArtifactResponse.model_validate(artifact, from_attributes=True)
+        return ArtifactSchema.model_validate(artifact, from_attributes=True)
 
     except HTTPException:
         raise
@@ -1620,7 +1620,7 @@ async def create_artifact(
 
 @router.put(
     "/artifacts/{artifact_id}",
-    response_model=ArtifactResponse,
+    response_model=ArtifactSchema,
     summary="Update an artifact",
 )
 async def update_artifact(
@@ -1647,7 +1647,7 @@ async def update_artifact(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Artifact not found"
             )
         logger.info(f"update_artifact complete - artifact_id={artifact_id}")
-        return ArtifactResponse.model_validate(artifact, from_attributes=True)
+        return ArtifactSchema.model_validate(artifact, from_attributes=True)
 
     except HTTPException:
         raise

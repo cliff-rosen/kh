@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
-import type { Artifact } from '../../lib/api/adminApi';
+import type { Artifact } from '../../types/artifact';
 
 const TYPE_BADGES: Record<string, string> = {
     bug: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
