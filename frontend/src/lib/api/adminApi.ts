@@ -468,6 +468,16 @@ export const adminApi = {
     return response.data;
   },
 
+  async bulkCreateArtifactCategories(names: string[]): Promise<ArtifactCategory[]> {
+    const response = await api.post('/api/admin/artifact-categories/bulk', { names });
+    return response.data;
+  },
+
+  async renameArtifactCategory(id: number, name: string): Promise<ArtifactCategory> {
+    const response = await api.put(`/api/admin/artifact-categories/${id}`, { name });
+    return response.data;
+  },
+
   async deleteArtifactCategory(id: number): Promise<void> {
     await api.delete(`/api/admin/artifact-categories/${id}`);
   },

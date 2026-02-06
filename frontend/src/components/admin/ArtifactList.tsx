@@ -3,6 +3,8 @@ import { PlusIcon, TrashIcon, CheckIcon, XMarkIcon, Cog6ToothIcon, ChatBubbleLef
 import { adminApi } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
 import ChatTray from '../chat/ChatTray';
+import ArtifactChangesCard from '../chat/ArtifactChangesCard';
+import type { PayloadHandler } from '../../types/chat';
 import type { Artifact, ArtifactCategory } from '../../types/artifact';
 
 const TYPE_BADGES: Record<string, string> = {
@@ -478,6 +480,82 @@ export function ArtifactList() {
         selected_count: selected.size,
     }), [artifacts, categories, filterType, filterStatus, filterCategory, selected.size]);
 
+    const handleApplyArtifactChanges = useCallback(async (data: {
+        category_operations?: Array<{ action: string; id?: number; name?: string; new_name?: string }>;
+        changes: Array<{ action: string; id?: number; title?: string; artifact_type?: string; status?: string; category?: string; description?: string }>;
+    }) => {
+        try {
+            // Phase 1: Apply category operations FIRST
+            if (data.category_operations) {
+                // Batch all creates together
+                const catCreates = data.category_operations.filter(op => op.action === 'create' && op.name);
+                if (catCreates.length > 0) {
+                    await adminApi.bulkCreateArtifactCategories(catCreates.map(op => op.name!));
+                }
+                // Then renames and deletes sequentially
+                for (const op of data.category_operations) {
+                    if (op.action === 'rename' && op.id && op.new_name) {
+                        await adminApi.renameArtifactCategory(op.id, op.new_name);
+                    } else if (op.action === 'delete' && op.id) {
+                        await adminApi.deleteArtifactCategory(op.id);
+                    }
+                }
+                // Refresh categories so artifact changes can use them
+                await loadCategories();
+            }
+
+            // Phase 2: Apply artifact changes
+            for (const change of data.changes) {
+                if (change.action === 'create') {
+                    const created = await adminApi.createArtifact({
+                        title: change.title || 'Untitled',
+                        artifact_type: change.artifact_type || 'feature',
+                        category: change.category,
+                        description: change.description,
+                    });
+                    if (change.status && change.status !== 'open') {
+                        await adminApi.updateArtifact(created.id, { status: change.status });
+                    }
+                } else if (change.action === 'update' && change.id) {
+                    const updates: Record<string, unknown> = {};
+                    if (change.title !== undefined) updates.title = change.title;
+                    if (change.status !== undefined) updates.status = change.status;
+                    if (change.category !== undefined) updates.category = change.category;
+                    if (change.artifact_type !== undefined) updates.artifact_type = change.artifact_type;
+                    if (change.description !== undefined) updates.description = change.description;
+                    await adminApi.updateArtifact(change.id, updates);
+                } else if (change.action === 'delete' && change.id) {
+                    await adminApi.deleteArtifact(change.id);
+                }
+            }
+
+            await loadArtifacts();
+            await loadCategories();
+        } catch (err) {
+            setError(handleApiError(err));
+        }
+    }, []);
+
+    const payloadHandlers = useMemo<Record<string, PayloadHandler>>(() => ({
+        artifact_changes: {
+            render: (payload, callbacks) => (
+                <ArtifactChangesCard
+                    proposal={payload}
+                    onAccept={(data) => {
+                        handleApplyArtifactChanges(data);
+                        callbacks.onAccept?.(data);
+                    }}
+                    onReject={callbacks.onReject}
+                />
+            ),
+            renderOptions: {
+                panelWidth: '600px',
+                headerTitle: 'Proposed Changes',
+                headerIcon: '\uD83D\uDCCB',
+            }
+        }
+    }), [handleApplyArtifactChanges]);
+
     if (isLoading && artifacts.length === 0) {
         return (
             <div className="flex items-center justify-center py-12">
@@ -494,6 +572,7 @@ export function ArtifactList() {
             {/* Chat Tray */}
             <ChatTray
                 initialContext={chatContext}
+                payloadHandlers={payloadHandlers}
                 isOpen={isChatOpen}
                 onOpenChange={setIsChatOpen}
             />

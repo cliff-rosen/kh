@@ -1505,6 +1505,16 @@ class ArtifactCategoryCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="Category name")
 
 
+class ArtifactCategoryRename(BaseModel):
+    """Request schema for renaming an artifact category."""
+    name: str = Field(..., min_length=1, max_length=100, description="New category name")
+
+
+class ArtifactCategoryBulkCreate(BaseModel):
+    """Request schema for bulk creating artifact categories."""
+    names: List[str] = Field(..., min_length=1, description="List of category names to create")
+
+
 @router.get(
     "/artifact-categories",
     response_model=List[ArtifactCategorySchema],
@@ -1549,6 +1559,36 @@ async def create_artifact_category(
         )
 
 
+@router.post(
+    "/artifact-categories/bulk",
+    response_model=List[ArtifactCategorySchema],
+    status_code=status.HTTP_201_CREATED,
+    summary="Bulk create artifact categories",
+)
+async def bulk_create_artifact_categories(
+    data: ArtifactCategoryBulkCreate,
+    current_user: User = Depends(require_platform_admin),
+    artifact_service: ArtifactService = Depends(get_artifact_service),
+):
+    """Create multiple artifact categories at once. Skips names that already exist. Platform admin only."""
+    try:
+        existing = await artifact_service.list_categories()
+        existing_names = {c.name.lower() for c in existing}
+        created = []
+        for name in data.names:
+            if name.strip().lower() not in existing_names:
+                cat = await artifact_service.create_category(name=name.strip())
+                created.append(ArtifactCategorySchema.model_validate(cat, from_attributes=True))
+                existing_names.add(name.strip().lower())
+        return created
+    except Exception as e:
+        logger.error(f"bulk_create_artifact_categories failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to bulk create artifact categories: {str(e)}",
+        )
+
+
 @router.delete(
     "/artifact-categories/{category_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -1573,6 +1613,35 @@ async def delete_artifact_category(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete artifact category: {str(e)}",
+        )
+
+
+@router.put(
+    "/artifact-categories/{category_id}",
+    response_model=ArtifactCategorySchema,
+    summary="Rename an artifact category",
+)
+async def rename_artifact_category(
+    category_id: int,
+    data: ArtifactCategoryRename,
+    current_user: User = Depends(require_platform_admin),
+    artifact_service: ArtifactService = Depends(get_artifact_service),
+):
+    """Rename an artifact category. Also updates all artifacts using the old name. Platform admin only."""
+    try:
+        cat = await artifact_service.rename_category(category_id, new_name=data.name)
+        if not cat:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Category not found"
+            )
+        return ArtifactCategorySchema.model_validate(cat, from_attributes=True)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"rename_artifact_category failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to rename artifact category: {str(e)}",
         )
 
 

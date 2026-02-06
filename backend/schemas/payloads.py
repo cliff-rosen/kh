@@ -689,7 +689,6 @@ Use this when:
     }
 ))
 
-
 register_payload_type(PayloadType(
     name="portfolio_insights",
     description="Analysis of user's current stream portfolio",
@@ -757,7 +756,6 @@ Use this when:
         }
     }
 ))
-
 
 register_payload_type(PayloadType(
     name="quick_setup",
@@ -828,7 +826,6 @@ Use this when:
     }
 ))
 
-
 register_payload_type(PayloadType(
     name="stream_template",
     description="Complete research stream configuration template",
@@ -893,7 +890,6 @@ Use this when:
     }
 ))
 
-
 register_payload_type(PayloadType(
     name="topic_suggestions",
     description="Suggested topics for a research stream",
@@ -942,7 +938,6 @@ Use this when:
         }
     }
 ))
-
 
 register_payload_type(PayloadType(
     name="validation_feedback",
@@ -1365,6 +1360,131 @@ register_payload_type(PayloadType(
             "created_at": {"type": ["string", "null"]},
             "updated_at": {"type": ["string", "null"]}
         }
+    }
+))
+
+
+# =============================================================================
+# Artifact Changes Proposal (LLM payload)
+# =============================================================================
+
+def _summarize_artifact_changes(data: Dict[str, Any]) -> str:
+    """Summarize an artifact changes proposal."""
+    cat_ops = data.get("category_operations", [])
+    changes = data.get("changes", [])
+    creates = len([c for c in changes if c.get("action") == "create"])
+    updates = len([c for c in changes if c.get("action") == "update"])
+    deletes = len([c for c in changes if c.get("action") == "delete"])
+    parts = []
+    if cat_ops:
+        parts.append(f"{len(cat_ops)} category ops")
+    if creates:
+        parts.append(f"{creates} create")
+    if updates:
+        parts.append(f"{updates} update")
+    if deletes:
+        parts.append(f"{deletes} delete")
+    return f"Artifact changes proposal: {', '.join(parts) or 'empty'}"
+
+
+register_payload_type(PayloadType(
+    name="artifact_changes",
+    description="Proposed bulk changes to artifacts and categories (create/update/delete)",
+    source="llm",
+    is_global=False,
+    parse_marker="ARTIFACT_CHANGES:",
+    parser=make_json_parser("artifact_changes"),
+    summarize=_summarize_artifact_changes,
+    llm_instructions="""
+ARTIFACT_CHANGES - Use when the user asks to reorganize, re-categorize, or batch-modify multiple artifacts at once.
+
+When you output this payload, the user will see a reviewable card with checkboxes for each proposed change.
+They can accept or reject individual changes before applying.
+
+IMPORTANT: category_operations are applied FIRST (before artifact changes), so new categories will exist
+before artifacts try to use them.
+
+ARTIFACT_CHANGES: {
+  "category_operations": [
+    {"action": "create", "name": "New Category Name"},
+    {"action": "rename", "id": 3, "old_name": "Old Name", "new_name": "Better Name"},
+    {"action": "delete", "id": 5, "name": "Obsolete Category"}
+  ],
+  "changes": [
+    {
+      "action": "create",
+      "title": "New artifact title",
+      "artifact_type": "bug",
+      "status": "open",
+      "category": "New Category Name",
+      "description": "Optional description"
+    },
+    {
+      "action": "update",
+      "id": 42,
+      "title": "Updated title (optional)",
+      "status": "backburner",
+      "category": "Better Name",
+      "artifact_type": "bug",
+      "description": "Updated description (optional)"
+    },
+    {
+      "action": "delete",
+      "id": 15,
+      "title_hint": "Title for display only"
+    }
+  ],
+  "reasoning": "Explain why you're proposing these changes"
+}
+
+Guidelines:
+- Only propose bulk changes when the user explicitly asks to reorganize, re-categorize, or batch-modify
+- For single-item changes, use the individual tools instead
+- Include reasoning to explain your proposal
+- If artifact changes need NEW categories, include them in category_operations
+- For updates, only include fields that are actually changing
+- Valid statuses: open, in_progress, backburner, closed
+- Valid types: bug, feature
+- category_operations is optional — omit it if no category changes are needed
+""",
+    schema={
+        "type": "object",
+        "properties": {
+            "category_operations": {
+                "type": "array",
+                "description": "Category changes applied before artifact changes",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "action": {"type": "string", "enum": ["create", "rename", "delete"]},
+                        "id": {"type": "integer", "description": "Category ID (for rename/delete)"},
+                        "name": {"type": "string", "description": "Category name (for create/delete display)"},
+                        "old_name": {"type": "string", "description": "Old name (for rename display)"},
+                        "new_name": {"type": "string", "description": "New name (for rename)"}
+                    },
+                    "required": ["action"]
+                }
+            },
+            "changes": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "action": {"type": "string", "enum": ["create", "update", "delete"]},
+                        "id": {"type": "integer"},
+                        "title": {"type": "string"},
+                        "title_hint": {"type": "string"},
+                        "artifact_type": {"type": "string", "enum": ["bug", "feature"]},
+                        "status": {"type": "string", "enum": ["open", "in_progress", "backburner", "closed"]},
+                        "category": {"type": "string"},
+                        "description": {"type": "string"}
+                    },
+                    "required": ["action"]
+                }
+            },
+            "reasoning": {"type": "string"}
+        },
+        "required": ["changes"]
     }
 ))
 

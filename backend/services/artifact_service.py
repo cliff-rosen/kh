@@ -150,6 +150,29 @@ class ArtifactService:
         await self.db.refresh(cat)
         return cat
 
+    async def rename_category(self, category_id: int, new_name: str) -> Optional[ArtifactCategory]:
+        """Rename a category. Also updates all artifacts using the old name. Returns None if not found."""
+        result = await self.db.execute(
+            select(ArtifactCategory).where(ArtifactCategory.id == category_id)
+        )
+        cat = result.scalars().first()
+        if not cat:
+            return None
+
+        old_name = cat.name
+        cat.name = new_name.strip()
+
+        # Update all artifacts that reference the old category name
+        artifacts_result = await self.db.execute(
+            select(Artifact).where(Artifact.category == old_name)
+        )
+        for artifact in artifacts_result.scalars().all():
+            artifact.category = cat.name
+
+        await self.db.commit()
+        await self.db.refresh(cat)
+        return cat
+
     async def delete_category(self, category_id: int) -> Optional[str]:
         """Delete a category by ID. Returns the name if deleted, None if not found."""
         result = await self.db.execute(

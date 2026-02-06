@@ -2,13 +2,13 @@
 Artifact Tools (Defect/Feature Tracker)
 
 Platform-admin-only tools for tracking bugs and feature requests.
-All tools are global but restricted to platform_admin role.
+Page-scoped to the "artifacts" page only.
 
 Uses ArtifactService for all database operations.
 """
 
 import logging
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,14 +29,23 @@ def _artifact_to_dict(artifact) -> Dict[str, Any]:
         "description": artifact.description,
         "type": artifact.artifact_type.value,
         "status": artifact.status.value,
+        "category": artifact.category,
         "created_by": artifact.created_by,
         "created_at": artifact.created_at.isoformat() if artifact.created_at else None,
         "updated_at": artifact.updated_at.isoformat() if artifact.updated_at else None,
     }
 
 
+def _category_to_dict(cat) -> Dict[str, Any]:
+    """Convert an ArtifactCategory model to a serializable dict."""
+    return {
+        "id": cat.id,
+        "name": cat.name,
+    }
+
+
 # =============================================================================
-# Tool Executors (Async)
+# Artifact Tool Executors
 # =============================================================================
 
 async def execute_list_artifacts(
@@ -53,6 +62,7 @@ async def execute_list_artifacts(
         artifacts = await service.list_artifacts(
             artifact_type=params.get("type"),
             status=params.get("status"),
+            category=params.get("category"),
         )
 
         if not artifacts:
@@ -114,6 +124,7 @@ async def execute_create_artifact(
             artifact_type=artifact_type,
             created_by=user_id,
             description=params.get("description"),
+            category=params.get("category"),
         )
 
         payload = {
@@ -146,8 +157,8 @@ async def execute_update_artifact(
 
     # Validate enum values before passing to service
     if "status" in params and params["status"]:
-        if params["status"] not in ("open", "in_progress", "closed"):
-            return "Error: status must be 'open', 'in_progress', or 'closed'."
+        if params["status"] not in ("open", "in_progress", "backburner", "closed"):
+            return "Error: status must be 'open', 'in_progress', 'backburner', or 'closed'."
     if "type" in params and params["type"]:
         if params["type"] not in ("bug", "feature"):
             return "Error: type must be 'bug' or 'feature'."
@@ -160,6 +171,7 @@ async def execute_update_artifact(
             description=params.get("description"),
             status=params.get("status"),
             artifact_type=params.get("type"),
+            category=params.get("category"),
         )
 
         if not artifact:
@@ -208,12 +220,162 @@ async def execute_delete_artifact(
 
 
 # =============================================================================
-# Tool Registration
+# Category Tool Executors
+# =============================================================================
+
+async def execute_list_artifact_categories(
+    params: Dict[str, Any],
+    db: AsyncSession,
+    user_id: int,
+    context: Dict[str, Any]
+) -> Union[str, ToolResult]:
+    """List all artifact categories."""
+    from services.artifact_service import ArtifactService
+
+    try:
+        service = ArtifactService(db)
+        categories = await service.list_categories()
+
+        if not categories:
+            return "No categories defined yet."
+
+        text_lines = [f"Found {len(categories)} categories:\n"]
+        for cat in categories:
+            text_lines.append(f"  - #{cat.id} {cat.name}")
+
+        return "\n".join(text_lines)
+
+    except Exception as e:
+        logger.error(f"Error listing categories: {e}", exc_info=True)
+        return f"Error listing categories: {str(e)}"
+
+
+async def execute_create_artifact_category(
+    params: Dict[str, Any],
+    db: AsyncSession,
+    user_id: int,
+    context: Dict[str, Any]
+) -> Union[str, ToolResult]:
+    """Create a single artifact category."""
+    from services.artifact_service import ArtifactService
+
+    name = params.get("name")
+    if not name or not name.strip():
+        return "Error: name is required."
+
+    try:
+        service = ArtifactService(db)
+        cat = await service.create_category(name=name.strip())
+        return f"Created category #{cat.id}: {cat.name}"
+
+    except Exception as e:
+        logger.error(f"Error creating category: {e}", exc_info=True)
+        return f"Error creating category: {str(e)}"
+
+
+async def execute_bulk_create_artifact_categories(
+    params: Dict[str, Any],
+    db: AsyncSession,
+    user_id: int,
+    context: Dict[str, Any]
+) -> Union[str, ToolResult]:
+    """Bulk create artifact categories, skipping duplicates."""
+    from services.artifact_service import ArtifactService
+
+    names = params.get("names", [])
+    if not names:
+        return "Error: names list is required and must not be empty."
+
+    try:
+        service = ArtifactService(db)
+        existing = await service.list_categories()
+        existing_names = {c.name.lower() for c in existing}
+
+        created: List[str] = []
+        skipped: List[str] = []
+        for name in names:
+            clean = name.strip()
+            if not clean:
+                continue
+            if clean.lower() in existing_names:
+                skipped.append(clean)
+            else:
+                await service.create_category(name=clean)
+                created.append(clean)
+                existing_names.add(clean.lower())
+
+        parts = []
+        if created:
+            parts.append(f"Created {len(created)}: {', '.join(created)}")
+        if skipped:
+            parts.append(f"Skipped {len(skipped)} (already exist): {', '.join(skipped)}")
+        return ". ".join(parts) if parts else "No categories to create."
+
+    except Exception as e:
+        logger.error(f"Error bulk creating categories: {e}", exc_info=True)
+        return f"Error bulk creating categories: {str(e)}"
+
+
+async def execute_rename_artifact_category(
+    params: Dict[str, Any],
+    db: AsyncSession,
+    user_id: int,
+    context: Dict[str, Any]
+) -> Union[str, ToolResult]:
+    """Rename an artifact category (also updates all artifacts using it)."""
+    from services.artifact_service import ArtifactService
+
+    category_id = params.get("id")
+    new_name = params.get("new_name")
+    if not category_id:
+        return "Error: id is required."
+    if not new_name or not new_name.strip():
+        return "Error: new_name is required."
+
+    try:
+        service = ArtifactService(db)
+        cat = await service.rename_category(int(category_id), new_name=new_name.strip())
+        if not cat:
+            return f"Error: Category #{category_id} not found."
+        return f"Renamed category #{cat.id} to: {cat.name} (artifacts updated)"
+
+    except Exception as e:
+        logger.error(f"Error renaming category: {e}", exc_info=True)
+        return f"Error renaming category: {str(e)}"
+
+
+async def execute_delete_artifact_category(
+    params: Dict[str, Any],
+    db: AsyncSession,
+    user_id: int,
+    context: Dict[str, Any]
+) -> Union[str, ToolResult]:
+    """Delete an artifact category by ID."""
+    from services.artifact_service import ArtifactService
+
+    category_id = params.get("id")
+    if not category_id:
+        return "Error: id is required."
+
+    try:
+        service = ArtifactService(db)
+        name = await service.delete_category(int(category_id))
+        if not name:
+            return f"Error: Category #{category_id} not found."
+        return f"Deleted category #{category_id}: {name}"
+
+    except Exception as e:
+        logger.error(f"Error deleting category: {e}", exc_info=True)
+        return f"Error deleting category: {str(e)}"
+
+
+# =============================================================================
+# Tool Registration — Artifact CRUD (page-scoped to "artifacts")
 # =============================================================================
 
 register_tool(ToolConfig(
     name="list_artifacts",
-    description="List all bugs and feature requests. Optionally filter by type (bug/feature) and status (open/in_progress/closed).",
+    description="List all bugs and feature requests. Optionally filter by type (bug/feature), status (open/in_progress/backburner/closed), and category.",
     input_schema={
         "type": "object",
         "properties": {
@@ -224,20 +386,24 @@ register_tool(ToolConfig(
             },
             "status": {
                 "type": "string",
-                "enum": ["open", "in_progress", "closed"],
+                "enum": ["open", "in_progress", "backburner", "closed"],
                 "description": "Filter by status."
+            },
+            "category": {
+                "type": "string",
+                "description": "Filter by category name."
             }
         },
     },
     executor=execute_list_artifacts,
-    category="admin",
-    is_global=True,
+    category="artifacts",
+    is_global=False,
     required_role="platform_admin",
 ))
 
 register_tool(ToolConfig(
     name="create_artifact",
-    description="Create a new bug report or feature request. Provide a title, type (bug or feature), and optional description.",
+    description="Create a new bug report or feature request. Provide a title, type (bug or feature), and optional description and category.",
     input_schema={
         "type": "object",
         "properties": {
@@ -253,19 +419,23 @@ register_tool(ToolConfig(
             "description": {
                 "type": "string",
                 "description": "Detailed description (optional)."
+            },
+            "category": {
+                "type": "string",
+                "description": "Category name for grouping (optional)."
             }
         },
         "required": ["title", "type"]
     },
     executor=execute_create_artifact,
-    category="admin",
-    is_global=True,
+    category="artifacts",
+    is_global=False,
     required_role="platform_admin",
 ))
 
 register_tool(ToolConfig(
     name="update_artifact",
-    description="Update an existing bug or feature request. You can change the title, description, status, or type.",
+    description="Update an existing bug or feature request. You can change the title, description, status, type, or category.",
     input_schema={
         "type": "object",
         "properties": {
@@ -283,20 +453,24 @@ register_tool(ToolConfig(
             },
             "status": {
                 "type": "string",
-                "enum": ["open", "in_progress", "closed"],
+                "enum": ["open", "in_progress", "backburner", "closed"],
                 "description": "New status (optional)."
             },
             "type": {
                 "type": "string",
                 "enum": ["bug", "feature"],
                 "description": "New type (optional)."
+            },
+            "category": {
+                "type": "string",
+                "description": "New category name (optional). Use empty string to clear."
             }
         },
         "required": ["id"]
     },
     executor=execute_update_artifact,
-    category="admin",
-    is_global=True,
+    category="artifacts",
+    is_global=False,
     required_role="platform_admin",
 ))
 
@@ -314,7 +488,106 @@ register_tool(ToolConfig(
         "required": ["id"]
     },
     executor=execute_delete_artifact,
-    category="admin",
-    is_global=True,
+    category="artifacts",
+    is_global=False,
+    required_role="platform_admin",
+))
+
+
+# =============================================================================
+# Tool Registration — Category Management (page-scoped to "artifacts")
+# =============================================================================
+
+register_tool(ToolConfig(
+    name="list_artifact_categories",
+    description="List all artifact categories.",
+    input_schema={
+        "type": "object",
+        "properties": {},
+    },
+    executor=execute_list_artifact_categories,
+    category="artifacts",
+    is_global=False,
+    required_role="platform_admin",
+))
+
+register_tool(ToolConfig(
+    name="create_artifact_category",
+    description="Create a new artifact category for grouping bugs and features.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Category name (e.g., 'UI', 'Backend', 'Performance')."
+            }
+        },
+        "required": ["name"]
+    },
+    executor=execute_create_artifact_category,
+    category="artifacts",
+    is_global=False,
+    required_role="platform_admin",
+))
+
+register_tool(ToolConfig(
+    name="bulk_create_artifact_categories",
+    description="Create multiple artifact categories at once. Skips any that already exist.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "names": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "List of category names to create."
+            }
+        },
+        "required": ["names"]
+    },
+    executor=execute_bulk_create_artifact_categories,
+    category="artifacts",
+    is_global=False,
+    required_role="platform_admin",
+))
+
+register_tool(ToolConfig(
+    name="rename_artifact_category",
+    description="Rename an artifact category. All artifacts using the old name will be updated to the new name.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "integer",
+                "description": "ID of the category to rename."
+            },
+            "new_name": {
+                "type": "string",
+                "description": "New name for the category."
+            }
+        },
+        "required": ["id", "new_name"]
+    },
+    executor=execute_rename_artifact_category,
+    category="artifacts",
+    is_global=False,
+    required_role="platform_admin",
+))
+
+register_tool(ToolConfig(
+    name="delete_artifact_category",
+    description="Delete an artifact category by ID. Artifacts using this category keep their category text but it won't appear in filters.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "integer",
+                "description": "ID of the category to delete."
+            }
+        },
+        "required": ["id"]
+    },
+    executor=execute_delete_artifact_category,
+    category="artifacts",
+    is_global=False,
     required_role="platform_admin",
 ))
