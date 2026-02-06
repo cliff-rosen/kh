@@ -97,6 +97,7 @@ class ArtifactType(str, PyEnum):
     """Type of artifact (defect tracker)"""
     BUG = "bug"
     FEATURE = "feature"
+    TASK = "task"
 
 class ArtifactStatus(str, PyEnum):
     """Status of an artifact"""

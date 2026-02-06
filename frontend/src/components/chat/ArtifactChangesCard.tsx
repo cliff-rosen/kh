@@ -549,6 +549,7 @@ function CategoryOpDetail({ op }: { op: CategoryOperation }) {
 const TYPE_LABELS: Record<string, string> = {
     bug: 'Bug',
     feature: 'Feature',
+    task: 'Task',
 };
 
 function FieldDiff({ label, oldVal, newVal }: { label: string; oldVal?: string | null; newVal?: string | null }) {

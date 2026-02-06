@@ -10,6 +10,7 @@ import type { Artifact, ArtifactCategory } from '../../types/artifact';
 const TYPE_BADGES: Record<string, string> = {
     bug: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
     feature: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+    task: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400',
 };
 
 const STATUS_BADGES: Record<string, string> = {
@@ -45,7 +46,7 @@ function getCategoryColor(category: string, categories: ArtifactCategory[]): str
 interface EditState {
     id: number;
     title: string;
-    artifact_type: 'bug' | 'feature';
+    artifact_type: 'bug' | 'feature' | 'task';
     status: string;
     description: string;
     category: string;
@@ -181,7 +182,7 @@ export function ArtifactList() {
     // Create dialog state
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [newTitle, setNewTitle] = useState('');
-    const [newType, setNewType] = useState<'bug' | 'feature'>('bug');
+    const [newType, setNewType] = useState<'bug' | 'feature' | 'task'>('bug');
     const [newDescription, setNewDescription] = useState('');
     const [newCategory, setNewCategory] = useState('');
     const [isCreating, setIsCreating] = useState(false);
@@ -329,7 +330,7 @@ export function ArtifactList() {
         setEditing({
             id: artifact.id,
             title: artifact.title,
-            artifact_type: artifact.artifact_type as 'bug' | 'feature',
+            artifact_type: artifact.artifact_type as 'bug' | 'feature' | 'task',
             status: artifact.status,
             description: artifact.description || '',
             category: artifact.category || '',
@@ -656,6 +657,7 @@ export function ArtifactList() {
                         options={[
                             { value: 'bug', label: 'Bug', color: 'bg-red-600 text-white' },
                             { value: 'feature', label: 'Feature', color: 'bg-blue-600 text-white' },
+                            { value: 'task', label: 'Task', color: 'bg-violet-600 text-white' },
                         ]}
                         onChange={setFilterType}
                     />
@@ -829,8 +831,9 @@ export function ArtifactList() {
                                                             options={[
                                                                 { value: 'bug', label: 'Bug', color: TYPE_BADGES.bug },
                                                                 { value: 'feature', label: 'Feature', color: TYPE_BADGES.feature },
+                                                                { value: 'task', label: 'Task', color: TYPE_BADGES.task },
                                                             ]}
-                                                            onChange={(v) => setEditing({ ...editing, artifact_type: v as 'bug' | 'feature' })}
+                                                            onChange={(v) => setEditing({ ...editing, artifact_type: v as 'bug' | 'feature' | 'task' })}
                                                         />
                                                         <RadioGroup
                                                             label="Status"
@@ -1026,8 +1029,9 @@ export function ArtifactList() {
                                     options={[
                                         { value: 'bug', label: 'Bug', color: TYPE_BADGES.bug },
                                         { value: 'feature', label: 'Feature', color: TYPE_BADGES.feature },
+                                        { value: 'task', label: 'Task', color: TYPE_BADGES.task },
                                     ]}
-                                    onChange={(v) => setNewType(v as 'bug' | 'feature')}
+                                    onChange={(v) => setNewType(v as 'bug' | 'feature' | 'task')}
                                 />
                                 <div>
                                     <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Category</div>
