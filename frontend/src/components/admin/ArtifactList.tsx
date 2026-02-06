@@ -541,6 +541,7 @@ export function ArtifactList() {
             render: (payload, callbacks) => (
                 <ArtifactChangesCard
                     proposal={payload}
+                    existingArtifacts={artifacts}
                     onAccept={(data) => {
                         handleApplyArtifactChanges(data);
                         callbacks.onAccept?.(data);
@@ -554,7 +555,7 @@ export function ArtifactList() {
                 headerIcon: '\uD83D\uDCCB',
             }
         }
-    }), [handleApplyArtifactChanges]);
+    }), [handleApplyArtifactChanges, artifacts]);
 
     if (isLoading && artifacts.length === 0) {
         return (

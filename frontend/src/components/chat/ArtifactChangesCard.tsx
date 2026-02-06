@@ -26,8 +26,18 @@ interface ArtifactChangesProposal {
     reasoning?: string;
 }
 
+interface ExistingArtifact {
+    id: number;
+    title: string;
+    artifact_type: string;
+    status: string;
+    category: string | null;
+    description: string | null;
+}
+
 interface ArtifactChangesCardProps {
     proposal: ArtifactChangesProposal;
+    existingArtifacts?: ExistingArtifact[];
     onAccept?: (data: { category_operations?: CategoryOperation[]; changes: ArtifactChange[] }) => void;
     onReject?: () => void;
 }
@@ -74,10 +84,16 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function ArtifactChangesCard({
     proposal,
+    existingArtifacts,
     onAccept,
     onReject,
 }: ArtifactChangesCardProps) {
     const catOps = proposal.category_operations || [];
+    const artifactMap = useMemo(() => {
+        const map = new Map<number, ExistingArtifact>();
+        existingArtifacts?.forEach(a => map.set(a.id, a));
+        return map;
+    }, [existingArtifacts]);
     const [checked, setChecked] = useState<Set<number>>(
         () => new Set(proposal.changes.map((_, i) => i))
     );
@@ -327,7 +343,7 @@ export default function ArtifactChangesCard({
                                             />
                                             <Icon className={`h-4 w-4 mt-0.5 flex-shrink-0 ${style.iconColor}`} />
                                             <div className="flex-1 min-w-0">
-                                                <ChangeDetail change={change} />
+                                                <ChangeDetail change={change} existing={change.id ? artifactMap.get(change.id) : undefined} />
                                                 {blocked && blockingCat && (
                                                     <div className="flex items-center gap-1 mt-1 text-xs text-amber-600 dark:text-amber-400">
                                                         <ExclamationTriangleIcon className="h-3 w-3 flex-shrink-0" />
@@ -381,7 +397,25 @@ function CategoryOpDetail({ op }: { op: CategoryOperation }) {
     return <><span className="line-through text-gray-500 dark:text-gray-400">{op.name || `#${op.id}`}</span></>;
 }
 
-function ChangeDetail({ change }: { change: ArtifactChange }) {
+const TYPE_LABELS: Record<string, string> = {
+    bug: 'Bug',
+    feature: 'Feature',
+};
+
+function FieldDiff({ label, oldVal, newVal }: { label: string; oldVal?: string | null; newVal?: string | null }) {
+    const oldDisplay = oldVal || '(none)';
+    const newDisplay = newVal || '(none)';
+    return (
+        <div className="flex items-baseline gap-1.5 text-xs">
+            <span className="text-gray-400 dark:text-gray-500 w-16 flex-shrink-0">{label}:</span>
+            <span className="text-gray-400 dark:text-gray-500 line-through">{oldDisplay}</span>
+            <span className="text-gray-400 dark:text-gray-500">{'\u2192'}</span>
+            <span className="font-medium text-gray-900 dark:text-gray-100">{newDisplay}</span>
+        </div>
+    );
+}
+
+function ChangeDetail({ change, existing }: { change: ArtifactChange; existing?: ExistingArtifact }) {
     if (change.action === 'create') {
         return (
             <div className="text-sm">
@@ -389,7 +423,7 @@ function ChangeDetail({ change }: { change: ArtifactChange }) {
                 <div className="flex flex-wrap gap-2 mt-1">
                     {change.artifact_type && (
                         <span className="text-xs text-gray-500 dark:text-gray-400">
-                            Type: <span className="font-medium">{change.artifact_type}</span>
+                            Type: <span className="font-medium">{TYPE_LABELS[change.artifact_type] || change.artifact_type}</span>
                         </span>
                     )}
                     {change.status && (
@@ -411,29 +445,75 @@ function ChangeDetail({ change }: { change: ArtifactChange }) {
     }
 
     if (change.action === 'update') {
-        const fields: string[] = [];
-        if (change.title) fields.push(`title: "${change.title}"`);
-        if (change.status) fields.push(`status: ${STATUS_LABELS[change.status] || change.status}`);
-        if (change.category !== undefined) fields.push(`category: ${change.category || '(clear)'}`);
-        if (change.artifact_type) fields.push(`type: ${change.artifact_type}`);
-        if (change.description) fields.push('description updated');
+        // Show the artifact title so user knows which item this is
+        const displayTitle = existing?.title || change.title || `#${change.id}`;
+
+        // Build field-by-field diffs
+        const diffs: { label: string; oldVal: string | null; newVal: string | null }[] = [];
+        if (change.title !== undefined && change.title !== existing?.title) {
+            diffs.push({ label: 'Title', oldVal: existing?.title ?? null, newVal: change.title });
+        }
+        if (change.status !== undefined && change.status !== existing?.status) {
+            diffs.push({
+                label: 'Status',
+                oldVal: existing?.status ? (STATUS_LABELS[existing.status] || existing.status) : null,
+                newVal: STATUS_LABELS[change.status] || change.status,
+            });
+        }
+        if (change.category !== undefined && change.category !== existing?.category) {
+            diffs.push({
+                label: 'Category',
+                oldVal: existing?.category ?? null,
+                newVal: change.category || null,
+            });
+        }
+        if (change.artifact_type !== undefined && change.artifact_type !== existing?.artifact_type) {
+            diffs.push({
+                label: 'Type',
+                oldVal: existing?.artifact_type ? (TYPE_LABELS[existing.artifact_type] || existing.artifact_type) : null,
+                newVal: TYPE_LABELS[change.artifact_type] || change.artifact_type,
+            });
+        }
+        if (change.description !== undefined) {
+            const oldDesc = existing?.description;
+            if (change.description !== oldDesc) {
+                diffs.push({
+                    label: 'Desc.',
+                    oldVal: oldDesc ? (oldDesc.length > 40 ? oldDesc.slice(0, 40) + '...' : oldDesc) : null,
+                    newVal: change.description.length > 40 ? change.description.slice(0, 40) + '...' : change.description,
+                });
+            }
+        }
 
         return (
             <div className="text-sm">
-                <div className="font-medium text-gray-900 dark:text-gray-100">#{change.id}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {fields.join(' \u00b7 ')}
-                </div>
+                <div className="font-medium text-gray-900 dark:text-gray-100">{displayTitle}</div>
+                {diffs.length > 0 ? (
+                    <div className="mt-1 space-y-0.5">
+                        {diffs.map(d => (
+                            <FieldDiff key={d.label} label={d.label} oldVal={d.oldVal} newVal={d.newVal} />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 italic">No visible changes</div>
+                )}
             </div>
         );
     }
 
     // delete
+    const deleteTitle = existing?.title || change.title_hint || `#${change.id}`;
     return (
         <div className="text-sm">
-            <div className="font-medium text-gray-900 dark:text-gray-100">
-                #{change.id} {change.title_hint && <span className="text-gray-500 dark:text-gray-400">{'\u2014'} {change.title_hint}</span>}
-            </div>
+            <div className="font-medium text-gray-900 dark:text-gray-100">{deleteTitle}</div>
+            {existing && (
+                <div className="flex flex-wrap gap-2 mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                    <span>{TYPE_LABELS[existing.artifact_type] || existing.artifact_type}</span>
+                    <span>{'\u00b7'}</span>
+                    <span>{STATUS_LABELS[existing.status] || existing.status}</span>
+                    {existing.category && <><span>{'\u00b7'}</span><span>{existing.category}</span></>}
+                </div>
+            )}
         </div>
     );
 }
