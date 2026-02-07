@@ -571,8 +571,18 @@ function MessageDetailPanel({ message }: { message: Message }) {
     // State for diagnostics panel (rich trace viewer)
     const [showDiagnosticsPanel, setShowDiagnosticsPanel] = useState(false);
 
-    // Extract all tool calls from trace iterations
-    const allToolCalls = (trace?.iterations?.flatMap(iter => iter.tool_calls || []) || []) as ToolCall[];
+    // Extract all tool calls from trace iterations, paired with assistant text
+    const toolCallsWithContext = (trace?.iterations?.flatMap(iter => {
+        // Extract text blocks from the model's response_content for this iteration
+        const textBlocks = (iter.response_content || [])
+            .filter((block: Record<string, unknown>) => block.type === 'text')
+            .map((block: Record<string, unknown>) => block.text as string)
+            .join('\n');
+        return (iter.tool_calls || []).map(tc => ({
+            toolCall: tc as ToolCall,
+            assistantText: textBlocks || undefined,
+        }));
+    }) || []);
 
     // Track which tool calls are expanded
     const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
@@ -685,18 +695,19 @@ function MessageDetailPanel({ message }: { message: Message }) {
             </div>
 
             {/* Tool Calls from trace */}
-            {allToolCalls.length > 0 && (
+            {toolCallsWithContext.length > 0 && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
                     <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">
                         <h4 className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                            Tool Calls ({allToolCalls.length})
+                            Tool Calls ({toolCallsWithContext.length})
                         </h4>
                     </div>
                     <div className="p-4 space-y-3">
-                        {allToolCalls.map((tc, idx) => (
+                        {toolCallsWithContext.map(({ toolCall: tc, assistantText }, idx) => (
                             <ToolCallCard
                                 key={tc.tool_use_id || idx}
                                 toolCall={tc}
+                                assistantText={assistantText}
                                 isExpanded={expandedTools.has(idx)}
                                 onToggle={() => setExpandedTools(prev => {
                                     const next = new Set(prev);

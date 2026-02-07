@@ -9,9 +9,11 @@ interface ToolCallCardProps {
     toolCall: ToolCall;
     isExpanded: boolean;
     onToggle: () => void;
+    /** Optional assistant reasoning text that accompanied this tool call */
+    assistantText?: string;
 }
 
-export function ToolCallCard({ toolCall, isExpanded, onToggle }: ToolCallCardProps) {
+export function ToolCallCard({ toolCall, isExpanded, onToggle, assistantText }: ToolCallCardProps) {
     const [showFullscreen, setShowFullscreen] = useState(false);
     const inputPreview = JSON.stringify(toolCall.tool_input);
     const truncatedInput = inputPreview.length > 120 ? inputPreview.slice(0, 120) + '...' : inputPreview;
@@ -64,6 +66,14 @@ export function ToolCallCard({ toolCall, isExpanded, onToggle }: ToolCallCardPro
 
                 {isExpanded && (
                     <div className="p-3 border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
+                        {assistantText && (
+                            <div className="mb-3">
+                                <div className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">Assistant</div>
+                                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded p-2 text-xs text-gray-800 dark:text-gray-200 whitespace-pre-wrap max-h-32 overflow-auto">
+                                    {assistantText}
+                                </div>
+                            </div>
+                        )}
                         <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
                             Input → Output • Click expand icon for full view
                         </div>
