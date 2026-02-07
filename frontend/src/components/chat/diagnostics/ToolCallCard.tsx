@@ -13,6 +13,8 @@ interface ToolCallCardProps {
 
 export function ToolCallCard({ toolCall, isExpanded, onToggle }: ToolCallCardProps) {
     const [showFullscreen, setShowFullscreen] = useState(false);
+    const inputPreview = JSON.stringify(toolCall.tool_input);
+    const truncatedInput = inputPreview.length > 120 ? inputPreview.slice(0, 120) + '...' : inputPreview;
 
     return (
         <>
@@ -20,33 +22,40 @@ export function ToolCallCard({ toolCall, isExpanded, onToggle }: ToolCallCardPro
                 <div className="flex items-center bg-blue-50 dark:bg-blue-900/20">
                     <button
                         onClick={onToggle}
-                        className="flex-1 flex items-center gap-3 p-3 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                        className="flex-1 min-w-0 p-3 hover:bg-blue-100 dark:hover:bg-blue-900/30"
                     >
-                        {isExpanded ? (
-                            <ChevronDownIcon className="h-4 w-4 text-gray-400" />
-                        ) : (
-                            <ChevronRightIcon className="h-4 w-4 text-gray-400" />
-                        )}
-                        <span className="font-mono text-sm text-blue-700 dark:text-blue-300">
-                            {toolCall.tool_name}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                            toolCall.output_type === 'error'
-                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                        }`}>
-                            {toolCall.output_type}
-                        </span>
-                        {toolCall.payload && (
-                            <span className="px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                                payload
+                        <div className="flex items-center gap-3">
+                            {isExpanded ? (
+                                <ChevronDownIcon className="h-4 w-4 text-gray-400 shrink-0" />
+                            ) : (
+                                <ChevronRightIcon className="h-4 w-4 text-gray-400 shrink-0" />
+                            )}
+                            <span className="font-mono text-sm text-blue-700 dark:text-blue-300 shrink-0">
+                                {toolCall.tool_name}
                             </span>
+                            <span className={`px-2 py-0.5 rounded text-xs shrink-0 ${
+                                toolCall.output_type === 'error'
+                                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                            }`}>
+                                {toolCall.output_type}
+                            </span>
+                            {toolCall.payload && (
+                                <span className="px-2 py-0.5 rounded text-xs shrink-0 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                                    payload
+                                </span>
+                            )}
+                            <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{toolCall.execution_ms}ms</span>
+                        </div>
+                        {!isExpanded && (
+                            <div className="mt-1 ml-7 text-xs font-mono text-gray-500 dark:text-gray-400 truncate text-left">
+                                {truncatedInput}
+                            </div>
                         )}
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{toolCall.execution_ms}ms</span>
                     </button>
                     <button
                         onClick={() => setShowFullscreen(true)}
-                        className="p-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                        className="p-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 self-start"
                         title="View fullscreen"
                     >
                         <ArrowsPointingOutIcon className="h-4 w-4" />

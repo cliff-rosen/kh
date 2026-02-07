@@ -8,8 +8,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon, UserIcon, CpuChipIcon, BugAntIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { api } from '@/lib/api';
 import { showErrorToast } from '@/lib/errorToast';
-import { AgentTrace as ChatAgentTrace } from '@/types/chat';
+import { AgentTrace as ChatAgentTrace, ToolCall } from '@/types/chat';
 import { DiagnosticsPanel } from '@/components/chat/DiagnosticsPanel';
+import { ToolCallCard } from '@/components/chat/diagnostics/ToolCallCard';
+import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 
 interface SuggestedValue {
     label: string;
@@ -511,11 +513,9 @@ function MessageListItem({
                             </button>
                         )}
                     </div>
-                    <p className={`text-sm text-gray-900 dark:text-white whitespace-pre-wrap ${
-                        !isExpanded ? 'line-clamp-3' : ''
-                    }`}>
-                        {message.content}
-                    </p>
+                    <div className={`text-sm ${!isExpanded ? 'line-clamp-3' : ''}`}>
+                        <MarkdownRenderer content={message.content} compact />
+                    </div>
                     {/* Badges for extras */}
                     {message.extras && Object.keys(message.extras).length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
@@ -570,6 +570,15 @@ function MessageDetailPanel({ message }: { message: Message }) {
 
     // State for diagnostics panel (rich trace viewer)
     const [showDiagnosticsPanel, setShowDiagnosticsPanel] = useState(false);
+
+    // Extract all tool calls from trace iterations
+    const allToolCalls = (trace?.iterations?.flatMap(iter => iter.tool_calls || []) || []) as ToolCall[];
+
+    // Track which tool calls are expanded
+    const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
+
+    // Message content collapsed by default in right pane
+    const [contentExpanded, setContentExpanded] = useState(false);
 
     return (
         <div className="space-y-4">
@@ -648,17 +657,58 @@ function MessageDetailPanel({ message }: { message: Message }) {
                 </div>
             )}
 
-            {/* Message Content */}
+            {/* Message Content (collapsible, raw) */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <button
+                    onClick={() => setContentExpanded(!contentExpanded)}
+                    className="w-full flex items-center gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors"
+                >
+                    {contentExpanded ? (
+                        <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                    ) : (
+                        <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+                    )}
                     <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Message Content</h4>
-                </div>
-                <div className="p-4">
-                    <pre className="whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100 font-sans">
-                        {message.content}
-                    </pre>
-                </div>
+                    {!contentExpanded && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500 truncate ml-2">
+                            {message.content.slice(0, 80)}{message.content.length > 80 ? '...' : ''}
+                        </span>
+                    )}
+                </button>
+                {contentExpanded && (
+                    <div className="p-4">
+                        <pre className="whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100 font-sans">
+                            {message.content}
+                        </pre>
+                    </div>
+                )}
             </div>
+
+            {/* Tool Calls from trace */}
+            {allToolCalls.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">
+                        <h4 className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                            Tool Calls ({allToolCalls.length})
+                        </h4>
+                    </div>
+                    <div className="p-4 space-y-3">
+                        {allToolCalls.map((tc, idx) => (
+                            <ToolCallCard
+                                key={tc.tool_use_id || idx}
+                                toolCall={tc}
+                                isExpanded={expandedTools.has(idx)}
+                                onToggle={() => setExpandedTools(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(idx)) next.delete(idx);
+                                    else next.add(idx);
+                                    return next;
+                                })}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Suggested Values */}
             {extras.suggested_values && extras.suggested_values.length > 0 && (
