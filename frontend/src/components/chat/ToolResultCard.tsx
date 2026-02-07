@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { ChevronRightIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
 import { ToolHistoryEntry } from '../../types/chat';
 
@@ -21,41 +20,6 @@ function formatOutput(output: string | Record<string, any>): string {
     return JSON.stringify(output, null, 2);
 }
 
-interface CollapsibleContentProps {
-    content: string;
-    label: string;
-    defaultExpanded?: boolean;
-}
-
-function CollapsibleContent({ content, label, defaultExpanded = true }: CollapsibleContentProps) {
-    const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-    const isLong = content.length > 500;
-
-    return (
-        <div>
-            <div className="flex items-center justify-between mb-1">
-                <div className="font-medium text-gray-600 dark:text-gray-400">{label}</div>
-                {isLong && (
-                    <button
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                        {isExpanded ? 'Collapse' : 'Expand'}
-                    </button>
-                )}
-            </div>
-            <pre className={`bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto text-gray-700 dark:text-gray-300 whitespace-pre-wrap ${isLong && !isExpanded ? 'max-h-32 overflow-hidden' : ''}`}>
-                {content}
-            </pre>
-            {isLong && !isExpanded && (
-                <div className="text-xs text-gray-500 mt-1">
-                    Content truncated. Click "Expand" to see full output.
-                </div>
-            )}
-        </div>
-    );
-}
-
 /** Inline clickable chip that opens tool details */
 export default function ToolResultCard({ tool, onClick }: ToolResultCardProps) {
     return (
@@ -70,7 +34,7 @@ export default function ToolResultCard({ tool, onClick }: ToolResultCardProps) {
     );
 }
 
-/** Expanded view of a tool call - used inside panels (diagnostic view) */
+/** Expanded view of a tool call - two-column input/output layout */
 export function ToolResultExpanded({ tool }: { tool: ToolHistoryEntry }) {
     return (
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -80,17 +44,19 @@ export function ToolResultExpanded({ tool }: { tool: ToolHistoryEntry }) {
                     {formatToolName(tool.tool_name)}
                 </span>
             </div>
-            <div className="p-4 space-y-4 text-sm">
-                <CollapsibleContent
-                    label="Input"
-                    content={JSON.stringify(tool.input, null, 2)}
-                    defaultExpanded={false}
-                />
-                <CollapsibleContent
-                    label="Output"
-                    content={formatOutput(tool.output)}
-                    defaultExpanded={true}
-                />
+            <div className="grid grid-cols-2 gap-4 p-4 text-sm">
+                <div>
+                    <div className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">Input</div>
+                    <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap overflow-auto max-h-[60vh]">
+                        {JSON.stringify(tool.input, null, 2)}
+                    </pre>
+                </div>
+                <div>
+                    <div className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">Output</div>
+                    <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap overflow-auto max-h-[60vh]">
+                        {formatOutput(tool.output)}
+                    </pre>
+                </div>
             </div>
         </div>
     );
