@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { ChevronRightIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
-import { ToolHistoryEntry } from '../../types/chat';
+import { ToolHistoryEntry, AgentTrace, ToolCall } from '../../types/chat';
+import { ToolCallCard } from './diagnostics/ToolCallCard';
 
 interface ToolResultCardProps {
     tool: ToolHistoryEntry;
@@ -64,13 +66,31 @@ export function ToolResultExpanded({ tool }: { tool: ToolHistoryEntry }) {
 
 interface ToolHistoryPanelProps {
     tools: ToolHistoryEntry[];
+    trace?: AgentTrace;
     onClose: () => void;
 }
 
-export function ToolHistoryPanel({ tools, onClose }: ToolHistoryPanelProps) {
-    const title = tools.length === 1
-        ? formatToolName(tools[0].tool_name)
-        : `Tool Calls (${tools.length})`;
+export function ToolHistoryPanel({ tools, onClose, trace }: ToolHistoryPanelProps) {
+    // Extract rich tool calls with assistant text from trace when available
+    const traceToolCalls = trace?.iterations?.flatMap(iter => {
+        const textBlocks = (iter.response_content || [])
+            .filter((block: Record<string, unknown>) => block.type === 'text')
+            .map((block: Record<string, unknown>) => block.text as string)
+            .join('\n');
+        return (iter.tool_calls || []).map(tc => ({
+            toolCall: tc as ToolCall,
+            assistantText: textBlocks || undefined,
+        }));
+    }) || [];
+
+    const useRichView = traceToolCalls.length > 0;
+    const count = useRichView ? traceToolCalls.length : tools.length;
+
+    const title = count === 1
+        ? formatToolName(useRichView ? traceToolCalls[0].toolCall.tool_name : tools[0].tool_name)
+        : `Tool Calls (${count})`;
+
+    const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50">
@@ -87,9 +107,26 @@ export function ToolHistoryPanel({ tools, onClose }: ToolHistoryPanelProps) {
                     </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {tools.map((tool, idx) => (
-                        <ToolResultExpanded key={idx} tool={tool} />
-                    ))}
+                    {useRichView ? (
+                        traceToolCalls.map(({ toolCall: tc, assistantText }, idx) => (
+                            <ToolCallCard
+                                key={tc.tool_use_id || idx}
+                                toolCall={tc}
+                                assistantText={assistantText}
+                                isExpanded={expandedTools.has(idx)}
+                                onToggle={() => setExpandedTools(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(idx)) next.delete(idx);
+                                    else next.add(idx);
+                                    return next;
+                                })}
+                            />
+                        ))
+                    ) : (
+                        tools.map((tool, idx) => (
+                            <ToolResultExpanded key={idx} tool={tool} />
+                        ))
+                    )}
                 </div>
             </div>
         </div>

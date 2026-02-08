@@ -250,6 +250,7 @@ export default function ChatTray({
         return initialDismissed;
     });
     const [toolsToShow, setToolsToShow] = useState<ToolHistoryEntry[] | null>(null);
+    const [toolsTrace, setToolsTrace] = useState<AgentTrace | undefined>(undefined);
     const [diagnosticsToShow, setDiagnosticsToShow] = useState<AgentTrace | null>(null);
 
     // Track previous values to detect changes (start with undefined to trigger initial set)
@@ -539,7 +540,7 @@ export default function ChatTray({
                                                 content={message.content}
                                                 toolHistory={message.tool_history}
                                                 compact
-                                                onToolClick={(tool) => setToolsToShow([tool])}
+                                                onToolClick={(tool) => { setToolsToShow([tool]); setToolsTrace(message.diagnostics); }}
                                             />
                                         </div>
                                         <p className="text-xs opacity-70 mt-1">
@@ -551,7 +552,7 @@ export default function ChatTray({
                                                 {message.tool_history && message.tool_history.length > 0 && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => setToolsToShow(message.tool_history!)}
+                                                        onClick={() => { setToolsToShow(message.tool_history!); setToolsTrace(message.diagnostics); }}
                                                         className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                                                     >
                                                         View {message.tool_history.length} tool{message.tool_history.length > 1 ? 's' : ''}
@@ -837,7 +838,8 @@ export default function ChatTray({
             {toolsToShow && (
                 <ToolHistoryPanel
                     tools={toolsToShow}
-                    onClose={() => setToolsToShow(null)}
+                    trace={toolsTrace}
+                    onClose={() => { setToolsToShow(null); setToolsTrace(undefined); }}
                 />
             )}
 
