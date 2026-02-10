@@ -37,7 +37,7 @@ export default function DashboardPage() {
 
         // Load recently starred articles
         setStarredLoading(true);
-        starringApi.getAllStarred(5)
+        starringApi.getAllStarred(6)
             .then(response => setStarredArticles(response.articles))
             .catch(err => console.error('Failed to load starred articles:', err))
             .finally(() => setStarredLoading(false));
@@ -131,13 +131,22 @@ export default function DashboardPage() {
                 {/* Favorites Section - always show when streams exist */}
                 {!isLoading && !starredLoading && researchStreams.length > 0 && (
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
-                        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                             <div className="flex items-center gap-2">
                                 <StarIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                                     Favorites
                                 </h2>
                             </div>
+                            <button
+                                onClick={() => {
+                                    trackEvent('dashboard_quick_action', { action: 'view_favorites' });
+                                    navigate('/reports');
+                                }}
+                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                                View All Favorites
+                            </button>
                         </div>
                         {starredArticles.length === 0 ? (
                             <div className="px-6 py-8 text-center">
@@ -147,7 +156,7 @@ export default function DashboardPage() {
                             </div>
                         ) : (
                             <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                                {starredArticles.map((article) => (
+                                {starredArticles.slice(0, 5).map((article) => (
                                     <div
                                         key={`${article.report_id}-${article.article_id}`}
                                         onClick={() => handleStarredArticleClick(article)}
@@ -170,6 +179,17 @@ export default function DashboardPage() {
                                         </div>
                                     </div>
                                 ))}
+                                {starredArticles.length > 5 && (
+                                    <button
+                                        onClick={() => {
+                                            trackEvent('dashboard_quick_action', { action: 'view_favorites_more' });
+                                            navigate('/reports');
+                                        }}
+                                        className="w-full px-6 py-3 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-center"
+                                    >
+                                        View more favorites...
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
