@@ -135,6 +135,7 @@ async def trigger_run(
             presentation_config=stream.presentation_config if stream.presentation_config else {},
             enrichment_config=stream.enrichment_config if stream.enrichment_config else None,
             llm_config=stream.llm_config if stream.llm_config else None,
+            article_analysis_config=stream.article_analysis_config if stream.article_analysis_config else None,
             status=ExecutionStatus.PENDING
         )
         execution_id = execution.id
