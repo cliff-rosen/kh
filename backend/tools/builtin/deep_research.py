@@ -96,7 +96,7 @@ register_tool(ToolConfig(
 - A simple search won't suffice
 - The user needs a well-researched, cited answer
 
-IMPORTANT: Before calling this tool, inform the user that deep research typically takes 1-3 minutes and ask if they'd like to proceed.
+This tool typically takes 1-3 minutes. When calling it, inform the user that research is underway and may take a few minutes.
 
 Do NOT use this for:
 - Simple factual lookups

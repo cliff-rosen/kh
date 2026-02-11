@@ -55,7 +55,7 @@ from services.chat_service import ChatService
 logger = logging.getLogger(__name__)
 
 CHAT_MODEL = "claude-sonnet-4-20250514"
-CHAT_MAX_TOKENS = 2000
+CHAT_MAX_TOKENS = 4096
 DEFAULT_MAX_TOOL_ITERATIONS = 5
 
 

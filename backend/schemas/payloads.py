@@ -248,6 +248,32 @@ def _summarize_validation_feedback(data: Dict[str, Any]) -> str:
     return f"Validation feedback: {issues} issues, {strengths} strengths noted"
 
 
+def _summarize_pubmed_full_text_links(data: Dict[str, Any]) -> str:
+    """Summarize full-text links for a PubMed article."""
+    pmid = data.get("pmid", "unknown")
+    title = data.get("title", "Untitled")
+    free = len(data.get("free_links", []))
+    paid = len(data.get("paid_links", []))
+    if len(title) > 50:
+        title = title[:47] + "..."
+    return f"Full-text links for PMID:{pmid} - {free} free, {paid} paid"
+
+
+def _summarize_stream_list(data: Dict[str, Any]) -> str:
+    """Summarize stream list."""
+    total = data.get("total_streams", 0)
+    return f"List of {total} research streams"
+
+
+def _summarize_stream_details(data: Dict[str, Any]) -> str:
+    """Summarize stream details."""
+    name = data.get("stream_name", "Unknown")
+    status = "active" if data.get("is_active") else "inactive"
+    if len(name) > 40:
+        name = name[:37] + "..."
+    return f"Stream details: '{name}' ({status})"
+
+
 def _summarize_web_search(data: Dict[str, Any]) -> str:
     """Summarize web search results."""
     query = data.get("query", "unknown query")
@@ -336,6 +362,25 @@ register_payload_type(PayloadType(
 ))
 
 register_payload_type(PayloadType(
+    name="pubmed_full_text_links",
+    description="Full-text access links for a PubMed article not in PMC",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_pubmed_full_text_links,
+    schema={
+        "type": "object",
+        "properties": {
+            "pmid": {"type": "string"},
+            "title": {"type": "string"},
+            "pmc_available": {"type": "boolean"},
+            "free_links": {"type": "array", "items": {"type": "object"}},
+            "paid_links": {"type": "array", "items": {"type": "object"}}
+        },
+        "required": ["pmid"]
+    }
+))
+
+register_payload_type(PayloadType(
     name="web_search_results",
     description="Results from a web search",
     source="tool",
@@ -384,6 +429,58 @@ register_payload_type(PayloadType(
             "truncated": {"type": "boolean"}
         },
         "required": ["url", "title", "content"]
+    }
+))
+
+register_payload_type(PayloadType(
+    name="stream_list",
+    description="List of research streams accessible to the user",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_stream_list,
+    schema={
+        "type": "object",
+        "properties": {
+            "total_streams": {"type": "integer"},
+            "streams": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "stream_id": {"type": "integer"},
+                        "stream_name": {"type": "string"},
+                        "purpose": {"type": ["string", "null"]},
+                        "scope": {"type": ["string", "null"]},
+                        "is_active": {"type": "boolean"},
+                        "report_count": {"type": "integer"},
+                        "latest_report_date": {"type": ["string", "null"]},
+                        "has_schedule": {"type": "boolean"}
+                    }
+                }
+            }
+        },
+        "required": ["total_streams", "streams"]
+    }
+))
+
+register_payload_type(PayloadType(
+    name="stream_details",
+    description="Detailed configuration of a specific research stream",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_stream_details,
+    schema={
+        "type": "object",
+        "properties": {
+            "stream_id": {"type": "integer"},
+            "stream_name": {"type": "string"},
+            "purpose": {"type": ["string", "null"]},
+            "scope": {"type": ["string", "null"]},
+            "is_active": {"type": "boolean"},
+            "schedule_summary": {"type": ["string", "null"]},
+            "last_execution_status": {"type": ["string", "null"]}
+        },
+        "required": ["stream_id", "stream_name"]
     }
 ))
 
