@@ -58,8 +58,8 @@ CHAT_MODEL = "claude-sonnet-4-20250514"
 CHAT_MAX_TOKENS = 4096
 DEFAULT_MAX_TOOL_ITERATIONS = 5
 # Context window for the chat model. Warning fires at 80% usage.
-CONTEXT_WINDOW_TOKENS = 200_000
-CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.80)  # 160k
+CONTEXT_WINDOW_TOKENS = 200000
+CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.70)  # 160k
 
 
 class ChatStreamService:
@@ -68,7 +68,9 @@ class ChatStreamService:
     def __init__(self, db: AsyncSession, user_id: int):
         self.db = db
         self.user_id = user_id
-        self.async_client = anthropic.AsyncAnthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+        self.async_client = anthropic.AsyncAnthropic(
+            api_key=os.getenv("ANTHROPIC_API_KEY")
+        )
         self.chat_service = ChatService(db)
         self._association_service = None
 
@@ -76,7 +78,10 @@ class ChatStreamService:
     def association_service(self):
         """Lazy-load ReportArticleAssociationService."""
         if self._association_service is None:
-            from services.report_article_association_service import ReportArticleAssociationService
+            from services.report_article_association_service import (
+                ReportArticleAssociationService,
+            )
+
             self._association_service = ReportArticleAssociationService(self.db)
         return self._association_service
 
@@ -85,9 +90,7 @@ class ChatStreamService:
     # =========================================================================
 
     async def stream_chat_message(
-        self,
-        request,
-        cancellation_token: Optional[CancellationToken] = None
+        self, request, cancellation_token: Optional[CancellationToken] = None
     ) -> AsyncGenerator[str, None]:
         """
         Stream a chat message response with tool support via SSE.
@@ -112,10 +115,14 @@ class ChatStreamService:
             # Fetch conversation history once (used by both system prompt and message building)
             db_messages = None
             if chat_id:
-                db_messages = await self.chat_service.get_messages(chat_id, self.user_id)
+                db_messages = await self.chat_service.get_messages(
+                    chat_id, self.user_id
+                )
 
             # Build prompts (pass pre-fetched messages to avoid redundant DB calls)
-            system_prompt = await self._build_system_prompt(context_with_chat, chat_id, db_messages)
+            system_prompt = await self._build_system_prompt(
+                context_with_chat, chat_id, db_messages
+            )
             messages, _ = self._build_messages_from_history(request, db_messages)
 
             # Get tools for this page, tab, and subtab (global + page + tab + subtab)
@@ -123,7 +130,9 @@ class ChatStreamService:
             active_tab = context_with_chat.get("active_tab")
             active_subtab = context_with_chat.get("active_subtab")
             user_role = context_with_chat.get("user_role")
-            tools_by_name = get_tools_for_page_dict(current_page, active_tab, active_subtab, user_role=user_role)
+            tools_by_name = get_tools_for_page_dict(
+                current_page, active_tab, active_subtab, user_role=user_role
+            )
 
             # Send initial status
             yield StatusEvent(message="Thinking...").model_dump_json()
@@ -151,7 +160,7 @@ class ChatStreamService:
                 context=context_with_chat,
                 cancellation_token=cancellation_token,
                 stream_text=True,
-                temperature=0.0
+                temperature=0.0,
             ):
                 if isinstance(event, AgentThinking):
                     yield StatusEvent(message=event.message).model_dump_json()
@@ -164,7 +173,7 @@ class ChatStreamService:
                     yield ToolStartEvent(
                         tool=event.tool_name,
                         input=event.tool_input,
-                        tool_use_id=event.tool_use_id
+                        tool_use_id=event.tool_use_id,
                     ).model_dump_json()
 
                 elif isinstance(event, AgentToolProgress):
@@ -173,7 +182,7 @@ class ChatStreamService:
                         stage=event.stage,
                         message=event.message,
                         progress=event.progress,
-                        data=event.data
+                        data=event.data,
                     ).model_dump_json()
 
                 elif isinstance(event, AgentToolComplete):
@@ -181,8 +190,7 @@ class ChatStreamService:
                     collected_text += tool_marker
                     yield TextDeltaEvent(text=tool_marker).model_dump_json()
                     yield ToolCompleteEvent(
-                        tool=event.tool_name,
-                        index=tool_call_index
+                        tool=event.tool_name, index=tool_call_index
                     ).model_dump_json()
                     tool_call_index += 1
 
@@ -213,19 +221,28 @@ class ChatStreamService:
             # Build suggested values/actions from parsed response
             suggested_values = None
             if parsed.get("suggested_values"):
-                suggested_values = [SuggestedValue(**sv) for sv in parsed["suggested_values"]]
+                suggested_values = [
+                    SuggestedValue(**sv) for sv in parsed["suggested_values"]
+                ]
 
             suggested_actions = None
             if parsed.get("suggested_actions"):
-                suggested_actions = [SuggestedAction(**sa) for sa in parsed["suggested_actions"]]
+                suggested_actions = [
+                    SuggestedAction(**sa) for sa in parsed["suggested_actions"]
+                ]
 
-            custom_payload_obj = CustomPayload(**custom_payload) if custom_payload else None
+            custom_payload_obj = (
+                CustomPayload(**custom_payload) if custom_payload else None
+            )
 
             # Build tool history for final response
             tool_history_entries = None
             if tool_call_history:
                 from schemas.chat import ToolHistoryEntry
-                tool_history_entries = [ToolHistoryEntry(**th) for th in tool_call_history]
+
+                tool_history_entries = [
+                    ToolHistoryEntry(**th) for th in tool_call_history
+                ]
 
             # Add final response to trace (what's being sent to frontend)
             if trace:
@@ -242,7 +259,9 @@ class ChatStreamService:
             extras = {
                 "tool_history": tool_call_history if tool_call_history else None,
                 "custom_payload": custom_payload,  # For UI rendering
-                "payloads": payloads_with_ids if payloads_with_ids else None,  # Full list for retrieval
+                "payloads": (
+                    payloads_with_ids if payloads_with_ids else None
+                ),  # Full list for retrieval
                 "trace": trace.model_dump() if trace else None,  # Full execution trace
                 "suggested_values": parsed.get("suggested_values"),
                 "suggested_actions": parsed.get("suggested_actions"),
@@ -255,7 +274,7 @@ class ChatStreamService:
                 chat_id,
                 parsed["message"],
                 request.context,
-                extras=extras if extras else None
+                extras=extras if extras else None,
             )
 
             # Check for conversation length warning
@@ -276,7 +295,7 @@ class ChatStreamService:
                 tool_history=tool_call_history if tool_call_history else None,
                 conversation_id=chat_id,
                 warning=context_warning,
-                diagnostics=trace  # AgentTrace is aliased as ChatDiagnostics for backwards compat
+                diagnostics=trace,  # AgentTrace is aliased as ChatDiagnostics for backwards compat
             )
             yield CompleteEvent(payload=final_payload).model_dump_json()
 
@@ -312,16 +331,20 @@ class ChatStreamService:
             # Generate summary using the registry
             summary = summarize_payload(payload_type, payload_data)
 
-            processed.append({
-                "payload_id": payload_id,
-                "type": payload_type,
-                "data": payload_data,
-                "summary": summary
-            })
+            processed.append(
+                {
+                    "payload_id": payload_id,
+                    "type": payload_type,
+                    "data": payload_data,
+                    "summary": summary,
+                }
+            )
 
         return processed
 
-    def _build_payload_manifest(self, db_messages: Optional[List] = None) -> Optional[str]:
+    def _build_payload_manifest(
+        self, db_messages: Optional[List] = None
+    ) -> Optional[str]:
         """
         Build a manifest of all payloads from the conversation history.
 
@@ -340,7 +363,7 @@ class ChatStreamService:
 
         manifest_entries = []
         for msg in db_messages:
-            if msg.role != 'assistant' or not msg.extras:
+            if msg.role != "assistant" or not msg.extras:
                 continue
 
             payloads = msg.extras.get("payloads", [])
@@ -353,7 +376,10 @@ class ChatStreamService:
         if not manifest_entries:
             return None
 
-        return "AVAILABLE PAYLOADS (use get_payload tool to retrieve full data):\n" + "\n".join(manifest_entries)
+        return (
+            "AVAILABLE PAYLOADS (use get_payload tool to retrieve full data):\n"
+            + "\n".join(manifest_entries)
+        )
 
     # =========================================================================
     # Chat Persistence Helpers
@@ -393,9 +419,9 @@ class ChatStreamService:
             await self.chat_service.add_message(
                 chat_id=chat_id,
                 user_id=self.user_id,
-                role='user',
+                role="user",
                 content=request.message,
-                context=request.context
+                context=request.context,
             )
             return chat_id
 
@@ -408,7 +434,7 @@ class ChatStreamService:
         chat_id: Optional[int],
         content: str,
         context: Dict[str, Any],
-        extras: Optional[Dict[str, Any]] = None
+        extras: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Save assistant message to chat history (async)."""
         if not chat_id:
@@ -417,10 +443,10 @@ class ChatStreamService:
             await self.chat_service.add_message(
                 chat_id=chat_id,
                 user_id=self.user_id,
-                role='assistant',
+                role="assistant",
                 content=content,
                 context=context,
-                extras=extras
+                extras=extras,
             )
         except Exception as e:
             logger.warning(f"Failed to persist assistant message: {e}")
@@ -430,9 +456,7 @@ class ChatStreamService:
     # =========================================================================
 
     def _build_messages_from_history(
-        self,
-        request,
-        db_messages: Optional[List] = None
+        self, request, db_messages: Optional[List] = None
     ) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
         """
         Build message history for LLM from pre-fetched messages.
@@ -458,12 +482,12 @@ class ChatStreamService:
             # Skip the last message (the one we just saved)
             prior_messages = db_messages[:-1] if db_messages else []
             for msg in prior_messages:
-                if msg.role in ('user', 'assistant'):
+                if msg.role in ("user", "assistant"):
                     # Strip [[tool:N]] markers from assistant messages so the LLM
                     # doesn't learn to reproduce them as plain text
                     content = msg.content
-                    if msg.role == 'assistant':
-                        content = re.sub(r'\[\[tool:\d+\]\]', '', content)
+                    if msg.role == "assistant":
+                        content = re.sub(r"\[\[tool:\d+\]\]", "", content)
                     history.append({"role": msg.role, "content": content})
 
         # User message sent as-is - context is already in system prompt
@@ -479,7 +503,7 @@ class ChatStreamService:
         self,
         context: Dict[str, Any],
         chat_id: Optional[int] = None,
-        db_messages: Optional[List] = None
+        db_messages: Optional[List] = None,
     ) -> str:
         """
         Build system prompt with clean structure (async).
@@ -532,7 +556,9 @@ class ChatStreamService:
             sections.append(f"== CONVERSATION DATA ==\n{payload_manifest}")
 
         # 6. CAPABILITIES (tools + payloads + client actions)
-        capabilities = self._build_capabilities_section(current_page, active_tab, active_subtab, user_role=user_role)
+        capabilities = self._build_capabilities_section(
+            current_page, active_tab, active_subtab, user_role=user_role
+        )
         if capabilities:
             sections.append(f"== CAPABILITIES ==\n{capabilities}")
 
@@ -551,7 +577,7 @@ class ChatStreamService:
         current_page: str,
         active_tab: Optional[str],
         active_subtab: Optional[str],
-        user_role: Optional[str] = None
+        user_role: Optional[str] = None,
     ) -> str:
         """Build capabilities section listing available tools, payloads, and client actions."""
         from tools.registry import get_tools_for_page
@@ -559,16 +585,22 @@ class ChatStreamService:
         parts = []
 
         # Tools
-        tools = get_tools_for_page(current_page, active_tab, active_subtab, user_role=user_role)
+        tools = get_tools_for_page(
+            current_page, active_tab, active_subtab, user_role=user_role
+        )
         if tools:
             tool_lines = [f"- {t.name}: {t.description}" for t in tools]
             parts.append("TOOLS:\n" + "\n".join(tool_lines))
 
         # LLM Payloads (structured response formats the LLM can generate)
-        payload_configs = get_all_payloads_for_page(current_page, active_tab, active_subtab)
+        payload_configs = get_all_payloads_for_page(
+            current_page, active_tab, active_subtab
+        )
         llm_payloads = [c for c in payload_configs if c.llm_instructions]
         if llm_payloads:
-            payload_instructions = "\n\n".join([c.llm_instructions for c in llm_payloads])
+            payload_instructions = "\n\n".join(
+                [c.llm_instructions for c in llm_payloads]
+            )
             parts.append(
                 "STRUCTURED RESPONSES (write these as TEXT in your message, NOT as tool calls):\n"
                 + payload_instructions
@@ -577,12 +609,12 @@ class ChatStreamService:
         # Client Actions
         client_actions = get_client_actions(current_page)
         if client_actions:
-            actions_list = "\n".join([
-                f"- {a.action}: {a.description}" for a in client_actions
-            ])
+            actions_list = "\n".join(
+                [f"- {a.action}: {a.description}" for a in client_actions]
+            )
             parts.append(
                 f"CLIENT ACTIONS (these are the ONLY actions you may suggest):\n{actions_list}\n"
-                f"To suggest: SUGGESTED_ACTIONS:\n[{{\"label\": \"Close\", \"action\": \"close_chat\", \"handler\": \"client\"}}]"
+                f'To suggest: SUGGESTED_ACTIONS:\n[{{"label": "Close", "action": "close_chat", "handler": "client"}}]'
             )
 
         return "\n\n".join(parts)
@@ -641,7 +673,7 @@ Users can be on different pages in the app, each with its own context and capabi
             result = await self.db.execute(
                 select(ChatConfig).where(
                     ChatConfig.scope == "system",
-                    ChatConfig.scope_key == "global_preamble"
+                    ChatConfig.scope_key == "global_preamble",
                 )
             )
             config = result.scalars().first()
@@ -696,7 +728,9 @@ SUGGESTED_ACTIONS:
 
             # Load summary overrides from help_content_override table
             result = await self.db.execute(
-                select(HelpContentOverride).where(HelpContentOverride.summary.isnot(None))
+                select(HelpContentOverride).where(
+                    HelpContentOverride.summary.isnot(None)
+                )
             )
             overrides = result.scalars().all()
             for override in overrides:
@@ -712,7 +746,7 @@ SUGGESTED_ACTIONS:
                 role=user_role,
                 narrative=narrative,
                 preamble=preamble,
-                summary_overrides=summary_overrides if summary_overrides else None
+                summary_overrides=summary_overrides if summary_overrides else None,
             )
         except Exception as e:
             logger.error(f"Failed to build help section: {e}")
@@ -737,8 +771,7 @@ SUGGESTED_ACTIONS:
         try:
             result = await self.db.execute(
                 select(ChatConfig).where(
-                    ChatConfig.scope == "page",
-                    ChatConfig.scope_key == current_page
+                    ChatConfig.scope == "page", ChatConfig.scope_key == current_page
                 )
             )
             page_config = result.scalars().first()
@@ -768,7 +801,9 @@ SUGGESTED_ACTIONS:
         "platform_admin": "Platform Admin (full access to all features including system configuration)",
     }
 
-    async def _build_page_context(self, current_page: str, context: Dict[str, Any]) -> str:
+    async def _build_page_context(
+        self, current_page: str, context: Dict[str, Any]
+    ) -> str:
         """Build page-specific context section of the prompt (async)."""
         context_builder = get_context_builder(current_page)
 
@@ -792,7 +827,9 @@ SUGGESTED_ACTIONS:
                 else:
                     base_context += "\n\n(Unable to load report data - report may not exist or access denied)"
             except Exception as e:
-                logger.warning(f"Failed to load report context for report_id={report_id}: {e}")
+                logger.warning(
+                    f"Failed to load report context for report_id={report_id}: {e}"
+                )
                 base_context += f"\n\n(Error loading report data: {str(e)})"
 
         return base_context
@@ -810,7 +847,7 @@ SUGGESTED_ACTIONS:
         if not stream_id and context.get("report_id"):
             stmt = select(Report).where(
                 Report.report_id == context.get("report_id"),
-                Report.user_id == self.user_id
+                Report.user_id == self.user_id,
             )
             result = await self.db.execute(stmt)
             report = result.scalars().first()
@@ -824,8 +861,7 @@ SUGGESTED_ACTIONS:
         try:
             result = await self.db.execute(
                 select(ChatConfig).where(
-                    ChatConfig.scope == "stream",
-                    ChatConfig.scope_key == str(stream_id)
+                    ChatConfig.scope == "stream", ChatConfig.scope_key == str(stream_id)
                 )
             )
             config = result.scalars().first()
@@ -840,13 +876,14 @@ SUGGESTED_ACTIONS:
         """Get the maximum tool iterations from config, or default."""
         return await self.chat_service.get_max_tool_iterations()
 
-    async def _load_report_context(self, report_id: int, context: Dict[str, Any]) -> Optional[str]:
+    async def _load_report_context(
+        self, report_id: int, context: Dict[str, Any]
+    ) -> Optional[str]:
         """Load report data from database and format it for LLM context (async)."""
         from models import Report
 
         stmt = select(Report).where(
-            Report.report_id == report_id,
-            Report.user_id == self.user_id
+            Report.report_id == report_id, Report.user_id == self.user_id
         )
         result = await self.db.execute(stmt)
         report = result.scalars().first()
@@ -855,22 +892,33 @@ SUGGESTED_ACTIONS:
             return None
 
         # Load visible articles (excludes hidden) - association_service uses async
-        visible_associations = await self.association_service.get_visible_for_report(report_id)
+        visible_associations = await self.association_service.get_visible_for_report(
+            report_id
+        )
 
         articles_context = []
         for assoc in visible_associations:
             article = assoc.article
-            articles_context.append({
-                "article_id": article.article_id,
-                "title": article.title,
-                "authors": article.authors or [],
-                "abstract": article.abstract,
-                "journal": article.journal,
-                "publication_date": format_pub_date(article.pub_year, article.pub_month, article.pub_day) or None,
-                "relevance_score": assoc.relevance_score,
-                "relevance_rationale": assoc.relevance_rationale,
-                "category": assoc.presentation_categories[0] if assoc.presentation_categories else None
-            })
+            articles_context.append(
+                {
+                    "article_id": article.article_id,
+                    "title": article.title,
+                    "authors": article.authors or [],
+                    "abstract": article.abstract,
+                    "journal": article.journal,
+                    "publication_date": format_pub_date(
+                        article.pub_year, article.pub_month, article.pub_day
+                    )
+                    or None,
+                    "relevance_score": assoc.relevance_score,
+                    "relevance_rationale": assoc.relevance_rationale,
+                    "category": (
+                        assoc.presentation_categories[0]
+                        if assoc.presentation_categories
+                        else None
+                    ),
+                }
+            )
 
         # Build enrichments context
         enrichments = report.enrichments or {}
@@ -879,7 +927,9 @@ SUGGESTED_ACTIONS:
 
         category_summaries_text = ""
         if category_summaries:
-            formatted = [f"\n### {cat}\n{summary}" for cat, summary in category_summaries.items()]
+            formatted = [
+                f"\n### {cat}\n{summary}" for cat, summary in category_summaries.items()
+            ]
             category_summaries_text = "\n".join(formatted)
 
         highlights_text = "No key highlights available."
@@ -887,7 +937,9 @@ SUGGESTED_ACTIONS:
             highlights_text = "\n".join(f"- {h}" for h in report.key_highlights)
 
         current_article = context.get("current_article")
-        current_article_section = self._format_current_article(current_article) if current_article else ""
+        current_article_section = (
+            self._format_current_article(current_article) if current_article else ""
+        )
 
         return f"""
         === REPORT DATA (loaded from database) ===
@@ -933,26 +985,32 @@ SUGGESTED_ACTIONS:
         relevance_rationale = article.get("relevance_rationale")
         stance = article.get("stance_analysis")
 
-        sections = [f"""
+        sections = [
+            f"""
         === CURRENTLY VIEWING ARTICLE ===
         The user has this specific article open and is asking about it.
 
         Title: {title}
         Authors: {authors_str}
-        Journal: {journal} ({publication_date})"""]
+        Journal: {journal} ({publication_date})"""
+        ]
 
         if pmid:
             sections.append(f"        PMID: {pmid}")
         if doi:
             sections.append(f"        DOI: {doi}")
 
-        sections.append(f"""
+        sections.append(
+            f"""
         Abstract:
-        {abstract}""")
+        {abstract}"""
+        )
 
         if relevance_score is not None:
-            sections.append(f"""
-        Relevance Score: {int(relevance_score * 100)}%""")
+            sections.append(
+                f"""
+        Relevance Score: {int(relevance_score * 100)}%"""
+            )
 
         if relevance_rationale:
             sections.append(f"""        Why Relevant: {relevance_rationale}""")
@@ -963,18 +1021,24 @@ SUGGESTED_ACTIONS:
             analysis = stance.get("analysis", "")
             key_factors = stance.get("key_factors", [])
 
-            sections.append(f"""
+            sections.append(
+                f"""
         === STANCE ANALYSIS (from UI) ===
         Stance: {stance_type} (Confidence: {int(confidence * 100)}%)
-        Analysis: {analysis}""")
+        Analysis: {analysis}"""
+            )
 
             if key_factors:
                 factors_str = "\n        - ".join(key_factors)
-                sections.append(f"""        Key Factors:
-        - {factors_str}""")
+                sections.append(
+                    f"""        Key Factors:
+        - {factors_str}"""
+                )
 
-        sections.append("""
-        === END CURRENT ARTICLE ===""")
+        sections.append(
+            """
+        === END CURRENT ARTICLE ==="""
+        )
 
         return "\n".join(sections)
 
@@ -1019,7 +1083,9 @@ SUGGESTED_ACTIONS:
     # Response Parsing
     # =========================================================================
 
-    def _parse_llm_response(self, response_text: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def _parse_llm_response(
+        self, response_text: str, context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Parse LLM response to extract structured components."""
         import json
         import re
@@ -1033,14 +1099,14 @@ SUGGESTED_ACTIONS:
             "message": message,
             "suggested_values": None,
             "suggested_actions": None,
-            "custom_payload": None
+            "custom_payload": None,
         }
 
         # Parse SUGGESTED_VALUES marker - find marker and everything after it on same/following lines
         values_marker = "SUGGESTED_VALUES:"
         if values_marker in message:
             marker_pos = message.find(values_marker)
-            after_marker = message[marker_pos + len(values_marker):]
+            after_marker = message[marker_pos + len(values_marker) :]
             # Strip leading whitespace/newlines before the JSON
             after_marker_stripped = after_marker.lstrip()
             json_content = self._extract_json_array(after_marker_stripped)
@@ -1052,17 +1118,24 @@ SUGGESTED_ACTIONS:
                         # Calculate whitespace between marker and JSON
                         whitespace_len = len(after_marker) - len(after_marker_stripped)
                         # Remove everything from marker through end of JSON
-                        end_pos = marker_pos + len(values_marker) + whitespace_len + len(json_content)
+                        end_pos = (
+                            marker_pos
+                            + len(values_marker)
+                            + whitespace_len
+                            + len(json_content)
+                        )
                         message = (message[:marker_pos] + message[end_pos:]).strip()
                         result["message"] = message
                 except json.JSONDecodeError:
-                    logger.warning(f"Failed to parse SUGGESTED_VALUES JSON: {json_content[:100]}")
+                    logger.warning(
+                        f"Failed to parse SUGGESTED_VALUES JSON: {json_content[:100]}"
+                    )
 
         # Parse SUGGESTED_ACTIONS marker
         actions_marker = "SUGGESTED_ACTIONS:"
         if actions_marker in message:
             marker_pos = message.find(actions_marker)
-            after_marker = message[marker_pos + len(actions_marker):]
+            after_marker = message[marker_pos + len(actions_marker) :]
             after_marker_stripped = after_marker.lstrip()
             json_content = self._extract_json_array(after_marker_stripped)
             if json_content:
@@ -1071,14 +1144,23 @@ SUGGESTED_ACTIONS:
                     if isinstance(parsed, list):
                         result["suggested_actions"] = parsed
                         whitespace_len = len(after_marker) - len(after_marker_stripped)
-                        end_pos = marker_pos + len(actions_marker) + whitespace_len + len(json_content)
+                        end_pos = (
+                            marker_pos
+                            + len(actions_marker)
+                            + whitespace_len
+                            + len(json_content)
+                        )
                         message = (message[:marker_pos] + message[end_pos:]).strip()
                         result["message"] = message
                 except json.JSONDecodeError:
-                    logger.warning(f"Failed to parse SUGGESTED_ACTIONS JSON: {json_content[:100]}")
+                    logger.warning(
+                        f"Failed to parse SUGGESTED_ACTIONS JSON: {json_content[:100]}"
+                    )
 
         # Parse custom payloads (page-specific structured responses)
-        payload_configs = get_all_payloads_for_page(current_page, active_tab, active_subtab)
+        payload_configs = get_all_payloads_for_page(
+            current_page, active_tab, active_subtab
+        )
         for config in payload_configs:
             marker = config.parse_marker
             # Skip payloads without a parse_marker (tool payloads don't need parsing)
@@ -1086,7 +1168,7 @@ SUGGESTED_ACTIONS:
                 continue
             if marker in message:
                 marker_pos = message.find(marker)
-                after_marker_raw = message[marker_pos + len(marker):]
+                after_marker_raw = message[marker_pos + len(marker) :]
                 after_marker = after_marker_raw.strip()
                 json_content = self._extract_json_object(after_marker)
                 if json_content:
@@ -1096,7 +1178,12 @@ SUGGESTED_ACTIONS:
                         # Find where JSON starts in the raw after_marker (preserving whitespace)
                         json_start_in_raw = after_marker_raw.find(json_content)
                         # Calculate full payload text including any whitespace between marker and JSON
-                        payload_text = message[marker_pos:marker_pos + len(marker) + json_start_in_raw + len(json_content)]
+                        payload_text = message[
+                            marker_pos : marker_pos
+                            + len(marker)
+                            + json_start_in_raw
+                            + len(json_content)
+                        ]
                         message = message.replace(payload_text, "").strip()
                         result["message"] = message
                         break
@@ -1105,17 +1192,19 @@ SUGGESTED_ACTIONS:
 
     def _extract_json_object(self, text: str) -> Optional[str]:
         """Extract a JSON object from the start of text, handling nested braces."""
-        if not text.startswith('{'):
+        if not text.startswith("{"):
             return None
-        return self._extract_balanced(text, '{', '}')
+        return self._extract_balanced(text, "{", "}")
 
     def _extract_json_array(self, text: str) -> Optional[str]:
         """Extract a JSON array from the start of text, handling nested brackets."""
-        if not text.startswith('['):
+        if not text.startswith("["):
             return None
-        return self._extract_balanced(text, '[', ']')
+        return self._extract_balanced(text, "[", "]")
 
-    def _extract_balanced(self, text: str, open_char: str, close_char: str) -> Optional[str]:
+    def _extract_balanced(
+        self, text: str, open_char: str, close_char: str
+    ) -> Optional[str]:
         """Extract balanced content between open and close characters."""
         if not text or text[0] != open_char:
             return None
@@ -1129,7 +1218,7 @@ SUGGESTED_ACTIONS:
                 escape_next = False
                 continue
 
-            if char == '\\':
+            if char == "\\":
                 escape_next = True
                 continue
 
@@ -1145,7 +1234,7 @@ SUGGESTED_ACTIONS:
             elif char == close_char:
                 depth -= 1
                 if depth == 0:
-                    return text[:i + 1]
+                    return text[: i + 1]
 
         return None
 
@@ -1156,7 +1245,7 @@ from database import get_async_db
 
 
 async def get_chat_stream_service(
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_async_db),
 ) -> ChatStreamService:
     """
     Get a ChatStreamService instance with async database session.
@@ -1168,9 +1257,7 @@ async def get_chat_stream_service(
     raise NotImplementedError("Use get_chat_stream_service_factory instead")
 
 
-def get_chat_stream_service_factory(
-    db: AsyncSession = Depends(get_async_db)
-):
+def get_chat_stream_service_factory(db: AsyncSession = Depends(get_async_db)):
     """
     Get a factory for creating ChatStreamService instances.
 
@@ -1178,6 +1265,8 @@ def get_chat_stream_service_factory(
         factory = Depends(get_chat_stream_service_factory)
         service = factory(current_user.user_id)
     """
+
     def create_service(user_id: int) -> ChatStreamService:
         return ChatStreamService(db, user_id)
+
     return create_service
