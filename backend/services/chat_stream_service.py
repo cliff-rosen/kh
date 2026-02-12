@@ -57,6 +57,9 @@ logger = logging.getLogger(__name__)
 CHAT_MODEL = "claude-sonnet-4-20250514"
 CHAT_MAX_TOKENS = 4096
 DEFAULT_MAX_TOOL_ITERATIONS = 5
+# Context window for the chat model. Warning fires at 80% usage.
+CONTEXT_WINDOW_TOKENS = 200_000
+CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.80)  # 160k
 
 
 class ChatStreamService:
@@ -255,6 +258,15 @@ class ChatStreamService:
                 extras=extras if extras else None
             )
 
+            # Check for conversation length warning
+            context_warning = None
+            if trace and trace.total_input_tokens >= CONTEXT_WARNING_THRESHOLD:
+                pct = int(trace.total_input_tokens / CONTEXT_WINDOW_TOKENS * 100)
+                context_warning = (
+                    f"This conversation is using {pct}% of the available context window. "
+                    f"Consider starting a new conversation to ensure the best response quality."
+                )
+
             # Emit complete event
             final_payload = ChatResponsePayload(
                 message=parsed["message"],
@@ -263,6 +275,7 @@ class ChatStreamService:
                 custom_payload=custom_payload_obj,
                 tool_history=tool_call_history if tool_call_history else None,
                 conversation_id=chat_id,
+                warning=context_warning,
                 diagnostics=trace  # AgentTrace is aliased as ChatDiagnostics for backwards compat
             )
             yield CompleteEvent(payload=final_payload).model_dump_json()

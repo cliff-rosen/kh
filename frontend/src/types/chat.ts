@@ -253,6 +253,7 @@ export interface ChatResponsePayload {
     custom_payload?: CustomPayload;
     tool_history?: ToolHistoryEntry[];
     conversation_id?: number;
+    warning?: string;
     diagnostics?: ChatDiagnostics;
 }
 
@@ -272,6 +273,7 @@ export interface ChatMessage {
     suggested_actions?: SuggestedAction[];
     custom_payload?: CustomPayload;
     tool_history?: ToolHistoryEntry[];
+    warning?: string;
     diagnostics?: ChatDiagnostics;
 }
 

@@ -582,6 +582,13 @@ export default function ChatTray({
                                     </div>
                                 </div>
 
+                                {/* Context length warning */}
+                                {message.warning && (
+                                    <div className="mt-2 ml-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-md text-xs text-amber-800 dark:text-amber-200">
+                                        {message.warning}
+                                    </div>
+                                )}
+
                                 {/* Suggested Values */}
                                 {message.suggested_values && message.suggested_values.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mt-3 ml-2">

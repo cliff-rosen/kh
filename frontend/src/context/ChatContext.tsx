@@ -124,6 +124,7 @@ export function ChatProvider({ children, app = 'kh' }: ChatProviderProps) {
                             suggested_actions: responsePayload.suggested_actions,
                             custom_payload: responsePayload.custom_payload,
                             tool_history: responsePayload.tool_history,
+                            warning: responsePayload.warning,
                             diagnostics: responsePayload.diagnostics
                         };
                         setMessages(prev => [...prev, assistantMessage]);
