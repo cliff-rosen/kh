@@ -242,6 +242,10 @@ class TraceBuilder:
 
     def build(self, outcome: str, final_text: str, error_message: Optional[str] = None) -> AgentTrace:
         """Build the final trace object."""
+        peak_input = max(
+            (it.usage.input_tokens for it in self._iterations),
+            default=0,
+        )
         return AgentTrace(
             trace_id=self._trace_id,
             model=self._model,
@@ -260,6 +264,7 @@ class TraceBuilder:
             total_input_tokens=self._total_input_tokens,
             total_output_tokens=self._total_output_tokens,
             total_duration_ms=int((time.time() - self._start_time) * 1000),
+            peak_input_tokens=peak_input if peak_input > 0 else None,
         )
 
 

@@ -364,9 +364,10 @@ function MetricsTab({ diagnostics, onFullscreen }: {
             {/* Token Usage */}
             <div>
                 <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Token Usage</h4>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                    <ConfigCard label="Total Input Tokens" value={diagnostics.total_input_tokens || 0} />
-                    <ConfigCard label="Total Output Tokens" value={diagnostics.total_output_tokens || 0} />
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                    <ConfigCard label="Cumulative Input" value={diagnostics.total_input_tokens || 0} />
+                    <ConfigCard label="Cumulative Output" value={diagnostics.total_output_tokens || 0} />
+                    <ConfigCard label="Peak Context" value={diagnostics.peak_input_tokens || diagnostics.total_input_tokens || 0} />
                 </div>
 
                 {/* Per-iteration breakdown */}

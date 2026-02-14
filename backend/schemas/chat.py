@@ -197,9 +197,14 @@ class AgentTrace(BaseModel):
     final_response: Optional[FinalResponse] = None
 
     # === METRICS ===
+    # Cumulative across all iterations (for cost tracking)
     total_input_tokens: int
     total_output_tokens: int
     total_duration_ms: int
+    # High-water mark: the largest single API call's input tokens.
+    # This is the actual context window pressure — system prompt + history +
+    # tool results for the heaviest iteration (usually the last one).
+    peak_input_tokens: Optional[int] = None
 
 
 # Backwards compatibility alias

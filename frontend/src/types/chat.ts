@@ -138,10 +138,12 @@ export interface AgentTrace {
     // Final response (what was sent to frontend)
     final_response?: FinalResponse;
 
-    // Metrics
+    // Metrics (cumulative across all iterations, for cost tracking)
     total_input_tokens: number;
     total_output_tokens: number;
     total_duration_ms: number;
+    // High-water mark: largest single API call's input tokens (context window pressure)
+    peak_input_tokens?: number;
 }
 
 /** @deprecated Use AgentTrace instead - kept for backwards compatibility */

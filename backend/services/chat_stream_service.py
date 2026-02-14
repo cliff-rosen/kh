@@ -57,9 +57,9 @@ logger = logging.getLogger(__name__)
 CHAT_MODEL = "claude-sonnet-4-20250514"
 CHAT_MAX_TOKENS = 4096
 DEFAULT_MAX_TOOL_ITERATIONS = 5
-# Context window for the chat model. Warning fires at 80% usage.
-CONTEXT_WINDOW_TOKENS = 200000
-CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.70)  # 160k
+# Context window for the chat model. Warning fires at 70% usage.
+CONTEXT_WINDOW_TOKENS = 200_000
+CONTEXT_WARNING_THRESHOLD = int(CONTEXT_WINDOW_TOKENS * 0.70)  # 140k
 
 
 class ChatStreamService:
@@ -277,10 +277,10 @@ class ChatStreamService:
                 extras=extras if extras else None,
             )
 
-            # Check for conversation length warning
+            # Check for conversation length warning using peak context window usage
             context_warning = None
-            if trace and trace.total_input_tokens >= CONTEXT_WARNING_THRESHOLD:
-                pct = int(trace.total_input_tokens / CONTEXT_WINDOW_TOKENS * 100)
+            if trace and trace.peak_input_tokens and trace.peak_input_tokens >= CONTEXT_WARNING_THRESHOLD:
+                pct = int(trace.peak_input_tokens / CONTEXT_WINDOW_TOKENS * 100)
                 context_warning = (
                     f"This conversation is using {pct}% of the available context window. "
                     f"Consider starting a new conversation to ensure the best response quality."

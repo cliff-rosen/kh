@@ -83,6 +83,7 @@ interface AgentTrace {
     total_input_tokens: number;
     total_output_tokens: number;
     total_duration_ms: number;
+    peak_input_tokens?: number;
 }
 
 interface MessageExtras {
@@ -653,12 +654,16 @@ function MessageDetailPanel({ message }: { message: Message }) {
                         <div className="font-semibold text-sm text-gray-900 dark:text-gray-100">{trace.total_iterations}</div>
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Tokens In</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Tokens In (cum.)</div>
                         <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace.total_input_tokens.toLocaleString()}</div>
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Tokens Out</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Tokens Out (cum.)</div>
                         <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{trace.total_output_tokens.toLocaleString()}</div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Peak Context</div>
+                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{(trace.peak_input_tokens || trace.total_input_tokens).toLocaleString()}</div>
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
                         <div className="text-xs text-gray-500 dark:text-gray-400">Duration</div>
