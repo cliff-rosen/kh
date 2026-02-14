@@ -12,11 +12,6 @@ import {
     InteractionType,
     ActionMetadata,
     StreamEvent,
-    ChatResponsePayload,
-    SuggestedValue,
-    SuggestedAction,
-    CustomPayload,
-    ToolHistoryEntry,
 } from '../../types/chat';
 
 

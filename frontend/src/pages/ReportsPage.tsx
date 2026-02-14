@@ -4,7 +4,6 @@ import { DocumentTextIcon, ChevronDownIcon, ChevronRightIcon, ChatBubbleLeftRigh
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
 import { ResearchStream, Category } from '../types';
-// Starring types - articles use ReportArticle with optional context fields
 import { PayloadHandler } from '../types/chat';
 
 import { reportApi } from '../lib/api/reportApi';
@@ -106,9 +105,9 @@ export default function ReportsPage() {
     // Favorites view state
     const [showingFavorites, setShowingFavorites] = useState(false);
     const [streamFavorites, setStreamFavorites] = useState<ReportArticle[]>([]);
-    const [loadingFavorites, setLoadingFavorites] = useState(false);
     const [streamFavoritesCount, setStreamFavoritesCount] = useState(0);
-
+    const [loadingFavorites, setLoadingFavorites] = useState(false);
+  
     const hasStreams = researchStreams.length > 0;
     const hasPipelineData = selectedReport?.pipeline_execution_id != null;
 
