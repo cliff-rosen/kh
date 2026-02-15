@@ -40,7 +40,11 @@
       "Bash(\"C:\\\\code\\\\kh\\\\backend\\\\venv\\\\Scripts\\\\python.exe\" \"C:\\\\code\\\\kh\\\\backend\\\\migrations\\\\add_summary_to_help_override.py\")",
       "Bash(./venv/Scripts/python:*)",
       "Bash(venv/Scripts/python.exe:*)",
-      "Bash(PYTHONPATH=. ./venv/Scripts/python.exe:*)"
+      "Bash(PYTHONPATH=. ./venv/Scripts/python.exe:*)",
+      "Bash(venvScriptspython.exe scriptsanalyze_last_chat.py)",
+      "Bash(C:\\\\code\\\\kh\\\\backend\\\\venv\\\\Scripts\\\\python.exe:*)",
+      "Bash(cmd /c:*)",
+      "Bash(cmd.exe /c \"cd /d C:\\\\code\\\\kh\\\\backend & venv\\\\Scripts\\\\python.exe -c \"\"print\\(''hello''\\)\"\"\")"
     ],
     "deny": [],
     "ask": [],

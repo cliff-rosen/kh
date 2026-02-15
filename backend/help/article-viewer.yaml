@@ -69,17 +69,24 @@ sections:
       1. Open the article in the Article Viewer
       2. Click the "Notes" tab
       3. Type your note in the text area
-      4. Click "Save" to store the note
+      4. Choose **Personal** or **Shared** visibility
+      5. Click "Save" to store the note
 
-      **Note Features:**
-      - Notes are saved per article and persist across sessions
-      - You can edit or delete existing notes
-      - Notes are visible to other users in your organization
+      **Personal vs Shared:**
+      - **Personal notes** are private — only you can see them. Use these for your own working thoughts, draft observations, or reminders.
+      - **Shared notes** are visible to all members of your organization. Use these to flag findings for colleagues, record team decisions, or share analysis.
+      - New notes default to Personal.
+      - You can change a note's visibility at any time by editing it.
+
+      **Editing and Deleting:**
+      - Only the author of a note can edit or delete it.
+      - Click the pencil icon on your note to edit its content or change its visibility.
+      - Click the trash icon to delete a note (you'll be asked to confirm).
 
       **Tips:**
-      - Use notes to flag important findings
-      - Record why an article is relevant to your research
-      - Note any follow-up actions needed
+      - Use personal notes for preliminary thoughts you're not ready to share
+      - Use shared notes to flag important findings for your team
+      - Notes persist across sessions and are saved per article
 
   - category: article-viewer
     topic: using-chat
