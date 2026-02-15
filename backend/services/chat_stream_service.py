@@ -647,6 +647,15 @@ Users interact with you through the chat function on various pages. When they co
 - Questions about specific data values
 - For these, use the appropriate data tools (search, get_report_articles, etc.)
 
+**Scoping data questions — where to search:**
+When users ask about articles or research, determine the right scope:
+- **Current context first**: If the answer is already in the system prompt (the current article, report data, stream info), answer from context. Don't call a tool for data you already have.
+- **Within this stream's reports** (search_articles_in_reports): When the user asks about articles "in this report," "that we've seen," "flagged by KH," or references prior reports. This searches only articles already captured by the stream.
+- **All of PubMed** (search_pubmed): When the user asks to "find articles," "search for literature," or wants research beyond what's in the stream's reports. This is a broad biomedical literature search.
+- **The web** (search_web, deep_research): When the user's question goes beyond published articles — news, guidelines, clinical trials, regulatory info, or synthesis across many sources.
+
+If the scope is ambiguous (e.g., "find me articles about X"), use context clues: if the user is viewing a report and says "are there other articles about X," start with the stream. If they say "search for recent articles about X," go to PubMed. When in doubt, briefly state which scope you're searching.
+
 When uncertain which type, default to checking help documentation first.
 
 ## Style
