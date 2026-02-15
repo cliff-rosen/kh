@@ -292,18 +292,6 @@ export default function ArticleViewerModal({
         return () => window.removeEventListener('keydown', handleEscape);
     }, [onClose, article]);
 
-    // Handle arrow keys for navigation
-    useEffect(() => {
-        const handleArrowKeys = (e: KeyboardEvent) => {
-            if (e.key === 'ArrowLeft' && hasPrevious) {
-                handlePrevious();
-            } else if (e.key === 'ArrowRight' && hasNext) {
-                handleNext();
-            }
-        };
-        window.addEventListener('keydown', handleArrowKeys);
-        return () => window.removeEventListener('keydown', handleArrowKeys);
-    }, [hasPrevious, hasNext, handlePrevious, handleNext]);
 
     const runAnalysis = async () => {
         if (!article?.abstract) {
