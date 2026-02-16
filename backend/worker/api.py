@@ -102,22 +102,22 @@ async def trigger_run(
                 detail=f"Stream {request.stream_id} not found"
             )
 
-        # Determine dates: use request values or calculate from lookback_days
+        # Determine dates: use request values or derive from frequency
         start_date = request.start_date
         end_date = request.end_date
 
         if not start_date or not end_date:
-            # Calculate from schedule_config.lookback_days if available
-            lookback_days = 7  # Default
-            if stream.schedule_config and stream.schedule_config.get('lookback_days'):
-                lookback_days = stream.schedule_config['lookback_days']
+            frequency = (stream.schedule_config or {}).get('frequency', 'weekly')
+            lookback_map = {'daily': 1, 'weekly': 7, 'biweekly': 14, 'monthly': 30}
+            lookback_days = lookback_map.get(frequency, 7)
 
             from datetime import date, timedelta
             today = date.today()
             if not end_date:
-                end_date = today.strftime('%Y-%m-%d')
+                end_date = (today - timedelta(days=1)).strftime('%Y-%m-%d')  # Day before run
             if not start_date:
-                start_dt = today - timedelta(days=lookback_days)
+                end_dt = today - timedelta(days=1)
+                start_dt = end_dt - timedelta(days=lookback_days - 1)
                 start_date = start_dt.strftime('%Y-%m-%d')
 
         # Create execution via service (snapshots all config from stream)

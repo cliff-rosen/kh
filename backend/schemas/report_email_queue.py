@@ -6,7 +6,7 @@ Pydantic models for the email queue system that manages scheduled report deliver
 
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import datetime, date
+from datetime import datetime
 from enum import Enum
 
 
@@ -24,7 +24,7 @@ class ReportEmailQueueCreate(BaseModel):
     report_id: int
     user_id: int
     email: str
-    scheduled_for: date
+    scheduled_for: datetime
 
 
 class ReportEmailQueueUpdate(BaseModel):
@@ -40,7 +40,7 @@ class ReportEmailQueue(BaseModel):
     user_id: int
     email: str
     status: ReportEmailQueueStatus
-    scheduled_for: date
+    scheduled_for: datetime
     created_at: datetime
     updated_at: datetime
     sent_at: Optional[datetime] = None
@@ -61,7 +61,7 @@ class BulkScheduleRequest(BaseModel):
     """Request to schedule emails for multiple users"""
     report_id: int
     user_ids: List[int]
-    scheduled_for: date
+    scheduled_for: datetime
 
 
 class BulkScheduleResponse(BaseModel):

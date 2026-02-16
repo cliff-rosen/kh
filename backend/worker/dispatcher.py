@@ -10,16 +10,35 @@ run_pipeline() only takes execution_id - it reads everything else from the execu
 
 import logging
 import asyncio
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time
 from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import uuid
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
+
 from models import ResearchStream, PipelineExecution, ExecutionStatus, RunType
 from services.pipeline_service import PipelineService
 from services.execution_service import ExecutionService
 from worker.status_broker import broker
+
+# Day name -> weekday number (Monday=0 .. Sunday=6)
+DAY_NAME_TO_NUM = {
+    'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
+    'friday': 4, 'saturday': 5, 'sunday': 6,
+}
+
+# Frequency -> lookback days
+FREQUENCY_LOOKBACK = {
+    'daily': 1,
+    'weekly': 7,
+    'biweekly': 14,
+    'monthly': 30,
+}
 
 logger = logging.getLogger('worker.dispatcher')
 
@@ -93,14 +112,18 @@ class JobDispatcher:
         if not stream:
             raise ValueError(f"Stream {stream_id} not found")
 
-        # Calculate dates from schedule_config.lookback_days
-        lookback_days = 7  # Default
-        if stream.schedule_config and stream.schedule_config.get('lookback_days'):
-            lookback_days = stream.schedule_config['lookback_days']
+        # Calculate date range from frequency
+        # End date = day before run day, start = end - lookback + 1
+        config = stream.schedule_config or {}
+        frequency = config.get('frequency') or 'weekly'
+        lookback_days = FREQUENCY_LOOKBACK.get(frequency, 7)
 
         today = date.today()
-        end_date = today.strftime('%Y-%m-%d')
-        start_date = (today - timedelta(days=lookback_days)).strftime('%Y-%m-%d')
+        end_date_obj = today - timedelta(days=1)  # Day before run
+        start_date_obj = end_date_obj - timedelta(days=lookback_days - 1)
+
+        end_date = end_date_obj.strftime('%Y-%m-%d')
+        start_date = start_date_obj.strftime('%Y-%m-%d')
 
         # Create execution (via execution_service) - starts as RUNNING for scheduled runs
         execution = await self.execution_service.create_from_stream(
@@ -132,6 +155,10 @@ class JobDispatcher:
             self._update_next_scheduled_run(stream)
 
             await self.db.commit()
+
+            # Auto-queue emails for subscribers if schedule has send config
+            await self._auto_queue_emails(execution_id, stream)
+
             logger.info(f"Scheduled execution {execution_id} completed successfully")
             await broker.publish_complete(execution_id, success=True)
 
@@ -163,24 +190,194 @@ class JobDispatcher:
         """
         Calculate the next scheduled run time based on config.
 
-        Simple implementation - can be enhanced later.
+        For weekly/biweekly: finds the next occurrence of run_day at run_time.
+        For daily: tomorrow at run_time.
+        For monthly: next run_day_of_month at run_time.
+
+        All calculations respect the configured timezone, then convert to UTC
+        for storage (since next_scheduled_run is compared in UTC).
         """
-        from datetime import timedelta
+        frequency = schedule_config.get('frequency') or 'weekly'
+        tz_name = schedule_config.get('timezone') or 'UTC'
+        tz = ZoneInfo(tz_name)
 
-        frequency = schedule_config.get('frequency', 'weekly')
-        now = datetime.utcnow()
+        # Parse preferred_time / run_time (HH:MM)
+        run_time_str = schedule_config.get('preferred_time') or '03:00'
+        hour, minute = (int(x) for x in run_time_str.split(':'))
 
-        # Simple frequency-based calculation
+        now_local = datetime.now(tz)
+
         if frequency == 'daily':
-            return now + timedelta(days=1)
-        elif frequency == 'weekly':
-            return now + timedelta(weeks=1)
-        elif frequency == 'biweekly':
-            return now + timedelta(weeks=2)
+            # Tomorrow at run_time
+            candidate = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0) + timedelta(days=1)
+            return candidate.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
+
+        elif frequency in ('weekly', 'biweekly'):
+            run_day_name = schedule_config.get('anchor_day') or 'monday'
+            target_weekday = DAY_NAME_TO_NUM.get(run_day_name.lower(), 0)
+            current_weekday = now_local.weekday()
+
+            # Days until next target weekday
+            days_ahead = (target_weekday - current_weekday) % 7
+            if days_ahead == 0:
+                # Same day — schedule for next week (we just ran today)
+                days_ahead = 7
+
+            if frequency == 'biweekly':
+                days_ahead += 7  # Skip an extra week
+
+            candidate = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0) + timedelta(days=days_ahead)
+            return candidate.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
+
         elif frequency == 'monthly':
-            return now + timedelta(days=30)
+            run_day_of_month = schedule_config.get('run_day_of_month', 1)
+            # Next month on run_day_of_month at run_time
+            if now_local.month == 12:
+                candidate = now_local.replace(year=now_local.year + 1, month=1, day=run_day_of_month,
+                                              hour=hour, minute=minute, second=0, microsecond=0)
+            else:
+                candidate = now_local.replace(month=now_local.month + 1, day=run_day_of_month,
+                                              hour=hour, minute=minute, second=0, microsecond=0)
+            return candidate.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
+
         else:
-            return now + timedelta(weeks=1)  # Default to weekly
+            # Unknown frequency — default weekly
+            return datetime.utcnow() + timedelta(weeks=1)
+
+    def _calculate_send_datetime(self, schedule_config: dict, run_date: date) -> datetime:
+        """
+        Calculate the send datetime for a report that was generated on run_date.
+
+        For weekly/biweekly: the next occurrence of send_day at send_time on or after run_date.
+        For daily: run_date at send_time (or next day if send_time < run_time).
+        For monthly: send_day_of_month at send_time.
+
+        Returns a naive UTC datetime.
+        """
+        tz_name = schedule_config.get('timezone') or 'UTC'
+        tz = ZoneInfo(tz_name)
+        frequency = schedule_config.get('frequency') or 'weekly'
+
+        send_time_str = schedule_config.get('send_time') or '08:00'
+        s_hour, s_minute = (int(x) for x in send_time_str.split(':'))
+
+        if frequency in ('weekly', 'biweekly'):
+            send_day_name = schedule_config.get('send_day') or schedule_config.get('anchor_day') or 'monday'
+            target_weekday = DAY_NAME_TO_NUM.get(send_day_name.lower(), 0)
+            run_weekday = run_date.weekday()
+
+            days_ahead = (target_weekday - run_weekday) % 7
+            if days_ahead == 0:
+                # Same day as run — check if send_time is after run_time
+                run_time_str = schedule_config.get('preferred_time') or '03:00'
+                r_hour, r_minute = (int(x) for x in run_time_str.split(':'))
+                if (s_hour, s_minute) <= (r_hour, r_minute):
+                    days_ahead = 7  # Next week
+
+            send_date = run_date + timedelta(days=days_ahead)
+
+        elif frequency == 'daily':
+            # Same day unless send_time <= run_time
+            run_time_str = schedule_config.get('preferred_time') or '03:00'
+            r_hour, r_minute = (int(x) for x in run_time_str.split(':'))
+            if (s_hour, s_minute) <= (r_hour, r_minute):
+                send_date = run_date + timedelta(days=1)
+            else:
+                send_date = run_date
+
+        elif frequency == 'monthly':
+            send_day_of_month = schedule_config.get('send_day_of_month',
+                                                     schedule_config.get('run_day_of_month', 1))
+            if send_day_of_month >= run_date.day:
+                send_date = run_date.replace(day=send_day_of_month)
+            else:
+                # Next month
+                if run_date.month == 12:
+                    send_date = run_date.replace(year=run_date.year + 1, month=1, day=send_day_of_month)
+                else:
+                    send_date = run_date.replace(month=run_date.month + 1, day=send_day_of_month)
+        else:
+            send_date = run_date
+
+        # Build timezone-aware datetime, then convert to naive UTC
+        local_dt = datetime(send_date.year, send_date.month, send_date.day,
+                            s_hour, s_minute, 0, tzinfo=tz)
+        return local_dt.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
+
+    async def _auto_queue_emails(self, execution_id: str, stream: ResearchStream) -> None:
+        """
+        After a scheduled pipeline run completes, automatically queue emails
+        for all stream subscribers.
+
+        Only queues if the schedule config has send_day/send_time fields.
+        The emails are created with scheduled_for = the computed send datetime.
+        They won't actually be sent until both:
+          1. scheduled_for <= now (time gate)
+          2. report.approval_status == APPROVED (approval gate)
+        """
+        config = stream.schedule_config or {}
+
+        # Only auto-queue if schedule has send config
+        if not config.get('send_time'):
+            logger.info(f"[{execution_id}] No send_time in schedule config, skipping auto-queue")
+            return
+
+        # Get the report created by this execution
+        from models import PipelineExecution
+        stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
+        result = await self.db.execute(stmt)
+        execution = result.scalars().first()
+
+        if not execution or not execution.report_id:
+            logger.warning(f"[{execution_id}] No report found for execution, skipping auto-queue")
+            return
+
+        report_id = execution.report_id
+
+        # Calculate the send datetime
+        today = date.today()
+        send_dt = self._calculate_send_datetime(config, today)
+        logger.info(f"[{execution_id}] Calculated send datetime: {send_dt}")
+
+        # Resolve subscribers and queue emails
+        from services.report_email_queue_service import ReportEmailQueueService
+        from models import ReportEmailQueue, ReportEmailQueueStatus, User
+
+        queue_service = ReportEmailQueueService(self.db)
+        subscribers = await queue_service.get_stream_subscribers(report_id)
+
+        if not subscribers:
+            logger.info(f"[{execution_id}] No subscribers found for stream {stream.stream_id}")
+            return
+
+        queued_count = 0
+        for user in subscribers:
+            if not user.email:
+                logger.warning(f"[{execution_id}] Skipping user {user.user_id}: no email")
+                continue
+
+            # Check for duplicates
+            is_dup = await queue_service.check_duplicate(report_id, user.user_id, send_dt)
+            if is_dup:
+                continue
+
+            entry = ReportEmailQueue(
+                report_id=report_id,
+                user_id=user.user_id,
+                email=user.email,
+                scheduled_for=send_dt,
+                status=ReportEmailQueueStatus.SCHEDULED,
+            )
+            self.db.add(entry)
+            queued_count += 1
+
+        if queued_count > 0:
+            await self.db.commit()
+
+        logger.info(
+            f"[{execution_id}] Auto-queued {queued_count} emails for report {report_id} "
+            f"(send at {send_dt})"
+        )
 
     def get_running_jobs(self) -> Dict[str, Any]:
         """Get info about currently running jobs"""

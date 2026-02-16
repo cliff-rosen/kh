@@ -184,7 +184,8 @@ export default function EditStreamPage() {
             anchor_day: null,
             preferred_time: '08:00',
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-            lookback_days: null
+            send_day: null,
+            send_time: null,
         } as ScheduleConfig,
         is_active: true,
 
@@ -281,7 +282,8 @@ export default function EditStreamPage() {
                             anchor_day: null,
                             preferred_time: '08:00',
                             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-                            lookback_days: null
+                            send_day: null,
+                            send_time: null,
                         },
                         is_active: foundStream.is_active,
                         semantic_space: foundStream.semantic_space,

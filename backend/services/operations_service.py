@@ -385,7 +385,6 @@ class OperationsService:
             rejection_reason=rejection_reason,
         )
 
-
     async def get_scheduled_streams(
         self,
         user_id: int
@@ -409,7 +408,9 @@ class OperationsService:
                 anchor_day=schedule_config_data.get('anchor_day'),
                 preferred_time=schedule_config_data.get('preferred_time', '08:00'),
                 timezone=schedule_config_data.get('timezone', 'UTC'),
-                lookback_days=schedule_config_data.get('lookback_days')
+                send_day=schedule_config_data.get('send_day'),
+                send_time=schedule_config_data.get('send_time'),
+                # lookback_days removed — derived from frequency
             )
 
             # Get last execution
@@ -489,7 +490,8 @@ class OperationsService:
             )
 
         # Update schedule_config
-        current_config = stream.schedule_config or {}
+        # Copy the dict so SQLAlchemy detects the mutation on reassignment
+        current_config = dict(stream.schedule_config or {})
 
         if 'enabled' in updates:
             current_config['enabled'] = updates['enabled']
@@ -501,10 +503,24 @@ class OperationsService:
             current_config['preferred_time'] = updates['preferred_time']
         if 'timezone' in updates:
             current_config['timezone'] = updates['timezone']
-        if 'lookback_days' in updates:
-            current_config['lookback_days'] = updates['lookback_days']
+        if 'send_day' in updates:
+            current_config['send_day'] = updates['send_day']
+        if 'send_time' in updates:
+            current_config['send_time'] = updates['send_time']
 
         stream.schedule_config = current_config
+
+        # When schedule is enabled (or config changes), calculate next_scheduled_run
+        if current_config.get('enabled'):
+            from worker.dispatcher import JobDispatcher
+            dispatcher = JobDispatcher(self.db)
+            next_run = dispatcher._calculate_next_run(current_config)
+            stream.next_scheduled_run = next_run
+            logger.info(f"Set next_scheduled_run for stream {stream_id}: {next_run}")
+        elif 'enabled' in updates and not updates['enabled']:
+            # Explicitly disabled — clear next run
+            stream.next_scheduled_run = None
+
         await self.db.commit()
         await self.db.refresh(stream)
 
@@ -515,7 +531,8 @@ class OperationsService:
             anchor_day=current_config.get('anchor_day'),
             preferred_time=current_config.get('preferred_time', '08:00'),
             timezone=current_config.get('timezone', 'UTC'),
-            lookback_days=current_config.get('lookback_days')
+            send_day=current_config.get('send_day'),
+            send_time=current_config.get('send_time'),
         )
 
         logger.info(f"update_stream_schedule complete - user_id={user_id}, stream_id={stream_id}")

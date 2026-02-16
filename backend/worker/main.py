@@ -159,9 +159,28 @@ async def run_job_safely(job_func, job_arg, job_id: str):
         raise
 
 
+async def process_email_queue():
+    """Process any due + approved emails in the queue."""
+    try:
+        async with AsyncSessionLocal() as db:
+            from services.report_email_queue_service import ReportEmailQueueService
+            queue_service = ReportEmailQueueService(db)
+            result = await queue_service.process_queue()
+            if result.total_processed > 0:
+                logger.info(
+                    f"Email queue: {result.sent_count} sent, "
+                    f"{result.failed_count} failed out of {result.total_processed}"
+                )
+    except Exception as e:
+        logger.error(f"Error processing email queue: {e}", exc_info=True)
+
+
 async def process_ready_jobs():
-    """Check for and dispatch ready jobs"""
+    """Check for and dispatch ready jobs, then process email queue"""
     logger.info("Polling for ready jobs...")
+
+    # Process email queue (lightweight — just checks for due+approved entries)
+    await process_email_queue()
 
     async with AsyncSessionLocal() as db:
         discovery = JobDiscovery(db)

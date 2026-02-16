@@ -56,10 +56,11 @@ export enum VolumeStatus {
 export interface ScheduleConfig {
     enabled: boolean;
     frequency: ReportFrequency;
-    anchor_day?: string | null;  // 'monday'-'sunday' for weekly, or '1'-'31' for monthly
-    preferred_time: string;  // HH:MM in user's timezone
+    anchor_day?: string | null;  // 'monday'-'sunday' for weekly, or '1'-'31' for monthly — when to RUN the pipeline
+    preferred_time: string;  // HH:MM in user's timezone — when to RUN the pipeline
     timezone: string;  // e.g., 'America/New_York'
-    lookback_days?: number | null;  // Days of articles to fetch
+    send_day?: string | null;  // 'monday'-'sunday' for weekly, or '1'-'31' for monthly — earliest day to SEND
+    send_time?: string | null;  // HH:MM — earliest time to SEND (in timezone)
 }
 
 // ============================================================================

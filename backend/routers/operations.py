@@ -71,7 +71,8 @@ class UpdateScheduleRequest(BaseModel):
     anchor_day: Optional[str] = None
     preferred_time: Optional[str] = None
     timezone: Optional[str] = None
-    lookback_days: Optional[int] = None
+    send_day: Optional[str] = None
+    send_time: Optional[str] = None
 
 
 class TriggerRunRequest(BaseModel):

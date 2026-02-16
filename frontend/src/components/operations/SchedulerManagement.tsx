@@ -19,6 +19,8 @@ import {
     ArrowPathIcon,
     StopIcon,
     EyeIcon,
+    BoltIcon,
+    CalendarDaysIcon,
 } from '@heroicons/react/24/outline';
 import {
     getScheduledStreams,
@@ -370,9 +372,15 @@ function SchedulesTab({
                                     <div className="text-sm">
                                         <p className="text-gray-900 dark:text-white capitalize">{stream.schedule_config?.frequency || 'weekly'}</p>
                                         <p className="text-gray-500 dark:text-gray-400">
-                                            {stream.schedule_config?.anchor_day && `${stream.schedule_config.anchor_day}, `}
+                                            Run: {stream.schedule_config?.anchor_day && `${stream.schedule_config.anchor_day}, `}
                                             {stream.schedule_config?.preferred_time || '08:00'} ({stream.schedule_config?.timezone || 'UTC'})
                                         </p>
+                                        {stream.schedule_config?.send_time && (
+                                            <p className="text-gray-500 dark:text-gray-400">
+                                                Send: {stream.schedule_config?.send_day && `${stream.schedule_config.send_day}, `}
+                                                {stream.schedule_config.send_time}
+                                            </p>
+                                        )}
                                     </div>
                                 )}
                             </td>
@@ -380,7 +388,7 @@ function SchedulesTab({
                                 {stream.last_execution?.status === 'running'
                                     ? <span className="text-purple-600 dark:text-purple-400">Running now...</span>
                                     : stream.schedule_config?.enabled
-                                        ? (stream.next_scheduled_run ? formatRelativeTime(stream.next_scheduled_run) : 'Calculating...')
+                                        ? (stream.next_scheduled_run ? formatDateTime(stream.next_scheduled_run) : 'Calculating...')
                                         : <span className="text-gray-400">Paused</span>
                                 }
                             </td>
@@ -421,16 +429,16 @@ function SchedulesTab({
                                             className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400"
                                             title="Run Now"
                                         >
-                                            <PlayIcon className="h-5 w-5" />
+                                            <BoltIcon className="h-5 w-5" />
                                         </button>
                                     )}
 
                                     <button
                                         onClick={() => onToggleEnabled(stream.stream_id, !stream.schedule_config?.enabled)}
-                                        className={`p-1.5 ${stream.schedule_config?.enabled ? 'text-gray-400 hover:text-yellow-600' : 'text-yellow-600'}`}
+                                        className={`p-1.5 ${stream.schedule_config?.enabled ? 'text-green-500 hover:text-yellow-600' : 'text-gray-400 hover:text-green-600'}`}
                                         title={stream.schedule_config?.enabled ? 'Pause Schedule' : 'Resume Schedule'}
                                     >
-                                        {stream.schedule_config?.enabled ? <PauseIcon className="h-5 w-5" /> : <PlayIcon className="h-5 w-5" />}
+                                        {stream.schedule_config?.enabled ? <CalendarDaysIcon className="h-5 w-5" /> : <CalendarDaysIcon className="h-5 w-5" />}
                                     </button>
                                 </div>
                             </td>
@@ -553,6 +561,8 @@ function ScheduleEditor({
     const [anchorDay, setAnchorDay] = useState(config?.anchor_day || '');
     const [time, setTime] = useState(config?.preferred_time || '08:00');
     const [timezone, setTimezone] = useState(config?.timezone || 'UTC');
+    const [sendDay, setSendDay] = useState(config?.send_day || '');
+    const [sendTime, setSendTime] = useState(config?.send_time || '09:00');
 
     const handleSave = () => {
         onSave({
@@ -560,64 +570,75 @@ function ScheduleEditor({
             anchor_day: anchorDay || undefined,
             preferred_time: time,
             timezone,
+            send_day: sendDay || undefined,
+            send_time: sendTime || undefined,
         });
     };
 
+    const inputCls = "text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white";
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
     return (
-        <div className="space-y-2 p-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
-            <div className="grid grid-cols-2 gap-2">
-                <select
-                    value={frequency}
-                    onChange={(e) => setFrequency(e.target.value as Frequency)}
-                    className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800"
-                >
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="biweekly">Biweekly</option>
-                    <option value="monthly">Monthly</option>
-                </select>
-                {(frequency === 'weekly' || frequency === 'biweekly') && (
-                    <select
-                        value={anchorDay}
-                        onChange={(e) => setAnchorDay(e.target.value)}
-                        className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800"
-                    >
-                        {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => (
-                            <option key={day} value={day} className="capitalize">{day}</option>
-                        ))}
+        <div className="space-y-3 p-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
+            {/* Run schedule */}
+            <div>
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Pipeline runs</div>
+                <div className="grid grid-cols-2 gap-2">
+                    <select value={frequency} onChange={(e) => setFrequency(e.target.value as Frequency)} className={inputCls}>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="biweekly">Biweekly</option>
+                        <option value="monthly">Monthly</option>
                     </select>
-                )}
-                {frequency === 'monthly' && (
-                    <select
-                        value={anchorDay}
-                        onChange={(e) => setAnchorDay(e.target.value)}
-                        className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800"
-                    >
-                        {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
-                            <option key={day} value={day}>{day}{getOrdinalSuffix(day)}</option>
-                        ))}
+                    {(frequency === 'weekly' || frequency === 'biweekly') && (
+                        <select value={anchorDay} onChange={(e) => setAnchorDay(e.target.value)} className={inputCls}>
+                            {days.map((day) => (
+                                <option key={day} value={day}>{day}</option>
+                            ))}
+                        </select>
+                    )}
+                    {frequency === 'monthly' && (
+                        <select value={anchorDay} onChange={(e) => setAnchorDay(e.target.value)} className={inputCls}>
+                            {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                                <option key={day} value={day}>{day}{getOrdinalSuffix(day)}</option>
+                            ))}
+                        </select>
+                    )}
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                    <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputCls} />
+                    <select value={timezone} onChange={(e) => setTimezone(e.target.value)} className={inputCls}>
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">Eastern</option>
+                        <option value="America/Chicago">Central</option>
+                        <option value="America/Denver">Mountain</option>
+                        <option value="America/Los_Angeles">Pacific</option>
+                        <option value="Europe/London">London</option>
                     </select>
-                )}
+                </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-                <input
-                    type="time"
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                    className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800"
-                />
-                <select
-                    value={timezone}
-                    onChange={(e) => setTimezone(e.target.value)}
-                    className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800"
-                >
-                    <option value="UTC">UTC</option>
-                    <option value="America/New_York">Eastern</option>
-                    <option value="America/Chicago">Central</option>
-                    <option value="America/Denver">Mountain</option>
-                    <option value="America/Los_Angeles">Pacific</option>
-                    <option value="Europe/London">London</option>
-                </select>
+            {/* Send schedule */}
+            <div>
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Send (earliest)</div>
+                <div className="grid grid-cols-2 gap-2">
+                    {(frequency === 'weekly' || frequency === 'biweekly') && (
+                        <select value={sendDay} onChange={(e) => setSendDay(e.target.value)} className={inputCls}>
+                            <option value="">Same as run day</option>
+                            {days.map((day) => (
+                                <option key={day} value={day}>{day}</option>
+                            ))}
+                        </select>
+                    )}
+                    {frequency === 'monthly' && (
+                        <select value={sendDay} onChange={(e) => setSendDay(e.target.value)} className={inputCls}>
+                            <option value="">Same as run day</option>
+                            {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                                <option key={day} value={day}>{day}{getOrdinalSuffix(day)}</option>
+                            ))}
+                        </select>
+                    )}
+                    <input type="time" value={sendTime} onChange={(e) => setSendTime(e.target.value)} className={inputCls} />
+                </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
                 <button onClick={onCancel} className="px-2 py-1 text-sm text-gray-600 hover:text-gray-900" disabled={saving}>Cancel</button>
@@ -627,6 +648,17 @@ function ScheduleEditor({
             </div>
         </div>
     );
+}
+
+function formatDateTime(dateString: string): string {
+    const date = new Date(dateString);
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    const day = date.getDate();
+    const hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    const h = hours % 12 || 12;
+    return `${month} ${day}, ${h}:${minutes}${ampm}`;
 }
 
 function formatRelativeTime(dateString: string): string {

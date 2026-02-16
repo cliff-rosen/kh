@@ -53,7 +53,8 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
             anchor_day: null,
             preferred_time: '08:00',
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-            lookback_days: null
+            send_day: null,
+            send_time: null,
         } as ScheduleConfig,
 
         // === LAYER 1: SEMANTIC SPACE ===

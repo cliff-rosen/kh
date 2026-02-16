@@ -151,9 +151,9 @@ class ReportEmailQueueService:
         self,
         report_id: int,
         user_id: int,
-        scheduled_for: date,
+        scheduled_for: datetime,
     ) -> bool:
-        """Check if a duplicate entry exists (same report, user, date)."""
+        """Check if a duplicate entry exists (same report, user, datetime)."""
         result = await self.db.execute(
             select(ReportEmailQueue.id).where(
                 and_(
@@ -389,17 +389,17 @@ class ReportEmailQueueService:
 
     # ==================== Queue Processing ====================
 
-    async def process_queue(self, target_date: Optional[date] = None, force_all: bool = False) -> ProcessQueueResult:
+    async def process_queue(self, as_of: Optional[datetime] = None, force_all: bool = False) -> ProcessQueueResult:
         """
-        Process all scheduled emails that are due.
+        Process all scheduled emails that are due AND whose report is approved.
 
-        This is the core logic used by both:
-        - Manual "Run Now" execution
-        - Scheduled 2am cron job
+        Two gates must be met for an entry to be sent:
+        1. Time gate: scheduled_for <= now (or as_of)
+        2. Approval gate: report.approval_status == APPROVED
 
         Args:
-            target_date: Date to process for (defaults to today)
-            force_all: If True, process ALL scheduled entries regardless of date
+            as_of: Datetime to process as of (defaults to now)
+            force_all: If True, skip the time gate (still requires approval)
 
         Returns:
             ProcessQueueResult with counts and any errors
@@ -407,23 +407,35 @@ class ReportEmailQueueService:
         from services.report_service import ReportService, get_report_service
         from services.email_service import get_email_service
 
-        if target_date is None:
-            target_date = date.today()
+        if as_of is None:
+            as_of = datetime.utcnow()
 
         result = ProcessQueueResult()
 
-        # Step 1: Find all scheduled entries due for processing
+        # Step 1: Find all scheduled entries that pass both gates
         if force_all:
-            # Process all scheduled entries regardless of date
-            query = select(ReportEmailQueue).where(
-                ReportEmailQueue.status == ReportEmailQueueStatus.SCHEDULED,
+            # Skip time gate, but still require approval
+            query = (
+                select(ReportEmailQueue)
+                .join(Report, ReportEmailQueue.report_id == Report.report_id)
+                .where(
+                    and_(
+                        ReportEmailQueue.status == ReportEmailQueueStatus.SCHEDULED,
+                        Report.approval_status == ApprovalStatus.APPROVED,
+                    )
+                )
             )
-            logger.info(f"Processing ALL scheduled emails (force_all=True)")
+            logger.info(f"Processing ALL scheduled+approved emails (force_all=True)")
         else:
-            query = select(ReportEmailQueue).where(
-                and_(
-                    ReportEmailQueue.scheduled_for <= target_date,
-                    ReportEmailQueue.status == ReportEmailQueueStatus.SCHEDULED,
+            query = (
+                select(ReportEmailQueue)
+                .join(Report, ReportEmailQueue.report_id == Report.report_id)
+                .where(
+                    and_(
+                        ReportEmailQueue.scheduled_for <= as_of,
+                        ReportEmailQueue.status == ReportEmailQueueStatus.SCHEDULED,
+                        Report.approval_status == ApprovalStatus.APPROVED,
+                    )
                 )
             )
         entries_result = await self.db.execute(query)
@@ -438,12 +450,12 @@ class ReportEmailQueueService:
             )
             total_scheduled = count_result.scalar() or 0
             logger.info(
-                f"No scheduled emails to process for target_date={target_date}. "
+                f"No ready emails to process as of {as_of}. "
                 f"Total scheduled entries in DB: {total_scheduled}"
             )
             return result
 
-        logger.info(f"Processing {len(entries)} scheduled emails for {target_date}")
+        logger.info(f"Processing {len(entries)} scheduled+approved emails as of {as_of}")
 
         # Step 2: Mark all as ready
         for entry in entries:

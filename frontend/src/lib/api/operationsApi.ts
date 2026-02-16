@@ -69,7 +69,8 @@ export interface UpdateScheduleRequest {
     anchor_day?: string;
     preferred_time?: string;
     timezone?: string;
-    lookback_days?: number;
+    send_day?: string;
+    send_time?: string;
 }
 
 export async function getScheduledStreams(): Promise<ScheduledStream[]> {

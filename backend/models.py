@@ -685,7 +685,7 @@ class ReportEmailQueue(Base):
         nullable=False,
         index=True
     )
-    scheduled_for = Column(Date, nullable=False, index=True)  # Target date for sending
+    scheduled_for = Column(DateTime, nullable=False, index=True)  # Target datetime for sending
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     sent_at = Column(DateTime, nullable=True)  # When email was actually sent

@@ -354,10 +354,9 @@ export default function RunJobModal({
                                 </div>
 
                                 {/* Status log */}
-                                <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 overflow-y-auto font-mono text-xs ${isMaximized ? 'flex-1 min-h-0' : 'max-h-80'
-                                    }`}>
+                                <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 overflow-y-auto font-mono text-xs ${isMaximized ? 'flex-1 min-h-0' : 'max-h-80'}`}>
                                     {statusLog.length === 0 ? (
-                                        <div className="text-gray-400 flex items-center gap-2">
+                                        <div className="text-gray-500 dark:text-gray-400 flex items-center gap-2">
                                             <ArrowPathIcon className="h-4 w-4 animate-spin" />
                                             Waiting for updates...
                                         </div>
@@ -365,7 +364,7 @@ export default function RunJobModal({
                                         <div className="space-y-1">
                                             {statusLog.map((entry, i) => (
                                                 <div key={i} className="flex gap-2">
-                                                    <span className="text-gray-400 whitespace-nowrap">
+                                                    <span className="text-gray-500 dark:text-gray-500 whitespace-nowrap">
                                                         {new Date(entry.timestamp).toLocaleTimeString()}
                                                     </span>
                                                     <span className={`font-medium ${entry.stage === 'completed' ? 'text-green-600 dark:text-green-400' :

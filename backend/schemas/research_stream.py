@@ -78,15 +78,14 @@ class ScheduleConfig(BaseModel):
     """Complete scheduling configuration for a research stream."""
     enabled: bool = Field(default=False, description="Whether automated scheduling is enabled")
     frequency: ReportFrequency = Field(default=ReportFrequency.WEEKLY, description="How often to run")
-    anchor_day: Optional[str] = Field(None, description="Day to run on: 'monday'-'sunday' for weekly, or '1'-'31' for monthly")
-    preferred_time: str = Field(default="08:00", description="Time of day to run (HH:MM in user's timezone)")
-    timezone: str = Field(default="UTC", description="User's timezone (e.g., 'America/New_York')")
-    lookback_days: Optional[int] = Field(None, description="Days of articles to fetch. If not set, derived from frequency")
+    anchor_day: Optional[str] = Field(None, description="Day to run pipeline: 'monday'-'sunday' for weekly, or '1'-'28' for monthly")
+    preferred_time: str = Field(default="08:00", description="Time of day to run pipeline (HH:MM)")
+    timezone: str = Field(default="UTC", description="Timezone for all times (e.g., 'America/New_York')")
+    send_day: Optional[str] = Field(None, description="Earliest day to send: 'monday'-'sunday' for weekly, or '1'-'28' for monthly")
+    send_time: Optional[str] = Field(None, description="Earliest time to send (HH:MM). Report sends when both time gate and approval gate are met.")
 
     def get_lookback_days(self) -> int:
-        """Get lookback days, defaulting based on frequency if not set"""
-        if self.lookback_days is not None:
-            return self.lookback_days
+        """Get lookback days derived from frequency."""
         return {
             ReportFrequency.DAILY: 1,
             ReportFrequency.WEEKLY: 7,
