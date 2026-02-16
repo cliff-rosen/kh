@@ -314,6 +314,7 @@ class ApproveReportResponse(BaseModel):
     approval_status: str
     approved_by: int
     approved_at: str
+    emails_queued: int = 0
 
 
 class RejectReportResponse(BaseModel):

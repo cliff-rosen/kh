@@ -32,7 +32,7 @@ DAY_NAME_TO_NUM = {
     'friday': 4, 'saturday': 5, 'sunday': 6,
 }
 
-# Frequency -> lookback days
+# Frequency -> lookback days  (used for date-range calculation)
 FREQUENCY_LOOKBACK = {
     'daily': 1,
     'weekly': 7,
@@ -156,9 +156,6 @@ class JobDispatcher:
 
             await self.db.commit()
 
-            # Auto-queue emails for subscribers if schedule has send config
-            await self._auto_queue_emails(execution_id, stream)
-
             logger.info(f"Scheduled execution {execution_id} completed successfully")
             await broker.publish_complete(execution_id, success=True)
 
@@ -243,141 +240,6 @@ class JobDispatcher:
         else:
             # Unknown frequency — default weekly
             return datetime.utcnow() + timedelta(weeks=1)
-
-    def _calculate_send_datetime(self, schedule_config: dict, run_date: date) -> datetime:
-        """
-        Calculate the send datetime for a report that was generated on run_date.
-
-        For weekly/biweekly: the next occurrence of send_day at send_time on or after run_date.
-        For daily: run_date at send_time (or next day if send_time < run_time).
-        For monthly: send_day_of_month at send_time.
-
-        Returns a naive UTC datetime.
-        """
-        tz_name = schedule_config.get('timezone') or 'UTC'
-        tz = ZoneInfo(tz_name)
-        frequency = schedule_config.get('frequency') or 'weekly'
-
-        send_time_str = schedule_config.get('send_time') or '08:00'
-        s_hour, s_minute = (int(x) for x in send_time_str.split(':'))
-
-        if frequency in ('weekly', 'biweekly'):
-            send_day_name = schedule_config.get('send_day') or schedule_config.get('anchor_day') or 'monday'
-            target_weekday = DAY_NAME_TO_NUM.get(send_day_name.lower(), 0)
-            run_weekday = run_date.weekday()
-
-            days_ahead = (target_weekday - run_weekday) % 7
-            if days_ahead == 0:
-                # Same day as run — check if send_time is after run_time
-                run_time_str = schedule_config.get('preferred_time') or '03:00'
-                r_hour, r_minute = (int(x) for x in run_time_str.split(':'))
-                if (s_hour, s_minute) <= (r_hour, r_minute):
-                    days_ahead = 7  # Next week
-
-            send_date = run_date + timedelta(days=days_ahead)
-
-        elif frequency == 'daily':
-            # Same day unless send_time <= run_time
-            run_time_str = schedule_config.get('preferred_time') or '03:00'
-            r_hour, r_minute = (int(x) for x in run_time_str.split(':'))
-            if (s_hour, s_minute) <= (r_hour, r_minute):
-                send_date = run_date + timedelta(days=1)
-            else:
-                send_date = run_date
-
-        elif frequency == 'monthly':
-            send_day_of_month = schedule_config.get('send_day_of_month',
-                                                     schedule_config.get('run_day_of_month', 1))
-            if send_day_of_month >= run_date.day:
-                send_date = run_date.replace(day=send_day_of_month)
-            else:
-                # Next month
-                if run_date.month == 12:
-                    send_date = run_date.replace(year=run_date.year + 1, month=1, day=send_day_of_month)
-                else:
-                    send_date = run_date.replace(month=run_date.month + 1, day=send_day_of_month)
-        else:
-            send_date = run_date
-
-        # Build timezone-aware datetime, then convert to naive UTC
-        local_dt = datetime(send_date.year, send_date.month, send_date.day,
-                            s_hour, s_minute, 0, tzinfo=tz)
-        return local_dt.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
-
-    async def _auto_queue_emails(self, execution_id: str, stream: ResearchStream) -> None:
-        """
-        After a scheduled pipeline run completes, automatically queue emails
-        for all stream subscribers.
-
-        Only queues if the schedule config has send_day/send_time fields.
-        The emails are created with scheduled_for = the computed send datetime.
-        They won't actually be sent until both:
-          1. scheduled_for <= now (time gate)
-          2. report.approval_status == APPROVED (approval gate)
-        """
-        config = stream.schedule_config or {}
-
-        # Only auto-queue if schedule has send config
-        if not config.get('send_time'):
-            logger.info(f"[{execution_id}] No send_time in schedule config, skipping auto-queue")
-            return
-
-        # Get the report created by this execution
-        from models import PipelineExecution
-        stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
-        result = await self.db.execute(stmt)
-        execution = result.scalars().first()
-
-        if not execution or not execution.report_id:
-            logger.warning(f"[{execution_id}] No report found for execution, skipping auto-queue")
-            return
-
-        report_id = execution.report_id
-
-        # Calculate the send datetime
-        today = date.today()
-        send_dt = self._calculate_send_datetime(config, today)
-        logger.info(f"[{execution_id}] Calculated send datetime: {send_dt}")
-
-        # Resolve subscribers and queue emails
-        from services.report_email_queue_service import ReportEmailQueueService
-        from models import ReportEmailQueue, ReportEmailQueueStatus, User
-
-        queue_service = ReportEmailQueueService(self.db)
-        subscribers = await queue_service.get_stream_subscribers(report_id)
-
-        if not subscribers:
-            logger.info(f"[{execution_id}] No subscribers found for stream {stream.stream_id}")
-            return
-
-        queued_count = 0
-        for user in subscribers:
-            if not user.email:
-                logger.warning(f"[{execution_id}] Skipping user {user.user_id}: no email")
-                continue
-
-            # Check for duplicates
-            is_dup = await queue_service.check_duplicate(report_id, user.user_id, send_dt)
-            if is_dup:
-                continue
-
-            entry = ReportEmailQueue(
-                report_id=report_id,
-                user_id=user.user_id,
-                email=user.email,
-                scheduled_for=send_dt,
-                status=ReportEmailQueueStatus.SCHEDULED,
-            )
-            self.db.add(entry)
-            queued_count += 1
-
-        if queued_count > 0:
-            await self.db.commit()
-
-        logger.info(
-            f"[{execution_id}] Auto-queued {queued_count} emails for report {report_id} "
-            f"(send at {send_dt})"
-        )
 
     def get_running_jobs(self) -> Dict[str, Any]:
         """Get info about currently running jobs"""

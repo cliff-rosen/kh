@@ -246,6 +246,7 @@ class ApproveReportResult:
     approval_status: str
     approved_by: int
     approved_at: str
+    emails_queued: int = 0
 
 
 @dataclass
@@ -496,6 +497,7 @@ class ReportService:
         self._wip_article_service = None  # Lazy-loaded
         self._association_service = None  # Lazy-loaded
         self._article_service = None  # Lazy-loaded
+        self._email_queue_service = None  # Lazy-loaded
 
     @property
     def user_service(self) -> UserService:
@@ -535,6 +537,14 @@ class ReportService:
             from services.article_service import ArticleService
             self._article_service = ArticleService(self.db)
         return self._article_service
+
+    @property
+    def email_queue_service(self):
+        """Lazy-load ReportEmailQueueService."""
+        if self._email_queue_service is None:
+            from services.report_email_queue_service import ReportEmailQueueService
+            self._email_queue_service = ReportEmailQueueService(self.db)
+        return self._email_queue_service
 
     # =========================================================================
     # UTILITIES
@@ -1298,6 +1308,9 @@ class ReportService:
         )
         self.db.add(event)
 
+        # Auto-queue emails for subscribers (before commit so it's atomic)
+        emails_queued = await self.email_queue_service.auto_queue_for_approved_report(report_id)
+
         await self.db.commit()
 
         return ApproveReportResult(
@@ -1305,6 +1318,7 @@ class ReportService:
             approval_status='approved',
             approved_by=user_id,
             approved_at=report.approved_at.isoformat(),
+            emails_queued=emails_queued,
         )
 
     async def reject_report(

@@ -86,12 +86,25 @@ export default function ReportHeader({
             {/* Second line: Dates (left) + View buttons (right) */}
             <div className="flex items-center justify-between mt-3">
                 <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                    <span>
-                        Generated: {new Date(report.created_at).toLocaleDateString()}
-                    </span>
+                    {report.retrieval_params?.end_date ? (
+                        <span>
+                            Generated: {(() => {
+                                const [y, m, d] = report.retrieval_params.end_date.split('-').map(Number);
+                                return new Date(y, m - 1, d + 1).toLocaleDateString();
+                            })()}
+                        </span>
+                    ) : (
+                        <span>
+                            Generated: {new Date(report.created_at).toLocaleDateString()}
+                        </span>
+                    )}
                     {report.retrieval_params?.start_date && report.retrieval_params?.end_date && (
                         <span>
-                            Report range: {new Date(report.retrieval_params.start_date).toLocaleDateString()} – {new Date(report.retrieval_params.end_date).toLocaleDateString()}
+                            Report range: {(() => {
+                                const [sy, sm, sd] = report.retrieval_params.start_date.split('-').map(Number);
+                                const [ey, em, ed] = report.retrieval_params.end_date.split('-').map(Number);
+                                return `${new Date(sy, sm - 1, sd).toLocaleDateString()} – ${new Date(ey, em - 1, ed).toLocaleDateString()}`;
+                            })()}
                         </span>
                     )}
                 </div>

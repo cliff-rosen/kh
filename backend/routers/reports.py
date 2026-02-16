@@ -4,6 +4,7 @@ Reports API endpoints
 
 import logging
 import time
+import base64
 from dataclasses import asdict
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Dict, Any, Optional
@@ -49,6 +50,40 @@ class EmailPreviewResponse(BaseModel):
     """Response containing email HTML preview"""
     html: str
     report_name: str
+
+
+def _load_logo_images() -> Optional[Dict[str, bytes]]:
+    """Load the KH logo image for embedding in previews."""
+    import os
+    try:
+        logo_path = os.path.join(
+            os.path.dirname(__file__), '..', '..',
+            'frontend', 'public', 'logos', 'KH logo black.png'
+        )
+        logo_path = os.path.normpath(logo_path)
+        if os.path.exists(logo_path):
+            with open(logo_path, 'rb') as f:
+                return {'kh_logo': f.read()}
+    except Exception:
+        pass
+    return None
+
+
+def _make_preview_html(html: str, images: Optional[Dict[str, bytes]] = None) -> str:
+    """Replace CID image references with inline data URIs for browser preview.
+
+    Email HTML uses cid: references (resolved by email clients via MIME attachments).
+    Browsers can't resolve cid: URIs, so we inline them as base64 data URIs.
+    """
+    if not images:
+        images = _load_logo_images()
+    if not images:
+        return html
+    preview = html
+    for cid, image_bytes in images.items():
+        b64 = base64.b64encode(image_bytes).decode('ascii')
+        preview = preview.replace(f'cid:{cid}', f'data:image/png;base64,{b64}')
+    return preview
 
 
 class UpdateSuccessResponse(BaseModel):
@@ -317,7 +352,8 @@ async def generate_report_email(
             )
 
         logger.info(f"generate_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
-        return EmailPreviewResponse(html=result.html, report_name=result.report_name)
+        preview_html = _make_preview_html(result.html, result.images)
+        return EmailPreviewResponse(html=preview_html, report_name=result.report_name)
 
     except HTTPException:
         raise
@@ -352,7 +388,8 @@ async def store_report_email(
             )
 
         logger.info(f"store_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
-        return EmailPreviewResponse(html=result.html, report_name=result.report_name)
+        preview_html = _make_preview_html(result.html, result.images)
+        return EmailPreviewResponse(html=preview_html, report_name=result.report_name)
 
     except HTTPException:
         raise
@@ -393,7 +430,8 @@ async def get_report_email(
             )
 
         logger.info(f"get_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
-        return EmailPreviewResponse(html=result.html, report_name=result.report_name)
+        preview_html = _make_preview_html(result.html)
+        return EmailPreviewResponse(html=preview_html, report_name=result.report_name)
 
     except HTTPException:
         raise

@@ -42,7 +42,7 @@
 | **What it does** | Runs full pipeline: retrieval > dedup > filtering > categorization > summarization > report creation |
 | **DB reads** | `research_streams.schedule_config` (for frequency → date range calculation) |
 | **DB writes** | `pipeline_executions` — new row |
-| | `reports` — new row |
+| | `reports` — new row (status: `awaiting_approval`) |
 | | `articles` — new/existing rows |
 | | `report_article_associations` — new rows |
 | | `research_streams.next_scheduled_run` — advanced to next run |
@@ -83,62 +83,26 @@ created_at:       "2026-02-22 08:03:45"
 
 `research_streams.next_scheduled_run`: `2026-03-01 08:00:00` (next Sunday 3am ET → UTC)
 
----
-
-### Step 3: Worker queues emails for subscribers
-
-| | |
-|---|---|
-| **Who** | Worker — same `execute_scheduled()` function from step 2 (not a separate process or poll) |
-| **Trigger** | Direct function call: after `run_pipeline()` returns and the execution is marked completed, the next line of code calls `_auto_queue_emails()`. No DB polling — this is just the continuation of step 2's code path. |
-| **What it does** | Resolves all stream subscribers, creates email queue entries with computed send datetime |
-| **DB reads** | `pipeline_executions` — to get `report_id` from the just-completed run |
-| | `research_streams.schedule_config` — for `send_day`, `send_time`, `timezone` |
-| | Stream subscriber list (users linked to the stream) |
-| **DB writes** | `report_email_queue` — one row per subscriber |
-| **Code** | `worker/dispatcher.py:160` — `await self._auto_queue_emails(execution_id, stream)` |
-
-**Example — DB reads:**
-
-`pipeline_executions` where `id = 'a1b2c3d4-...'` → `report_id = 42`
-
-`schedule_config.send_day = "monday"`, `send_time = "08:00"`, `timezone = "America/New_York"`
-
-Subscribers: user_id 10 (alice@example.com), user_id 11 (bob@example.com)
-
-**Example — DB writes:**
-
-`report_email_queue` (two new rows):
-```
-Row 1:
-  report_id:     42
-  user_id:       10
-  email:         "alice@example.com"
-  status:        "scheduled"
-  scheduled_for: "2026-02-23 13:00:00"  (Monday 8am ET → UTC)
-
-Row 2:
-  report_id:     42
-  user_id:       11
-  email:         "bob@example.com"
-  status:        "scheduled"
-  scheduled_for: "2026-02-23 13:00:00"  (Monday 8am ET → UTC)
-```
+**Note:** No email queue entries are created at this stage. Emails are only queued when the report is approved (step 3).
 
 ---
 
-### Step 4: Curator approves the report
+### Step 3: Curator approves the report → emails are queued
 
 | | |
 |---|---|
 | **Who** | Curator (human) |
 | **Trigger** | Sees report with `approval_status = awaiting_approval` in Curation UI |
-| **What it does** | Reviews articles, edits summaries, clicks Approve |
+| **What it does** | Reviews articles, edits summaries, clicks Approve. Approval atomically creates email queue entries for all stream subscribers. |
 | **DB reads** | `reports` where `approval_status = 'awaiting_approval'` |
+| | `research_streams.schedule_config` — for `send_day`, `send_time`, `timezone` |
+| | Stream subscriber list (users linked to the stream) |
 | **DB writes** | `reports` — approval fields updated |
 | | `curation_events` — audit row |
+| | `report_email_queue` — one row per subscriber |
 | **Code** | `routers/curation.py` > approve endpoint |
 | | `services/report_service.py` > `approve_report()` |
+| | `services/report_email_queue_service.py` > `auto_queue_for_approved_report()` |
 
 **Example — DB writes:**
 
@@ -158,16 +122,37 @@ event_type:  "approved"
 created_at:  "2026-02-22 16:30:00"
 ```
 
+`report_email_queue` (new rows — one per subscriber):
+```
+Row 1:
+  report_id:     42
+  user_id:       10
+  email:         "alice@example.com"
+  status:        "scheduled"
+  scheduled_for: "2026-02-23 13:00:00"  (Monday 8am ET → UTC)
+
+Row 2:
+  report_id:     42
+  user_id:       11
+  email:         "bob@example.com"
+  status:        "scheduled"
+  scheduled_for: "2026-02-23 13:00:00"  (Monday 8am ET → UTC)
+```
+
+All three writes (approval, audit event, queue entries) happen in a single atomic commit.
+
+If the stream has no `send_time` configured, no queue entries are created. Curators can still manually schedule emails via the operations UI.
+
 ---
 
-### Step 5: Worker sends the emails
+### Step 4: Worker sends the emails
 
 | | |
 |---|---|
 | **Who** | Worker (automated, 30s poll loop) |
-| **Trigger** | `report_email_queue` joined to `reports` — ALL THREE conditions met |
+| **Trigger** | `report_email_queue` where `status = 'scheduled'` AND `scheduled_for <= now` |
 | **What it does** | Generates email HTML, sends via SMTP to each subscriber |
-| **DB reads** | `report_email_queue` + `reports` (join) |
+| **DB reads** | `report_email_queue` (time gate only — no approval join needed) |
 | **DB writes** | `report_email_queue` — status and sent_at updated |
 | **Code** | `worker/main.py` > `process_email_queue()` |
 | | `services/report_email_queue_service.py` > `process_queue()` |
@@ -175,15 +160,11 @@ created_at:  "2026-02-22 16:30:00"
 **Example — DB reads (trigger query):**
 ```sql
 SELECT q.* FROM report_email_queue q
-JOIN reports r ON q.report_id = r.report_id
 WHERE q.status = 'scheduled'
   AND q.scheduled_for <= '2026-02-23 13:00:00'   -- it's now Monday 8am ET
-  AND r.approval_status = 'approved'
 ```
 
-Both gates are satisfied:
-- Time gate: `scheduled_for` (Mon 8am ET) <= now (Mon 8am ET)
-- Approval gate: report 42 was approved in step 4
+Only the time gate is needed — queue entries only exist for approved reports.
 
 **Example — DB writes (success):**
 
