@@ -91,16 +91,13 @@ async def execute_deep_research(
 
 register_tool(ToolConfig(
     name="deep_research",
-    description="""Conducts in-depth research on a question using PubMed and web search. Use this when:
-- The question requires synthesizing information from multiple sources
-- A simple search won't suffice
-- The user needs a well-researched, cited answer
+    description="""[BETA] Conducts in-depth research on a question using PubMed and web search. This is for complex questions that require synthesizing information from multiple sources.
 
-This tool typically takes 1-3 minutes. When calling it, inform the user that research is underway and may take a few minutes.
+IMPORTANT: Before using this tool, you must first ask the user for confirmation — explain what you'd research, note that this is a beta feature, and mention it may take 1-3 minutes. Only call this tool after the user confirms in a subsequent message.
 
 Do NOT use this for:
-- Simple factual lookups
-- Questions about the current report/stream content
+- Simple factual lookups (use search_pubmed instead, with user confirmation)
+- Questions about the current report/stream content (answer from local context)
 - Questions that can be answered from context already available""",
     input_schema={
         "type": "object",

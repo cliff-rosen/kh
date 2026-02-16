@@ -362,7 +362,7 @@ def execute_get_full_text(
 
 register_tool(ToolConfig(
     name="search_pubmed",
-    description="Search PubMed for research articles. Use this to find additional articles related to topics in the report, or to answer questions about recent research.",
+    description="[BETA] Search PubMed for research articles beyond what's in the stream's reports. IMPORTANT: Before using this tool, you must first ask the user for confirmation — explain that you'd like to search PubMed and that this is a beta feature. Only call this tool after the user confirms in a subsequent message.",
     input_schema={
         "type": "object",
         "properties": {
