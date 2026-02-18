@@ -22,24 +22,27 @@ logger = logging.getLogger(__name__)
 
 
 def _parse_notes(notes_str: Optional[str]) -> List[dict]:
-    """Parse notes from JSON string stored in Text column."""
+    """Parse notes from JSON string stored in Text column.
+
+    Returns the list of note dicts, or [] if the value is missing,
+    empty, or not a valid JSON array.
+    """
     if not notes_str:
         return []
 
-    # Try to parse as JSON array
     try:
         parsed = json.loads(notes_str)
         if isinstance(parsed, list):
             return parsed
-        # If it's not a list, treat as legacy single note
         return []
     except (json.JSONDecodeError, TypeError):
-        # Not valid JSON - treat as legacy plain text note
         return []
 
 
-def _serialize_notes(notes: List[dict]) -> str:
-    """Serialize notes list to JSON string for storage."""
+def _serialize_notes(notes: List[dict]) -> Optional[str]:
+    """Serialize notes list to JSON string for storage, or None if empty."""
+    if not notes:
+        return None
     return json.dumps(notes)
 
 
@@ -79,22 +82,7 @@ class NotesService:
         if not association:
             return []
 
-        raw_notes = association.notes
-        if not raw_notes:
-            return []
-
-        existing_notes = _parse_notes(raw_notes)
-
-        if not existing_notes and raw_notes and isinstance(raw_notes, str):
-            return [{
-                "id": str(uuid.uuid4()),
-                "user_id": 0,
-                "author_name": "Legacy",
-                "content": raw_notes,
-                "visibility": "shared",
-                "created_at": association.added_at.isoformat() if association.added_at else datetime.utcnow().isoformat(),
-                "updated_at": association.added_at.isoformat() if association.added_at else datetime.utcnow().isoformat()
-            }]
+        existing_notes = _parse_notes(association.notes)
 
         visible_notes = []
         for note in existing_notes:
@@ -129,20 +117,7 @@ class NotesService:
         if not association:
             return None
 
-        raw_notes = association.notes
-        existing_notes = _parse_notes(raw_notes) if raw_notes else []
-
-        if not existing_notes and raw_notes and isinstance(raw_notes, str):
-            legacy_note = {
-                "id": str(uuid.uuid4()),
-                "user_id": 0,
-                "author_name": "Legacy",
-                "content": raw_notes,
-                "visibility": "shared",
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat()
-            }
-            existing_notes = [legacy_note]
+        existing_notes = _parse_notes(association.notes)
 
         now = datetime.utcnow().isoformat()
         new_note = {
@@ -175,8 +150,7 @@ class NotesService:
         if not association:
             return None
 
-        raw_notes = association.notes
-        existing_notes = _parse_notes(raw_notes)
+        existing_notes = _parse_notes(association.notes)
         if not existing_notes:
             return None
 
@@ -216,8 +190,7 @@ class NotesService:
         if not association:
             return False
 
-        raw_notes = association.notes
-        existing_notes = _parse_notes(raw_notes)
+        existing_notes = _parse_notes(association.notes)
         if not existing_notes:
             return False
 
