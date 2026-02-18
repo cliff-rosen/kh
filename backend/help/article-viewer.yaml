@@ -67,10 +67,11 @@ sections:
 
       **Adding Notes:**
       1. Open the article in the Article Viewer
-      2. Click the "Notes" tab
-      3. Type your note in the text area
-      4. Choose **Personal** or **Shared** visibility
-      5. Click "Save" to store the note
+      2. Click the **Notes** tab
+      3. Click the **Add Note** button
+      4. Type your note in the text area
+      5. Choose **Personal** or **Shared** visibility
+      6. Click **Save Note** to store the note
 
       **Personal vs Shared:**
       - **Personal notes** are private — only you can see them. Use these for your own working thoughts, draft observations, or reminders.
