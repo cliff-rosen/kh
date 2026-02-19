@@ -1,11 +1,21 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
     MagnifyingGlassIcon,
     DocumentTextIcon,
     ChevronDownIcon,
     ChevronUpIcon,
-    ArrowTopRightOnSquareIcon
+    ArrowTopRightOnSquareIcon,
+    ClipboardDocumentIcon,
+    TableCellsIcon
 } from '@heroicons/react/24/outline';
+import ExportMenu from '../ui/ExportMenu';
+import {
+    formatSearchResultsForClipboard,
+    formatSearchResultsAsCSV,
+    downloadCSV,
+    generatePDF,
+    copyWithToast,
+} from '../../lib/utils/export';
 
 export interface PubMedSearchResult {
     pmid: string;
@@ -29,14 +39,42 @@ interface PubMedSearchResultsCardProps {
 }
 
 export default function PubMedSearchResultsCard({ data }: PubMedSearchResultsCardProps) {
+    const contentRef = useRef<HTMLDivElement>(null);
     const [expandedPmid, setExpandedPmid] = useState<string | null>(null);
 
     const toggleExpand = (pmid: string) => {
         setExpandedPmid(expandedPmid === pmid ? null : pmid);
     };
 
+    const exportOptions = [
+        {
+            label: 'Copy as Table',
+            icon: ClipboardDocumentIcon,
+            onClick: () => copyWithToast(formatSearchResultsForClipboard(data), 'Search results'),
+        },
+        {
+            label: 'Download CSV',
+            icon: TableCellsIcon,
+            onClick: () => {
+                const csv = formatSearchResultsAsCSV(data);
+                const safeName = data.query.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
+                downloadCSV(csv, `search-${safeName}.csv`);
+            },
+        },
+        {
+            label: 'Download PDF',
+            icon: DocumentTextIcon,
+            onClick: () => {
+                if (contentRef.current) {
+                    const safeName = data.query.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
+                    generatePDF(contentRef.current, `search-${safeName}.pdf`, { orientation: 'landscape' });
+                }
+            },
+        },
+    ];
+
     return (
-        <div className="space-y-4">
+        <div className="space-y-4" ref={contentRef}>
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -45,9 +83,12 @@ export default function PubMedSearchResultsCard({ data }: PubMedSearchResultsCar
                         Search: "{data.query}"
                     </span>
                 </div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                    Showing {data.showing} of {data.total_results.toLocaleString()} results
-                </span>
+                <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                        Showing {data.showing} of {data.total_results.toLocaleString()} results
+                    </span>
+                    <ExportMenu options={exportOptions} />
+                </div>
             </div>
 
             {/* Results Table */}

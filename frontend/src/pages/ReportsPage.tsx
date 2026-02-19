@@ -11,6 +11,11 @@ import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { starringApi } from '../lib/api/starringApi';
 import { getReportConfig, type ReportConfigResponse } from '../lib/api/curationApi';
 import { showErrorToast } from '../lib/errorToast';
+import {
+    formatReportArticlesAsCSV,
+    downloadCSV,
+    generateReportPDF,
+} from '../lib/utils/export';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { useAuth } from '../context/AuthContext';
 import { useTracking } from '../hooks/useTracking';
@@ -858,6 +863,17 @@ export default function ReportsPage() {
                                             setShowAnalytics(true);
                                         }}
                                         onDeleteReport={() => handleDeleteReport(selectedReport.report_id, selectedReport.report_name)}
+                                        onExportCSV={() => {
+                                            track('export_csv', { report_id: selectedReport.report_id });
+                                            const csv = formatReportArticlesAsCSV(selectedReport.articles);
+                                            const safeName = selectedReport.report_name.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
+                                            downloadCSV(csv, `report-${safeName}.csv`);
+                                        }}
+                                        onExportPDF={() => {
+                                            track('export_pdf', { report_id: selectedReport.report_id });
+                                            const safeName = selectedReport.report_name.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
+                                            generateReportPDF(selectedReport, `report-${safeName}.pdf`);
+                                        }}
                                     />
 
                                     {/* Report Content */}

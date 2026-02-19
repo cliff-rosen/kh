@@ -24,6 +24,7 @@ import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import StanceAnalysisDisplay, { getStanceInfo } from '../ui/StanceAnalysisDisplay';
 import ArticleNotes from './ArticleNotes';
 import StarButton from './StarButton';
+import CitationMenu from './CitationMenu';
 import { formatArticleDate, getYearString } from '../../utils/dateUtils';
 
 type WorkspaceTab = 'analysis' | 'notes' | 'links';
@@ -434,6 +435,7 @@ export default function ArticleViewerModal({
                                 size="md"
                             />
                         )}
+                        <CitationMenu article={article} />
                         <button
                             type="button"
                             onClick={handleClose}

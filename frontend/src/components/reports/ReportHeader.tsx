@@ -7,9 +7,11 @@ import {
     TableCellsIcon,
     Bars2Icon,
     Bars3BottomLeftIcon,
-    SparklesIcon
+    SparklesIcon,
+    DocumentTextIcon
 } from '@heroicons/react/24/outline';
 import { ReportWithArticles } from '../../types';
+import ExportMenu from '../ui/ExportMenu';
 
 export type ReportView = 'all' | 'by-category' | 'tablizer';
 export type CardFormat = 'compact' | 'abstract' | 'ai_summary';
@@ -27,6 +29,8 @@ export interface ReportHeaderProps {
     onShowExecutionConfig: () => void;
     onShowAnalytics: () => void;
     onDeleteReport: () => void;
+    onExportCSV?: () => void;
+    onExportPDF?: () => void;
 }
 
 export default function ReportHeader({
@@ -41,8 +45,22 @@ export default function ReportHeader({
     onCardFormatChange,
     onShowExecutionConfig,
     onShowAnalytics,
-    onDeleteReport
+    onDeleteReport,
+    onExportCSV,
+    onExportPDF
 }: ReportHeaderProps) {
+    const exportOptions = [
+        ...(onExportCSV ? [{
+            label: 'Download Articles CSV',
+            icon: TableCellsIcon,
+            onClick: onExportCSV,
+        }] : []),
+        ...(onExportPDF ? [{
+            label: 'Download PDF',
+            icon: DocumentTextIcon,
+            onClick: onExportPDF,
+        }] : []),
+    ];
     return (
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             {/* First line: Title (left) + Config/Analytics icons (right) */}
@@ -51,6 +69,9 @@ export default function ReportHeader({
                     {report.report_name}
                 </h2>
                 <div className="flex items-center gap-2">
+                    {exportOptions.length > 0 && (
+                        <ExportMenu options={exportOptions} />
+                    )}
                     {showAdminControls && (
                         <>
                             <button

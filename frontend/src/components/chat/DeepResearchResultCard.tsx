@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
     BeakerIcon,
     ChevronDownIcon,
@@ -10,10 +10,13 @@ import {
     DocumentTextIcon,
     GlobeAltIcon,
     ClipboardDocumentIcon,
-    QuestionMarkCircleIcon
+    QuestionMarkCircleIcon,
+    DocumentDuplicateIcon
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
+import ExportMenu from '../ui/ExportMenu';
+import { formatDeepResearchForClipboard, generatePDF, copyWithToast } from '../../lib/utils/export';
 
 export interface DeepResearchSource {
     id: string;
@@ -53,6 +56,7 @@ interface DeepResearchResultCardProps {
 }
 
 export default function DeepResearchResultCard({ data }: DeepResearchResultCardProps) {
+    const contentRef = useRef<HTMLDivElement>(null);
     const [showSources, setShowSources] = useState(false);
     const [showLimitations, setShowLimitations] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -92,8 +96,25 @@ export default function DeepResearchResultCard({ data }: DeepResearchResultCardP
     const gapsCount = data.checklist_coverage.gaps.length;
     const totalItems = satisfiedCount + partialCount + gapsCount;
 
+    const exportOptions = [
+        {
+            label: 'Copy All',
+            icon: DocumentDuplicateIcon,
+            onClick: () => copyWithToast(formatDeepResearchForClipboard(data), 'Research results'),
+        },
+        {
+            label: 'Download PDF',
+            icon: DocumentTextIcon,
+            onClick: () => {
+                if (contentRef.current) {
+                    generatePDF(contentRef.current, `deep-research-${data.trace_id.slice(0, 8)}.pdf`);
+                }
+            },
+        },
+    ];
+
     return (
-        <div className="h-full flex flex-col min-h-0">
+        <div className="h-full flex flex-col min-h-0" ref={contentRef}>
             {/* Header - fixed */}
             <div className="flex-shrink-0 flex items-center justify-between flex-wrap gap-2 mb-3">
                 <div className="flex items-center gap-2">
@@ -116,6 +137,7 @@ export default function DeepResearchResultCard({ data }: DeepResearchResultCardP
                             )}
                         </span>
                     )}
+                    <ExportMenu options={exportOptions} />
                 </div>
             </div>
 

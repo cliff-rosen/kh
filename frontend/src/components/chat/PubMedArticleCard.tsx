@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
     DocumentTextIcon,
     LinkIcon,
@@ -9,10 +9,13 @@ import {
     ChevronUpIcon,
     ClipboardDocumentIcon,
     CheckIcon,
-    ExclamationCircleIcon
+    ExclamationCircleIcon,
+    DocumentDuplicateIcon
 } from '@heroicons/react/24/outline';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import { copyToClipboard } from '../../lib/utils/clipboard';
+import ExportMenu from '../ui/ExportMenu';
+import { formatPubMedArticleForClipboard, generatePDF, copyWithToast } from '../../lib/utils/export';
 
 export interface PubMedArticleData {
     pmid: string;
@@ -34,6 +37,7 @@ interface PubMedArticleCardProps {
 }
 
 export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
+    const contentRef = useRef<HTMLDivElement>(null);
     const [showFullText, setShowFullText] = useState(false);
     const [copiedField, setCopiedField] = useState<string | null>(null);
     const [copyError, setCopyError] = useState(false);
@@ -56,13 +60,33 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
     const pmcUrl = article.pmc_id ? `https://www.ncbi.nlm.nih.gov/pmc/articles/${article.pmc_id}/` : null;
     const doiUrl = article.doi ? `https://doi.org/${article.doi}` : null;
 
+    const exportOptions = [
+        {
+            label: 'Copy All Fields',
+            icon: DocumentDuplicateIcon,
+            onClick: () => copyWithToast(formatPubMedArticleForClipboard(article), 'Article'),
+        },
+        {
+            label: 'Download PDF',
+            icon: DocumentTextIcon,
+            onClick: () => {
+                if (contentRef.current) {
+                    generatePDF(contentRef.current, `pubmed-${article.pmid}.pdf`);
+                }
+            },
+        },
+    ];
+
     return (
-        <div className="space-y-4">
-            {/* Title */}
-            <div>
+        <div className="space-y-4" ref={contentRef}>
+            {/* Export + Title */}
+            <div className="flex items-start justify-between gap-2">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white leading-tight">
                     {article.title}
                 </h3>
+                <div className="flex-shrink-0">
+                    <ExportMenu options={exportOptions} />
+                </div>
             </div>
 
             {/* Authors */}
