@@ -574,6 +574,18 @@ export default function ArticleViewerModal({
                                 )}
                             </div>
 
+                            {/* Relevance Rationale */}
+                            {article.relevance_rationale && (
+                                <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-400 dark:border-blue-600">
+                                    <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-2">
+                                        Why This Article
+                                    </p>
+                                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                        {article.relevance_rationale}
+                                    </p>
+                                </div>
+                            )}
+
                             {/* AI Summary */}
                             {article.ai_summary && (
                                 <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border-l-4 border-purple-400 dark:border-purple-600">
