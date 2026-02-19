@@ -19,6 +19,8 @@ from starlette.responses import JSONResponse
 # Setup logging first
 logger, request_id_filter = setup_logging()
 
+logger.info(f"Database target: {settings.DB_NAME} @ {settings.DB_HOST}")
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.SETTING_VERSION,

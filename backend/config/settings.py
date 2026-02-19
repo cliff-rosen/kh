@@ -1,9 +1,18 @@
 from pydantic_settings import BaseSettings
 import os
+from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 
-# Force reload of environment variables
-load_dotenv(override=True)
+# Determine environment before loading any dotenv files.
+# On EB, set ENVIRONMENT=production via EB environment configuration.
+# Locally, ENVIRONMENT is not set, so we default to dev — safe by design.
+_backend_dir = Path(__file__).resolve().parent.parent
+_is_production = os.environ.get("ENVIRONMENT") == "production"
+
+if _is_production:
+    load_dotenv(_backend_dir / ".env.production", override=True)
+else:
+    load_dotenv(_backend_dir / ".env", override=True)
 
 
 class Settings(BaseSettings):
