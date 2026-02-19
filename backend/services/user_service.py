@@ -11,14 +11,21 @@ Authentication (tokens, passwords) is handled by auth_service.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update, delete
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 from fastapi import HTTPException, status, Depends
 from passlib.context import CryptContext
 import logging
 
-from models import User as UserModel, Organization, UserRole as UserRoleModel
+from models import (
+    User as UserModel, Organization, UserRole as UserRoleModel,
+    Conversation, UserEvent, PipelineExecution, UserFeedback,
+    UserStreamSubscription, ReportEmailQueue, ReportSchedule,
+    CurationEvent, ToolTrace, Report, ResearchStream,
+    OrgStreamSubscription, ChatConfig, HelpContentOverride, Artifact,
+    ReportArticleAssociation, WipArticle,
+)
 from schemas.user import UserRole, OrgMember
 from database import get_async_db
 
@@ -478,7 +485,10 @@ class UserService:
         return user
 
     async def delete_user(self, user_id: int, deleted_by: UserModel) -> bool:
-        """Hard delete a user from the database (async)."""
+        """Hard delete a user from the database (async).
+
+        Cleans up all FK-dependent rows before deleting the user.
+        """
         if deleted_by.role != UserRoleModel.PLATFORM_ADMIN:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -505,6 +515,43 @@ class UserService:
             )
 
         email = user.email
+
+        # Clean up all FK-dependent rows before deleting user.
+        # Order matters: delete children before parents.
+
+        # Find this user's report IDs (needed to clean up report children)
+        result = await self.db.execute(select(Report.report_id).where(Report.user_id == user_id))
+        user_report_ids = [r[0] for r in result.fetchall()]
+
+        # 1. Delete children of this user's reports
+        if user_report_ids:
+            await self.db.execute(delete(ReportArticleAssociation).where(ReportArticleAssociation.report_id.in_(user_report_ids)))
+            await self.db.execute(delete(ReportEmailQueue).where(ReportEmailQueue.report_id.in_(user_report_ids)))
+
+        # 2. Delete rows with non-nullable FK to users
+        await self.db.execute(delete(Conversation).where(Conversation.user_id == user_id))  # messages cascade via ondelete
+        await self.db.execute(delete(UserEvent).where(UserEvent.user_id == user_id))
+        await self.db.execute(delete(ReportEmailQueue).where(ReportEmailQueue.user_id == user_id))
+        await self.db.execute(delete(ReportSchedule).where(ReportSchedule.user_id == user_id))
+        await self.db.execute(delete(PipelineExecution).where(PipelineExecution.user_id == user_id))
+        await self.db.execute(delete(UserFeedback).where(UserFeedback.user_id == user_id))
+        await self.db.execute(delete(UserStreamSubscription).where(UserStreamSubscription.user_id == user_id))
+        await self.db.execute(delete(CurationEvent).where(CurationEvent.curator_id == user_id))
+        await self.db.execute(delete(ToolTrace).where(ToolTrace.user_id == user_id))
+        await self.db.execute(delete(Report).where(Report.user_id == user_id))
+        await self.db.execute(delete(Artifact).where(Artifact.created_by == user_id))
+
+        # 3. SET NULL on nullable FK references to users
+        await self.db.execute(update(ResearchStream).where(ResearchStream.user_id == user_id).values(user_id=None))
+        await self.db.execute(update(ResearchStream).where(ResearchStream.created_by == user_id).values(created_by=None))
+        await self.db.execute(update(WipArticle).where(WipArticle.curated_by == user_id).values(curated_by=None))
+        await self.db.execute(update(Report).where(Report.approved_by == user_id).values(approved_by=None))
+        await self.db.execute(update(Report).where(Report.last_curated_by == user_id).values(last_curated_by=None))
+        await self.db.execute(update(OrgStreamSubscription).where(OrgStreamSubscription.subscribed_by == user_id).values(subscribed_by=None))
+        await self.db.execute(update(ChatConfig).where(ChatConfig.updated_by == user_id).values(updated_by=None))
+        await self.db.execute(update(HelpContentOverride).where(HelpContentOverride.updated_by == user_id).values(updated_by=None))
+
+        # 3. Delete the user (user_article_stars cascade via ondelete="CASCADE")
         await self.db.delete(user)
         await self.db.commit()
 
