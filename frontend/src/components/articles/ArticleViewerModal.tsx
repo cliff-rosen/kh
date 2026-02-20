@@ -6,6 +6,7 @@ import {
     PencilSquareIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
+    ChevronDownIcon,
     LinkIcon,
     ScaleIcon,
     FunnelIcon
@@ -115,6 +116,9 @@ export default function ArticleViewerModal({
 
     // Chat state
     const [isChatOpen, setIsChatOpen] = useState(false);
+
+    // Article details collapsed state
+    const [detailsExpanded, setDetailsExpanded] = useState(false);
 
     // Workspace state
     const [activeTab, setActiveTab] = useState<WorkspaceTab>('analysis');
@@ -529,19 +533,19 @@ export default function ArticleViewerModal({
                     {/* Main panel */}
                     <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-gray-800">
                         {/* Article header section */}
-                        <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-6">
+                        <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-6 py-4">
                             {/* Title */}
                             <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
                                 {article.title}
                             </h1>
 
                             {/* Authors */}
-                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                            <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
                                 {formatAuthors(article.authors)}
                             </p>
 
                             {/* Journal, Date, PMID row */}
-                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                                 {article.journal && (
                                     <span className="text-gray-700 dark:text-gray-300 font-medium">{article.journal}</span>
                                 )}
@@ -576,62 +580,75 @@ export default function ArticleViewerModal({
                                 )}
                             </div>
 
-                            {/* Relevance Rationale */}
-                            {article.relevance_rationale && (
-                                <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-400 dark:border-blue-600">
-                                    <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-2">
-                                        Why This Article
-                                    </p>
-                                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                                        {article.relevance_rationale}
-                                    </p>
-                                </div>
-                            )}
-
-                            {/* AI Summary */}
-                            {article.ai_summary && (
-                                <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border-l-4 border-purple-400 dark:border-purple-600">
-                                    <p className="text-xs font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-2">
-                                        AI Summary
-                                    </p>
-                                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                                        {article.ai_summary}
-                                    </p>
-                                </div>
-                            )}
-
-                            {/* Abstract */}
-                            <div className="mt-4">
-                                {article.abstract ? (
-                                    <MarkdownRenderer
-                                        content={article.abstract}
-                                        className="text-sm"
-                                        compact
-                                    />
-                                ) : (
-                                    <p className="text-gray-500 dark:text-gray-400 italic text-sm">
-                                        No abstract available
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Quick action for analysis - hidden when Analysis tab is active, but space preserved */}
-                            {article.abstract && !stanceResult && !isAnalyzing && streamId && (
-                                <div className={`mt-4 ${activeTab === 'analysis' ? 'invisible' : ''}`}>
+                            {/* Collapsible details: Why This Article, AI Summary, Abstract */}
+                            {(article.relevance_rationale || article.ai_summary || article.abstract) && (
+                                <div className="mt-3">
                                     <button
                                         type="button"
-                                        onClick={runAnalysis}
-                                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                                        onClick={() => setDetailsExpanded(!detailsExpanded)}
+                                        className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                                     >
-                                        <BeakerIcon className="h-4 w-4" />
-                                        Run AI Analysis
+                                        <ChevronDownIcon className={`h-4 w-4 transition-transform ${detailsExpanded ? '' : '-rotate-90'}`} />
+                                        <span>
+                                            {detailsExpanded ? 'Hide' : 'Show'} details
+                                            {article.relevance_rationale && !detailsExpanded && (
+                                                <span className="ml-2 text-xs text-blue-500">relevance</span>
+                                            )}
+                                            {article.ai_summary && !detailsExpanded && (
+                                                <span className="ml-2 text-xs text-purple-500">summary</span>
+                                            )}
+                                            {article.abstract && !detailsExpanded && (
+                                                <span className="ml-2 text-xs text-gray-400">abstract</span>
+                                            )}
+                                        </span>
                                     </button>
+
+                                    {detailsExpanded && (
+                                        <div className="mt-3 space-y-3 max-h-[40vh] overflow-y-auto">
+                                            {/* Relevance Rationale */}
+                                            {article.relevance_rationale && (
+                                                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-400 dark:border-blue-600">
+                                                    <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">
+                                                        Why This Article
+                                                    </p>
+                                                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                                        {article.relevance_rationale}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* AI Summary */}
+                                            {article.ai_summary && (
+                                                <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border-l-4 border-purple-400 dark:border-purple-600">
+                                                    <p className="text-xs font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-1">
+                                                        AI Summary
+                                                    </p>
+                                                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                                        {article.ai_summary}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* Abstract */}
+                                            <div>
+                                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+                                                    Abstract
+                                                </p>
+                                                {article.abstract ? (
+                                                    <MarkdownRenderer
+                                                        content={article.abstract}
+                                                        className="text-sm"
+                                                        compact
+                                                    />
+                                                ) : (
+                                                    <p className="text-gray-500 dark:text-gray-400 italic text-sm">
+                                                        No abstract available
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                            {isAnalyzing && (
-                                <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-                                    Analyzing article stance...
-                                </p>
                             )}
                         </div>
 
