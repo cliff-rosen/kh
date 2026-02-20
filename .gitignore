@@ -45,6 +45,7 @@ yarn-error.log*
 # Database
 *.sqlite3
 *.db
+backend/migrations/schema_*.sql
 
 # Logs
 logs/

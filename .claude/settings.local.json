@@ -44,7 +44,8 @@
       "Bash(venvScriptspython.exe scriptsanalyze_last_chat.py)",
       "Bash(C:\\\\code\\\\kh\\\\backend\\\\venv\\\\Scripts\\\\python.exe:*)",
       "Bash(cmd /c:*)",
-      "Bash(cmd.exe /c \"cd /d C:\\\\code\\\\kh\\\\backend & venv\\\\Scripts\\\\python.exe -c \"\"print\\(''hello''\\)\"\"\")"
+      "Bash(cmd.exe /c \"cd /d C:\\\\code\\\\kh\\\\backend & venv\\\\Scripts\\\\python.exe -c \"\"print\\(''hello''\\)\"\"\")",
+      "Bash(eb status:*)"
     ],
     "deny": [],
     "ask": [],
