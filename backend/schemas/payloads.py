@@ -1395,7 +1395,7 @@ register_payload_type(PayloadType(
 def _summarize_artifact_list(data: Dict[str, Any]) -> str:
     """Summarize artifact list."""
     total = data.get("total", 0)
-    return f"List of {total} artifacts (bugs/features)"
+    return f"List of {total} artifacts (bugs/features/tasks)"
 
 
 def _summarize_artifact_details(data: Dict[str, Any]) -> str:
@@ -1411,7 +1411,7 @@ def _summarize_artifact_details(data: Dict[str, Any]) -> str:
 
 register_payload_type(PayloadType(
     name="artifact_list",
-    description="List of bugs and feature requests",
+    description="List of bugs, feature requests, and tasks",
     source="tool",
     is_global=True,
     summarize=_summarize_artifact_list,
@@ -1427,8 +1427,10 @@ register_payload_type(PayloadType(
                         "id": {"type": "integer"},
                         "title": {"type": "string"},
                         "description": {"type": ["string", "null"]},
-                        "type": {"type": "string", "enum": ["bug", "feature"]},
-                        "status": {"type": "string", "enum": ["open", "in_progress", "closed"]},
+                        "type": {"type": "string", "enum": ["bug", "feature", "task"]},
+                        "status": {"type": "string", "enum": ["new", "open", "in_progress", "icebox", "closed"]},
+                        "priority": {"type": ["string", "null"], "enum": ["urgent", "high", "medium", "low", None]},
+                        "category": {"type": ["string", "null"]},
                         "created_by": {"type": "integer"},
                         "created_at": {"type": ["string", "null"]},
                         "updated_at": {"type": ["string", "null"]}
@@ -1441,7 +1443,7 @@ register_payload_type(PayloadType(
 
 register_payload_type(PayloadType(
     name="artifact_details",
-    description="Details of a single bug or feature request",
+    description="Details of a single bug, feature request, or task",
     source="tool",
     is_global=True,
     summarize=_summarize_artifact_details,
@@ -1451,8 +1453,10 @@ register_payload_type(PayloadType(
             "id": {"type": "integer"},
             "title": {"type": "string"},
             "description": {"type": ["string", "null"]},
-            "type": {"type": "string", "enum": ["bug", "feature"]},
-            "status": {"type": "string", "enum": ["open", "in_progress", "closed"]},
+            "type": {"type": "string", "enum": ["bug", "feature", "task"]},
+            "status": {"type": "string", "enum": ["new", "open", "in_progress", "icebox", "closed"]},
+            "priority": {"type": ["string", "null"], "enum": ["urgent", "high", "medium", "low", None]},
+            "category": {"type": ["string", "null"]},
             "created_by": {"type": "integer"},
             "created_at": {"type": ["string", "null"]},
             "updated_at": {"type": ["string", "null"]}
