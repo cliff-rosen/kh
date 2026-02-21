@@ -106,6 +106,9 @@ class ChatStreamService:
 
         # Setup chat persistence
         chat_id = await self._setup_chat(request)
+        if not chat_id:
+            yield ErrorEvent(message="Failed to initialize chat session.").model_dump_json()
+            return
 
         try:
             # Inject conversation_id into context for tools that need it
@@ -113,11 +116,9 @@ class ChatStreamService:
             context_with_chat["conversation_id"] = chat_id
 
             # Fetch conversation history once (used by both system prompt and message building)
-            db_messages = None
-            if chat_id:
-                db_messages = await self.chat_service.get_messages(
-                    chat_id, self.user_id
-                )
+            db_messages = await self.chat_service.get_messages(
+                chat_id, self.user_id
+            )
 
             # Build prompts (pass pre-fetched messages to avoid redundant DB calls)
             system_prompt = await self._build_system_prompt(
