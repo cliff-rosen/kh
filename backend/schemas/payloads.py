@@ -133,11 +133,10 @@ def summarize_payload(payload_type: str, data: Dict[str, Any]) -> str:
 
 
 # =============================================================================
-# Summarizer Functions
+# PubMed Payloads
 # =============================================================================
 
 def _summarize_pubmed_search(data: Dict[str, Any]) -> str:
-    """Summarize PubMed search results."""
     query = data.get("query", "unknown query")
     total = data.get("total_results", 0)
     showing = data.get("showing", len(data.get("articles", [])))
@@ -145,111 +144,14 @@ def _summarize_pubmed_search(data: Dict[str, Any]) -> str:
 
 
 def _summarize_pubmed_article(data: Dict[str, Any]) -> str:
-    """Summarize a single PubMed article."""
     pmid = data.get("pmid", "unknown")
     title = data.get("title", "Untitled")
-    # Truncate title if too long
     if len(title) > 60:
         title = title[:57] + "..."
     return f"Article PMID:{pmid} - {title}"
 
 
-def _summarize_schema_proposal(data: Dict[str, Any]) -> str:
-    """Summarize a schema proposal."""
-    changes = data.get("proposed_changes", {})
-    fields = list(changes.keys())[:3]
-    confidence = data.get("confidence", "unknown")
-    if fields:
-        return f"Schema proposal ({confidence} confidence) for: {', '.join(fields)}"
-    return f"Schema proposal ({confidence} confidence)"
-
-
-def _summarize_validation_results(data: Dict[str, Any]) -> str:
-    """Summarize validation results."""
-    errors = len(data.get("errors", []))
-    warnings = len(data.get("warnings", []))
-    suggestions = len(data.get("suggestions", []))
-    parts = []
-    if errors:
-        parts.append(f"{errors} errors")
-    if warnings:
-        parts.append(f"{warnings} warnings")
-    if suggestions:
-        parts.append(f"{suggestions} suggestions")
-    return f"Validation results: {', '.join(parts)}" if parts else "Validation results: no issues"
-
-
-def _summarize_retrieval_proposal(data: Dict[str, Any]) -> str:
-    """Summarize a retrieval proposal."""
-    update_type = data.get("update_type", "unknown")
-    queries = len(data.get("queries", []))
-    filters = len(data.get("filters", []))
-    return f"Retrieval proposal ({update_type}): {queries} queries, {filters} filters"
-
-
-def _summarize_query_suggestion(data: Dict[str, Any]) -> str:
-    """Summarize a query suggestion."""
-    query = data.get("query_expression", "")
-    if len(query) > 50:
-        query = query[:47] + "..."
-    return f"Query suggestion: {query}"
-
-
-def _summarize_filter_suggestion(data: Dict[str, Any]) -> str:
-    """Summarize a filter suggestion."""
-    criteria = data.get("criteria", "")
-    threshold = data.get("threshold", 0.7)
-    if len(criteria) > 50:
-        criteria = criteria[:47] + "..."
-    return f"Filter suggestion (threshold {threshold}): {criteria}"
-
-
-def _summarize_stream_suggestions(data: Dict[str, Any]) -> str:
-    """Summarize stream suggestions."""
-    suggestions = data.get("suggestions", [])
-    names = [s.get("suggested_name", "unnamed") for s in suggestions[:3]]
-    return f"Stream suggestions: {', '.join(names)}" if names else "Stream suggestions"
-
-
-def _summarize_portfolio_insights(data: Dict[str, Any]) -> str:
-    """Summarize portfolio insights."""
-    summary = data.get("summary", {})
-    total = summary.get("total_streams", 0)
-    insights = len(data.get("insights", []))
-    return f"Portfolio analysis: {total} streams, {insights} insights"
-
-
-def _summarize_quick_setup(data: Dict[str, Any]) -> str:
-    """Summarize a quick setup."""
-    name = data.get("stream_name", "Unnamed stream")
-    topics = len(data.get("suggested_topics", []))
-    return f"Quick setup: '{name}' with {topics} topics"
-
-
-def _summarize_stream_template(data: Dict[str, Any]) -> str:
-    """Summarize a stream template."""
-    name = data.get("stream_name", "Unnamed stream")
-    topics = len(data.get("topics", []))
-    entities = len(data.get("entities", []))
-    return f"Stream template: '{name}' with {topics} topics, {entities} entities"
-
-
-def _summarize_topic_suggestions(data: Dict[str, Any]) -> str:
-    """Summarize topic suggestions."""
-    suggestions = data.get("suggestions", [])
-    names = [s.get("name", "unnamed") for s in suggestions[:3]]
-    return f"Topic suggestions: {', '.join(names)}" if names else "Topic suggestions"
-
-
-def _summarize_validation_feedback(data: Dict[str, Any]) -> str:
-    """Summarize validation feedback."""
-    issues = len(data.get("issues", []))
-    strengths = len(data.get("strengths", []))
-    return f"Validation feedback: {issues} issues, {strengths} strengths noted"
-
-
 def _summarize_pubmed_full_text_links(data: Dict[str, Any]) -> str:
-    """Summarize full-text links for a PubMed article."""
     pmid = data.get("pmid", "unknown")
     title = data.get("title", "Untitled")
     free = len(data.get("free_links", []))
@@ -259,54 +161,12 @@ def _summarize_pubmed_full_text_links(data: Dict[str, Any]) -> str:
     return f"Full-text links for PMID:{pmid} - {free} free, {paid} paid"
 
 
-def _summarize_stream_list(data: Dict[str, Any]) -> str:
-    """Summarize stream list."""
-    total = data.get("total_streams", 0)
-    return f"List of {total} research streams"
-
-
-def _summarize_stream_details(data: Dict[str, Any]) -> str:
-    """Summarize stream details."""
-    name = data.get("stream_name", "Unknown")
-    status = "active" if data.get("is_active") else "inactive"
-    if len(name) > 40:
-        name = name[:37] + "..."
-    return f"Stream details: '{name}' ({status})"
-
-
-def _summarize_web_search(data: Dict[str, Any]) -> str:
-    """Summarize web search results."""
-    query = data.get("query", "unknown query")
-    total = data.get("total_results", 0)
-    results = data.get("results", [])
-    return f"Web search for '{query}': {len(results)} of {total} results"
-
-
-def _summarize_webpage_content(data: Dict[str, Any]) -> str:
-    """Summarize fetched webpage content."""
-    title = data.get("title", "Untitled")
-    url = data.get("url", "")
-    # Truncate title if too long
-    if len(title) > 50:
-        title = title[:47] + "..."
-    # Extract domain from URL
-    try:
-        from urllib.parse import urlparse
-        domain = urlparse(url).netloc
-    except:
-        domain = url[:30] if url else "unknown"
-    return f"Webpage: {title} ({domain})"
-
-
-# =============================================================================
-# Tool Payload Types (from tools)
-# =============================================================================
-
+# pubmed_search_results — results from a PubMed search query
 register_payload_type(PayloadType(
     name="pubmed_search_results",
     description="Results from a PubMed search query",
     source="tool",
-    is_global=True,  # Tool payloads from global tools are global
+    is_global=True,
     summarize=_summarize_pubmed_search,
     schema={
         "type": "object",
@@ -335,6 +195,7 @@ register_payload_type(PayloadType(
     }
 ))
 
+# pubmed_article — details of a single PubMed article
 register_payload_type(PayloadType(
     name="pubmed_article",
     description="Details of a single PubMed article",
@@ -361,6 +222,7 @@ register_payload_type(PayloadType(
     }
 ))
 
+# pubmed_full_text_links — full-text access links for a PubMed article
 register_payload_type(PayloadType(
     name="pubmed_full_text_links",
     description="Full-text access links for a PubMed article not in PMC",
@@ -380,6 +242,32 @@ register_payload_type(PayloadType(
     }
 ))
 
+
+# =============================================================================
+# Web Search Payloads
+# =============================================================================
+
+def _summarize_web_search(data: Dict[str, Any]) -> str:
+    query = data.get("query", "unknown query")
+    total = data.get("total_results", 0)
+    results = data.get("results", [])
+    return f"Web search for '{query}': {len(results)} of {total} results"
+
+
+def _summarize_webpage_content(data: Dict[str, Any]) -> str:
+    title = data.get("title", "Untitled")
+    url = data.get("url", "")
+    if len(title) > 50:
+        title = title[:47] + "..."
+    try:
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc
+    except:
+        domain = url[:30] if url else "unknown"
+    return f"Webpage: {title} ({domain})"
+
+
+# web_search_results — results from a web search
 register_payload_type(PayloadType(
     name="web_search_results",
     description="Results from a web search",
@@ -410,6 +298,7 @@ register_payload_type(PayloadType(
     }
 ))
 
+# webpage_content — content extracted from a webpage
 register_payload_type(PayloadType(
     name="webpage_content",
     description="Content extracted from a webpage",
@@ -432,6 +321,25 @@ register_payload_type(PayloadType(
     }
 ))
 
+
+# =============================================================================
+# Stream Payloads
+# =============================================================================
+
+def _summarize_stream_list(data: Dict[str, Any]) -> str:
+    total = data.get("total_streams", 0)
+    return f"List of {total} research streams"
+
+
+def _summarize_stream_details(data: Dict[str, Any]) -> str:
+    name = data.get("stream_name", "Unknown")
+    status = "active" if data.get("is_active") else "inactive"
+    if len(name) > 40:
+        name = name[:37] + "..."
+    return f"Stream details: '{name}' ({status})"
+
+
+# stream_list — list of research streams
 register_payload_type(PayloadType(
     name="stream_list",
     description="List of research streams accessible to the user",
@@ -463,6 +371,7 @@ register_payload_type(PayloadType(
     }
 ))
 
+# stream_details — detailed config of a single stream
 register_payload_type(PayloadType(
     name="stream_details",
     description="Detailed configuration of a specific research stream",
@@ -486,9 +395,93 @@ register_payload_type(PayloadType(
 
 
 # =============================================================================
-# LLM Payload Types (for stream editing)
+# Stream Editing Payloads (LLM)
 # =============================================================================
 
+def _summarize_schema_proposal(data: Dict[str, Any]) -> str:
+    changes = data.get("proposed_changes", {})
+    fields = list(changes.keys())[:3]
+    confidence = data.get("confidence", "unknown")
+    if fields:
+        return f"Schema proposal ({confidence} confidence) for: {', '.join(fields)}"
+    return f"Schema proposal ({confidence} confidence)"
+
+
+def _summarize_validation_results(data: Dict[str, Any]) -> str:
+    errors = len(data.get("errors", []))
+    warnings = len(data.get("warnings", []))
+    suggestions = len(data.get("suggestions", []))
+    parts = []
+    if errors:
+        parts.append(f"{errors} errors")
+    if warnings:
+        parts.append(f"{warnings} warnings")
+    if suggestions:
+        parts.append(f"{suggestions} suggestions")
+    return f"Validation results: {', '.join(parts)}" if parts else "Validation results: no issues"
+
+
+def _summarize_retrieval_proposal(data: Dict[str, Any]) -> str:
+    update_type = data.get("update_type", "unknown")
+    queries = len(data.get("queries", []))
+    filters = len(data.get("filters", []))
+    return f"Retrieval proposal ({update_type}): {queries} queries, {filters} filters"
+
+
+def _summarize_query_suggestion(data: Dict[str, Any]) -> str:
+    query = data.get("query_expression", "")
+    if len(query) > 50:
+        query = query[:47] + "..."
+    return f"Query suggestion: {query}"
+
+
+def _summarize_filter_suggestion(data: Dict[str, Any]) -> str:
+    criteria = data.get("criteria", "")
+    threshold = data.get("threshold", 0.7)
+    if len(criteria) > 50:
+        criteria = criteria[:47] + "..."
+    return f"Filter suggestion (threshold {threshold}): {criteria}"
+
+
+def _summarize_stream_suggestions(data: Dict[str, Any]) -> str:
+    suggestions = data.get("suggestions", [])
+    names = [s.get("suggested_name", "unnamed") for s in suggestions[:3]]
+    return f"Stream suggestions: {', '.join(names)}" if names else "Stream suggestions"
+
+
+def _summarize_portfolio_insights(data: Dict[str, Any]) -> str:
+    summary = data.get("summary", {})
+    total = summary.get("total_streams", 0)
+    insights = len(data.get("insights", []))
+    return f"Portfolio analysis: {total} streams, {insights} insights"
+
+
+def _summarize_quick_setup(data: Dict[str, Any]) -> str:
+    name = data.get("stream_name", "Unnamed stream")
+    topics = len(data.get("suggested_topics", []))
+    return f"Quick setup: '{name}' with {topics} topics"
+
+
+def _summarize_stream_template(data: Dict[str, Any]) -> str:
+    name = data.get("stream_name", "Unnamed stream")
+    topics = len(data.get("topics", []))
+    entities = len(data.get("entities", []))
+    return f"Stream template: '{name}' with {topics} topics, {entities} entities"
+
+
+def _summarize_topic_suggestions(data: Dict[str, Any]) -> str:
+    suggestions = data.get("suggestions", [])
+    names = [s.get("name", "unnamed") for s in suggestions[:3]]
+    return f"Topic suggestions: {', '.join(names)}" if names else "Topic suggestions"
+
+
+def _summarize_validation_feedback(data: Dict[str, Any]) -> str:
+    issues = len(data.get("issues", []))
+    strengths = len(data.get("strengths", []))
+    return f"Validation feedback: {issues} issues, {strengths} strengths noted"
+
+
+# schema_proposal — proposed changes to a stream schema
 register_payload_type(PayloadType(
     name="schema_proposal",
     description="Proposed changes to a research stream schema",
@@ -537,6 +530,7 @@ Guidelines:
     }
 ))
 
+# validation_results — validation feedback for stream config
 register_payload_type(PayloadType(
     name="validation_results",
     description="Validation feedback for a research stream configuration",
@@ -587,6 +581,7 @@ Use this when:
     }
 ))
 
+# retrieval_proposal — proposed changes to retrieval queries/filters
 register_payload_type(PayloadType(
     name="retrieval_proposal",
     description="Proposed changes to retrieval queries and filters",
@@ -641,6 +636,7 @@ RETRIEVAL_PROPOSAL: {
     }
 ))
 
+# query_suggestion — suggested PubMed query
 register_payload_type(PayloadType(
     name="query_suggestion",
     description="Suggested PubMed query",
@@ -700,6 +696,7 @@ QUERY_SUGGESTION: {
     }
 ))
 
+# filter_suggestion — suggested semantic filter criteria
 register_payload_type(PayloadType(
     name="filter_suggestion",
     description="Suggested semantic filter criteria",
@@ -734,6 +731,7 @@ FILTER_SUGGESTION: {
     }
 ))
 
+# stream_suggestions — suggested new research streams
 register_payload_type(PayloadType(
     name="stream_suggestions",
     description="Suggested new research streams",
@@ -786,6 +784,7 @@ Use this when:
     }
 ))
 
+# portfolio_insights — analysis of user's stream portfolio
 register_payload_type(PayloadType(
     name="portfolio_insights",
     description="Analysis of user's current stream portfolio",
@@ -854,6 +853,7 @@ Use this when:
     }
 ))
 
+# quick_setup — pre-configured stream setup for quick creation
 register_payload_type(PayloadType(
     name="quick_setup",
     description="Pre-configured stream setup for quick creation",
@@ -923,6 +923,7 @@ Use this when:
     }
 ))
 
+# stream_template — complete stream configuration template
 register_payload_type(PayloadType(
     name="stream_template",
     description="Complete research stream configuration template",
@@ -987,6 +988,7 @@ Use this when:
     }
 ))
 
+# topic_suggestions — suggested topics for a stream
 register_payload_type(PayloadType(
     name="topic_suggestions",
     description="Suggested topics for a research stream",
@@ -1036,6 +1038,7 @@ Use this when:
     }
 ))
 
+# validation_feedback — validation/improvement suggestions for stream config
 register_payload_type(PayloadType(
     name="validation_feedback",
     description="Validation and improvement suggestions for stream configuration",
@@ -1096,12 +1099,12 @@ Use this when:
 # =============================================================================
 
 def _summarize_ai_column_suggestion(data: Dict[str, Any]) -> str:
-    """Summarize an AI column suggestion."""
     name = data.get("name", "Unnamed column")
     col_type = data.get("type", "unknown")
     return f"AI column suggestion: '{name}' ({col_type})"
 
 
+# ai_column_suggestion — AI column for filtering/categorizing results
 register_payload_type(PayloadType(
     name="ai_column_suggestion",
     description="Suggested AI column for filtering or categorizing results",
@@ -1162,17 +1165,15 @@ AI_COLUMN: {
 
 
 # =============================================================================
-# Report Tool Payloads
+# Report & Article Payloads
 # =============================================================================
 
 def _summarize_report_list(data: Dict[str, Any]) -> str:
-    """Summarize a report list."""
     total = data.get("total_reports", 0)
     return f"List of {total} reports for the stream"
 
 
 def _summarize_report_summary(data: Dict[str, Any]) -> str:
-    """Summarize report summary data."""
     name = data.get("report_name", "Unknown")
     article_count = data.get("article_count", 0)
     if len(name) > 40:
@@ -1181,7 +1182,6 @@ def _summarize_report_summary(data: Dict[str, Any]) -> str:
 
 
 def _summarize_report_articles(data: Dict[str, Any]) -> str:
-    """Summarize report articles list."""
     name = data.get("report_name", "Unknown")
     total = data.get("total_articles", 0)
     mode = data.get("mode", "condensed")
@@ -1191,7 +1191,6 @@ def _summarize_report_articles(data: Dict[str, Any]) -> str:
 
 
 def _summarize_article_search_results(data: Dict[str, Any]) -> str:
-    """Summarize article search results."""
     query = data.get("query", "unknown")
     total = data.get("total_results", 0)
     if len(query) > 30:
@@ -1200,7 +1199,6 @@ def _summarize_article_search_results(data: Dict[str, Any]) -> str:
 
 
 def _summarize_article_details(data: Dict[str, Any]) -> str:
-    """Summarize article details."""
     pmid = data.get("pmid", "unknown")
     title = data.get("title", "Untitled")
     if len(title) > 50:
@@ -1209,27 +1207,23 @@ def _summarize_article_details(data: Dict[str, Any]) -> str:
 
 
 def _summarize_article_notes(data: Dict[str, Any]) -> str:
-    """Summarize article notes."""
     article_id = data.get("article_id", "unknown")
     total = data.get("total_notes", 0)
     return f"{total} notes for article {article_id}"
 
 
 def _summarize_report_comparison(data: Dict[str, Any]) -> str:
-    """Summarize report comparison."""
-    r1 = data.get("report_1", {})
-    r2 = data.get("report_2", {})
     only_1 = data.get("only_in_report_1", 0)
     only_2 = data.get("only_in_report_2", 0)
     return f"Comparison: {only_2} new, {only_1} removed"
 
 
 def _summarize_starred_articles(data: Dict[str, Any]) -> str:
-    """Summarize starred articles."""
     total = data.get("total_starred", 0)
     return f"{total} starred articles in stream"
 
 
+# report_list — list of reports for a stream
 register_payload_type(PayloadType(
     name="report_list",
     description="List of reports for a research stream",
@@ -1258,6 +1252,7 @@ register_payload_type(PayloadType(
     }
 ))
 
+# report_summary — summary, highlights, and analysis for a report
 register_payload_type(PayloadType(
     name="report_summary",
     description="Summary, highlights, and analysis for a report",
@@ -1279,6 +1274,7 @@ register_payload_type(PayloadType(
     }
 ))
 
+# report_articles — list of articles in a report
 register_payload_type(PayloadType(
     name="report_articles",
     description="List of articles in a report",
@@ -1297,6 +1293,7 @@ register_payload_type(PayloadType(
     }
 ))
 
+# article_search_results — search results for articles across reports
 register_payload_type(PayloadType(
     name="article_search_results",
     description="Search results for articles across reports",
@@ -1313,6 +1310,7 @@ register_payload_type(PayloadType(
     }
 ))
 
+# article_details — full details of a specific article
 register_payload_type(PayloadType(
     name="article_details",
     description="Full details of a specific article",
@@ -1336,6 +1334,7 @@ register_payload_type(PayloadType(
     }
 ))
 
+# article_notes — notes for a specific article
 register_payload_type(PayloadType(
     name="article_notes",
     description="Notes for a specific article",
@@ -1353,6 +1352,7 @@ register_payload_type(PayloadType(
     }
 ))
 
+# report_comparison — comparison between two reports
 register_payload_type(PayloadType(
     name="report_comparison",
     description="Comparison between two reports",
@@ -1371,6 +1371,7 @@ register_payload_type(PayloadType(
     }
 ))
 
+# starred_articles — starred articles across a stream's reports
 register_payload_type(PayloadType(
     name="starred_articles",
     description="Starred articles across a stream's reports",
@@ -1389,17 +1390,15 @@ register_payload_type(PayloadType(
 
 
 # =============================================================================
-# Artifact Payloads (Defect/Feature Tracker)
+# Artifact Payloads (Bug/Feature/Task Tracker)
 # =============================================================================
 
 def _summarize_artifact_list(data: Dict[str, Any]) -> str:
-    """Summarize artifact list."""
     total = data.get("total", 0)
     return f"List of {total} artifacts (bugs/features/tasks)"
 
 
 def _summarize_artifact_details(data: Dict[str, Any]) -> str:
-    """Summarize artifact details."""
     artifact_id = data.get("id", "?")
     title = data.get("title", "Untitled")
     atype = data.get("type", "unknown")
@@ -1409,6 +1408,25 @@ def _summarize_artifact_details(data: Dict[str, Any]) -> str:
     return f"[{atype.upper()}] #{artifact_id} {title} ({status})"
 
 
+def _summarize_artifact_changes(data: Dict[str, Any]) -> str:
+    cat_ops = data.get("category_operations", [])
+    changes = data.get("changes", [])
+    creates = len([c for c in changes if c.get("action") == "create"])
+    updates = len([c for c in changes if c.get("action") == "update"])
+    deletes = len([c for c in changes if c.get("action") == "delete"])
+    parts = []
+    if cat_ops:
+        parts.append(f"{len(cat_ops)} category ops")
+    if creates:
+        parts.append(f"{creates} create")
+    if updates:
+        parts.append(f"{updates} update")
+    if deletes:
+        parts.append(f"{deletes} delete")
+    return f"Artifact changes proposal: {', '.join(parts) or 'empty'}"
+
+
+# artifact_list — list of bugs, features, and tasks
 register_payload_type(PayloadType(
     name="artifact_list",
     description="List of bugs, feature requests, and tasks",
@@ -1441,6 +1459,7 @@ register_payload_type(PayloadType(
     }
 ))
 
+# artifact_details — details of a single bug, feature, or task
 register_payload_type(PayloadType(
     name="artifact_details",
     description="Details of a single bug, feature request, or task",
@@ -1464,30 +1483,7 @@ register_payload_type(PayloadType(
     }
 ))
 
-
-# =============================================================================
-# Artifact Changes Proposal (LLM payload)
-# =============================================================================
-
-def _summarize_artifact_changes(data: Dict[str, Any]) -> str:
-    """Summarize an artifact changes proposal."""
-    cat_ops = data.get("category_operations", [])
-    changes = data.get("changes", [])
-    creates = len([c for c in changes if c.get("action") == "create"])
-    updates = len([c for c in changes if c.get("action") == "update"])
-    deletes = len([c for c in changes if c.get("action") == "delete"])
-    parts = []
-    if cat_ops:
-        parts.append(f"{len(cat_ops)} category ops")
-    if creates:
-        parts.append(f"{creates} create")
-    if updates:
-        parts.append(f"{updates} update")
-    if deletes:
-        parts.append(f"{deletes} delete")
-    return f"Artifact changes proposal: {', '.join(parts) or 'empty'}"
-
-
+# artifact_changes — proposed bulk changes to artifacts and categories (LLM)
 register_payload_type(PayloadType(
     name="artifact_changes",
     description="Proposed bulk changes to artifacts and categories (create/update/delete)",
@@ -1610,13 +1606,13 @@ Guidelines:
 # =============================================================================
 
 def _summarize_deep_research_result(data: Dict[str, Any]) -> str:
-    """Summarize deep research result."""
     status = data.get("status", "unknown")
     iterations = data.get("iterations_used", 0)
     sources = len(data.get("sources", []))
     return f"Deep research: {status} ({iterations} iterations, {sources} sources)"
 
 
+# deep_research_result — synthesized answer with citations from deep research
 register_payload_type(PayloadType(
     name="deep_research_result",
     description="Result from deep research tool with synthesized answer and citations",
