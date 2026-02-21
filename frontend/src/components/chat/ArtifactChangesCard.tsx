@@ -94,9 +94,10 @@ const CAT_ACTION_STYLES = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
+    new: 'New',
     open: 'Open',
     in_progress: 'In Progress',
-    backburner: 'Backburner',
+    icebox: 'Icebox',
     closed: 'Closed',
 };
 

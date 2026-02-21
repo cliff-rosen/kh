@@ -14,20 +14,38 @@ const TYPE_BADGES: Record<string, string> = {
 };
 
 const STATUS_BADGES: Record<string, string> = {
+    new: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
     open: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
     in_progress: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-    backburner: 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300',
+    icebox: 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300',
     closed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
 };
 
 const STATUS_OPTIONS = [
+    { value: 'new', label: 'New' },
     { value: 'open', label: 'Open' },
     { value: 'in_progress', label: 'In Progress' },
-    { value: 'backburner', label: 'Backburner' },
+    { value: 'icebox', label: 'Icebox' },
     { value: 'closed', label: 'Closed' },
 ];
 
 const STATUS_LABELS: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map(o => [o.value, o.label]));
+
+const PRIORITY_BADGES: Record<string, string> = {
+    urgent: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+    high: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+    medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+    low: 'bg-gray-100 text-gray-600 dark:bg-gray-700/50 dark:text-gray-400',
+};
+
+const PRIORITY_OPTIONS = [
+    { value: 'urgent', label: 'Urgent' },
+    { value: 'high', label: 'High' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'low', label: 'Low' },
+];
+
+const PRIORITY_LABELS: Record<string, string> = Object.fromEntries(PRIORITY_OPTIONS.map(o => [o.value, o.label]));
 
 const CATEGORY_COLORS: string[] = [
     'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
@@ -48,11 +66,12 @@ interface EditState {
     title: string;
     artifact_type: 'bug' | 'feature' | 'task';
     status: string;
+    priority: string;
     description: string;
     category: string;
 }
 
-type SortField = 'artifact_type' | 'title' | 'status' | 'category' | 'created_at';
+type SortField = 'artifact_type' | 'title' | 'priority' | 'status' | 'category' | 'created_at';
 type SortDir = 'asc' | 'desc';
 
 function RadioGroup({ label, value, options, onChange }: {
@@ -185,6 +204,7 @@ export function ArtifactList() {
     const [newType, setNewType] = useState<'bug' | 'feature' | 'task'>('bug');
     const [newDescription, setNewDescription] = useState('');
     const [newCategory, setNewCategory] = useState('');
+    const [newPriority, setNewPriority] = useState('');
     const [isCreating, setIsCreating] = useState(false);
 
     // Category management
@@ -240,6 +260,7 @@ export function ArtifactList() {
         const dir = sortDir === 'asc' ? 1 : -1;
         sorted.sort((a, b) => {
             let aVal: string, bVal: string;
+            const priorityOrder = ['urgent', 'high', 'medium', 'low', ''];
             switch (sortField) {
                 case 'artifact_type':
                     aVal = a.artifact_type;
@@ -249,6 +270,13 @@ export function ArtifactList() {
                     aVal = a.title.toLowerCase();
                     bVal = b.title.toLowerCase();
                     break;
+                case 'priority': {
+                    const aIdx = priorityOrder.indexOf(a.priority || '');
+                    const bIdx = priorityOrder.indexOf(b.priority || '');
+                    if (aIdx < bIdx) return -1 * dir;
+                    if (aIdx > bIdx) return 1 * dir;
+                    return 0;
+                }
                 case 'status':
                     aVal = a.status;
                     bVal = b.status;
@@ -312,11 +340,13 @@ export function ArtifactList() {
                 artifact_type: newType,
                 description: newDescription.trim() || undefined,
                 category: newCategory || undefined,
+                priority: newPriority || undefined,
             });
             setNewTitle('');
             setNewType('bug');
             setNewDescription('');
             setNewCategory('');
+            setNewPriority('');
             setShowCreateDialog(false);
             await loadArtifacts();
         } catch (err) {
@@ -332,6 +362,7 @@ export function ArtifactList() {
             title: artifact.title,
             artifact_type: artifact.artifact_type as 'bug' | 'feature' | 'task',
             status: artifact.status,
+            priority: artifact.priority || '',
             description: artifact.description || '',
             category: artifact.category || '',
         });
@@ -348,6 +379,7 @@ export function ArtifactList() {
             original.title !== toSave.title.trim() ||
             original.artifact_type !== toSave.artifact_type ||
             original.status !== toSave.status ||
+            (original.priority || '') !== toSave.priority ||
             (original.description || '') !== toSave.description.trim() ||
             (original.category || '') !== toSave.category;
 
@@ -363,6 +395,7 @@ export function ArtifactList() {
                 title: toSave.title.trim(),
                 artifact_type: toSave.artifact_type,
                 status: toSave.status,
+                priority: toSave.priority || '',
                 description: toSave.description.trim() || '',
                 category: toSave.category || '',
             });
@@ -444,6 +477,17 @@ export function ArtifactList() {
         }
     };
 
+    const handleBulkPriority = async (priority: string) => {
+        if (selected.size === 0) return;
+        try {
+            await adminApi.bulkUpdateArtifacts(Array.from(selected), { priority });
+            setSelected(new Set());
+            await loadArtifacts();
+        } catch (err) {
+            setError(handleApiError(err));
+        }
+    };
+
     const handleBulkCategory = async (categoryName: string) => {
         if (selected.size === 0) return;
         try {
@@ -479,7 +523,7 @@ export function ArtifactList() {
         current_page: 'artifacts',
         artifacts: artifacts.map(a => ({
             id: a.id, title: a.title, artifact_type: a.artifact_type,
-            status: a.status, category: a.category, description: a.description,
+            status: a.status, priority: a.priority, category: a.category, description: a.description,
         })),
         categories: categories.map(c => ({ id: c.id, name: c.name })),
         filters: { type: filterType, status: filterStatus, category: filterCategory },
@@ -598,7 +642,7 @@ export function ArtifactList() {
         );
     }
 
-    const COL_COUNT = 7;
+    const COL_COUNT = 8;
     const hasSelection = selected.size > 0;
 
     return (
@@ -668,9 +712,10 @@ export function ArtifactList() {
                         options={STATUS_OPTIONS.map(o => ({
                             value: o.value,
                             label: o.label,
-                            color: o.value === 'open' ? 'bg-yellow-500 text-white'
+                            color: o.value === 'new' ? 'bg-purple-600 text-white'
+                                : o.value === 'open' ? 'bg-yellow-500 text-white'
                                 : o.value === 'in_progress' ? 'bg-blue-600 text-white'
-                                : o.value === 'backburner' ? 'bg-gray-500 text-white'
+                                : o.value === 'icebox' ? 'bg-gray-500 text-white'
                                 : 'bg-green-600 text-white',
                         }))}
                         onChange={setFilterStatus}
@@ -714,6 +759,19 @@ export function ArtifactList() {
                         >
                             <option value="" disabled>Set Status...</option>
                             {STATUS_OPTIONS.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                        </select>
+
+                        {/* Bulk Priority */}
+                        <select
+                            defaultValue=""
+                            onChange={(e) => { if (e.target.value) handleBulkPriority(e.target.value); e.target.value = ''; }}
+                            className="px-2 py-1 text-sm border border-purple-300 dark:border-purple-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
+                            <option value="" disabled>Set Priority...</option>
+                            <option value=" ">Clear Priority</option>
+                            {PRIORITY_OPTIONS.map(o => (
                                 <option key={o.value} value={o.value}>{o.label}</option>
                             ))}
                         </select>
@@ -766,6 +824,9 @@ export function ArtifactList() {
                                 </th>
                                 <th className="px-4 py-3 text-left w-24">
                                     <SortHeader label="Type" field="artifact_type" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                                </th>
+                                <th className="px-4 py-3 text-left w-24">
+                                    <SortHeader label="Priority" field="priority" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                                 </th>
                                 <th className="px-4 py-3 text-left">
                                     <SortHeader label="Title" field="title" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
@@ -823,7 +884,7 @@ export function ArtifactList() {
                                                         />
                                                     </div>
 
-                                                    {/* Type, Status, Category as radio groups side by side */}
+                                                    {/* Type, Priority, Status, Category as radio groups side by side */}
                                                     <div className="flex gap-8 mb-4">
                                                         <RadioGroup
                                                             label="Type"
@@ -835,6 +896,48 @@ export function ArtifactList() {
                                                             ]}
                                                             onChange={(v) => setEditing({ ...editing, artifact_type: v as 'bug' | 'feature' | 'task' })}
                                                         />
+                                                        <div>
+                                                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Priority</div>
+                                                            <div className="flex flex-col gap-1">
+                                                                <label
+                                                                    className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors text-sm ${
+                                                                        !editing.priority
+                                                                            ? 'bg-purple-50 dark:bg-purple-900/20'
+                                                                            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                                                    }`}
+                                                                >
+                                                                    <input
+                                                                        type="radio"
+                                                                        name="edit-priority"
+                                                                        checked={!editing.priority}
+                                                                        onChange={() => setEditing({ ...editing, priority: '' })}
+                                                                        className="text-purple-600 focus:ring-purple-500"
+                                                                    />
+                                                                    <span className="text-gray-400 dark:text-gray-500 italic">None</span>
+                                                                </label>
+                                                                {PRIORITY_OPTIONS.map((opt) => (
+                                                                    <label
+                                                                        key={opt.value}
+                                                                        className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors text-sm ${
+                                                                            editing.priority === opt.value
+                                                                                ? 'bg-purple-50 dark:bg-purple-900/20'
+                                                                                : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                                                        }`}
+                                                                    >
+                                                                        <input
+                                                                            type="radio"
+                                                                            name="edit-priority"
+                                                                            checked={editing.priority === opt.value}
+                                                                            onChange={() => setEditing({ ...editing, priority: opt.value })}
+                                                                            className="text-purple-600 focus:ring-purple-500"
+                                                                        />
+                                                                        <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${PRIORITY_BADGES[opt.value]}`}>
+                                                                            {opt.label}
+                                                                        </span>
+                                                                    </label>
+                                                                ))}
+                                                            </div>
+                                                        </div>
                                                         <RadioGroup
                                                             label="Status"
                                                             value={editing.status}
@@ -941,6 +1044,15 @@ export function ArtifactList() {
                                                 {artifact.artifact_type}
                                             </span>
                                         </td>
+                                        <td className="px-4 py-3 whitespace-nowrap">
+                                            {artifact.priority ? (
+                                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${PRIORITY_BADGES[artifact.priority] || ''}`}>
+                                                    {PRIORITY_LABELS[artifact.priority] || artifact.priority}
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-400 dark:text-gray-500 text-xs">-</span>
+                                            )}
+                                        </td>
                                         <td className="px-4 py-3">
                                             <div className="font-medium text-gray-900 dark:text-white">
                                                 {artifact.title}
@@ -1033,6 +1145,44 @@ export function ArtifactList() {
                                     ]}
                                     onChange={(v) => setNewType(v as 'bug' | 'feature' | 'task')}
                                 />
+                                <div>
+                                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Priority</div>
+                                    <div className="flex flex-col gap-1">
+                                        <label
+                                            className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors text-sm ${
+                                                !newPriority ? 'bg-purple-50 dark:bg-purple-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="new-priority"
+                                                checked={!newPriority}
+                                                onChange={() => setNewPriority('')}
+                                                className="text-purple-600 focus:ring-purple-500"
+                                            />
+                                            <span className="text-gray-400 dark:text-gray-500 italic">None</span>
+                                        </label>
+                                        {PRIORITY_OPTIONS.map((opt) => (
+                                            <label
+                                                key={opt.value}
+                                                className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors text-sm ${
+                                                    newPriority === opt.value ? 'bg-purple-50 dark:bg-purple-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                                }`}
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="new-priority"
+                                                    checked={newPriority === opt.value}
+                                                    onChange={() => setNewPriority(opt.value)}
+                                                    className="text-purple-600 focus:ring-purple-500"
+                                                />
+                                                <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${PRIORITY_BADGES[opt.value]}`}>
+                                                    {opt.label}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
                                 <div>
                                     <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Category</div>
                                     <div className="flex flex-col gap-1">

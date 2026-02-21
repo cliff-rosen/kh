@@ -4,6 +4,8 @@ import {
     ClockIcon,
     CheckCircleIcon,
     ExclamationCircleIcon,
+    SparklesIcon,
+    ArchiveBoxIcon,
 } from '@heroicons/react/24/outline';
 
 // ============================================================================
@@ -15,7 +17,7 @@ export interface ArtifactData {
     title: string;
     description: string | null;
     type: 'bug' | 'feature';
-    status: 'open' | 'in_progress' | 'closed';
+    status: 'new' | 'open' | 'in_progress' | 'icebox' | 'closed';
     created_by: number;
     created_at: string | null;
     updated_at: string | null;
@@ -32,6 +34,11 @@ export interface ArtifactListData {
 
 function StatusBadge({ status }: { status: ArtifactData['status'] }) {
     const config = {
+        new: {
+            icon: SparklesIcon,
+            label: 'New',
+            className: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+        },
         open: {
             icon: ExclamationCircleIcon,
             label: 'Open',
@@ -41,6 +48,11 @@ function StatusBadge({ status }: { status: ArtifactData['status'] }) {
             icon: ClockIcon,
             label: 'In Progress',
             className: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+        },
+        icebox: {
+            icon: ArchiveBoxIcon,
+            label: 'Icebox',
+            className: 'bg-gray-100 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300',
         },
         closed: {
             icon: CheckCircleIcon,
@@ -90,8 +102,10 @@ interface ArtifactListCardProps {
 export default function ArtifactListCard({ data }: ArtifactListCardProps) {
     const { artifacts, total } = data;
 
+    const newCount = artifacts.filter(a => a.status === 'new').length;
     const openCount = artifacts.filter(a => a.status === 'open').length;
     const inProgressCount = artifacts.filter(a => a.status === 'in_progress').length;
+    const iceboxCount = artifacts.filter(a => a.status === 'icebox').length;
     const closedCount = artifacts.filter(a => a.status === 'closed').length;
 
     return (
@@ -102,8 +116,10 @@ export default function ArtifactListCard({ data }: ArtifactListCardProps) {
                     {total} {total === 1 ? 'Artifact' : 'Artifacts'}
                 </span>
                 <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                    {newCount > 0 && <span className="text-purple-600 dark:text-purple-400">{newCount} new</span>}
                     {openCount > 0 && <span className="text-red-600 dark:text-red-400">{openCount} open</span>}
                     {inProgressCount > 0 && <span className="text-yellow-600 dark:text-yellow-400">{inProgressCount} in progress</span>}
+                    {iceboxCount > 0 && <span className="text-gray-500 dark:text-gray-400">{iceboxCount} icebox</span>}
                     {closedCount > 0 && <span className="text-green-600 dark:text-green-400">{closedCount} closed</span>}
                 </div>
             </div>

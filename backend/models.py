@@ -99,11 +99,19 @@ class ArtifactType(str, PyEnum):
     FEATURE = "feature"
     TASK = "task"
 
+class ArtifactPriority(str, PyEnum):
+    """Priority of an artifact"""
+    URGENT = "urgent"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
 class ArtifactStatus(str, PyEnum):
     """Status of an artifact"""
+    NEW = "new"
     OPEN = "open"
     IN_PROGRESS = "in_progress"
-    BACKBURNER = "backburner"
+    ICEBOX = "icebox"
     CLOSED = "closed"
 
 
@@ -894,7 +902,8 @@ class Artifact(Base):
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     artifact_type = Column(Enum(ArtifactType, values_callable=lambda x: [e.value for e in x], name='artifacttype'), nullable=False)
-    status = Column(Enum(ArtifactStatus, values_callable=lambda x: [e.value for e in x], name='artifactstatus'), nullable=False, default=ArtifactStatus.OPEN)
+    status = Column(Enum(ArtifactStatus, values_callable=lambda x: [e.value for e in x], name='artifactstatus'), nullable=False, default=ArtifactStatus.NEW)
+    priority = Column(Enum(ArtifactPriority, values_callable=lambda x: [e.value for e in x], name='artifactpriority'), nullable=True)
     category_id = Column(Integer, ForeignKey("artifact_categories.id", ondelete="SET NULL"), nullable=True, index=True)
     created_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)

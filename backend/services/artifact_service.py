@@ -11,7 +11,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
-from models import Artifact, ArtifactCategory, ArtifactType, ArtifactStatus
+from models import Artifact, ArtifactCategory, ArtifactType, ArtifactStatus, ArtifactPriority
 from database import get_async_db
 
 logger = logging.getLogger(__name__)
@@ -68,6 +68,7 @@ class ArtifactService:
         created_by: int,
         description: Optional[str] = None,
         category: Optional[str] = None,
+        priority: Optional[str] = None,
     ) -> Artifact:
         """Create a new artifact."""
         category_id = await self._resolve_category_id(category)
@@ -76,6 +77,7 @@ class ArtifactService:
             description=description,
             artifact_type=ArtifactType(artifact_type),
             category_id=category_id,
+            priority=ArtifactPriority(priority) if priority else None,
             created_by=created_by,
         )
         self.db.add(artifact)
@@ -93,6 +95,7 @@ class ArtifactService:
         status: Optional[str] = None,
         artifact_type: Optional[str] = None,
         category: Optional[str] = _UNSET,
+        priority: Optional[str] = _UNSET,
     ) -> Optional[Artifact]:
         """Update an existing artifact. Returns None if not found."""
         artifact = await self.get_artifact_by_id(artifact_id)
@@ -109,6 +112,8 @@ class ArtifactService:
             artifact.artifact_type = ArtifactType(artifact_type)
         if category is not self._UNSET:
             artifact.category_id = await self._resolve_category_id(category if category else None)
+        if priority is not self._UNSET:
+            artifact.priority = ArtifactPriority(priority) if priority else None
 
         await self.db.commit()
         await self.db.refresh(artifact)
@@ -131,8 +136,9 @@ class ArtifactService:
         artifact_ids: List[int],
         status: Optional[str] = None,
         category: Optional[str] = None,
+        priority: Optional[str] = None,
     ) -> int:
-        """Bulk update status and/or category for multiple artifacts. Returns count updated."""
+        """Bulk update status, category, and/or priority for multiple artifacts. Returns count updated."""
         if not artifact_ids:
             return 0
 
@@ -151,6 +157,8 @@ class ArtifactService:
                 artifact.status = ArtifactStatus(status)
             if resolve_category:
                 artifact.category_id = category_id
+            if priority is not None:
+                artifact.priority = ArtifactPriority(priority) if priority != '' else None
 
         await self.db.commit()
         return len(artifacts)

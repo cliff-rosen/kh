@@ -15,7 +15,8 @@ export interface Artifact {
   title: string;
   description: string | null;
   artifact_type: string;  // "bug" | "feature" | "task"
-  status: string;         // "open" | "in_progress" | "closed"
+  status: string;         // "new" | "open" | "in_progress" | "icebox" | "closed"
+  priority: string | null; // "urgent" | "high" | "medium" | "low"
   category: string | null;
   created_by: number;
   created_at: string;

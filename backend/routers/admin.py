@@ -1654,15 +1654,17 @@ class ArtifactBulkUpdate(BaseModel):
     ids: List[int] = Field(..., min_length=1, description="Artifact IDs to update")
     status: Optional[str] = Field(None, description="New status for all")
     category: Optional[str] = Field(None, description="New category for all (empty string to clear)")
+    priority: Optional[str] = Field(None, description="New priority for all (empty string to clear)")
 
 
 class ArtifactCreate(BaseModel):
     """Request schema for creating an artifact."""
 
     title: str = Field(..., min_length=1, max_length=255, description="Artifact title")
-    artifact_type: str = Field(..., description="Type: 'bug' or 'feature'")
+    artifact_type: str = Field(..., description="Type: 'bug', 'feature', or 'task'")
     description: Optional[str] = Field(None, description="Artifact description")
     category: Optional[str] = Field(None, max_length=100, description="Category tag")
+    priority: Optional[str] = Field(None, description="Priority: 'urgent', 'high', 'medium', or 'low'")
 
 
 _UNSET = object()
@@ -1678,6 +1680,7 @@ class ArtifactUpdate(BaseModel):
     status: Optional[str] = None
     artifact_type: Optional[str] = None
     category: Optional[str] = Field(default=_UNSET, max_length=100)
+    priority: Optional[str] = Field(default=_UNSET)
 
 
 @router.get(
@@ -1772,6 +1775,7 @@ async def create_artifact(
             created_by=current_user.user_id,
             description=data.description,
             category=data.category,
+            priority=data.priority,
         )
         logger.info(f"create_artifact complete - artifact_id={artifact.id}")
         return ArtifactSchema.model_validate(artifact, from_attributes=True)
@@ -1814,6 +1818,8 @@ async def update_artifact(
         )
         if data.category is not _UNSET:
             kwargs["category"] = data.category
+        if data.priority is not _UNSET:
+            kwargs["priority"] = data.priority
         artifact = await artifact_service.update_artifact(**kwargs)
         if not artifact:
             raise HTTPException(
@@ -1886,6 +1892,7 @@ async def bulk_update_artifacts(
             artifact_ids=data.ids,
             status=data.status,
             category=data.category,
+            priority=data.priority,
         )
         return {"updated": count}
 
