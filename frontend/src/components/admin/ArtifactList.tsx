@@ -31,8 +31,9 @@ const STATUS_OPTIONS = [
 
 const STATUS_LABELS: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map(o => [o.value, o.label]));
 
-// Filter pills exclude Icebox (handled by separate view toggle)
-const STATUS_FILTER_OPTIONS = STATUS_OPTIONS.filter(o => o.value !== 'icebox');
+// Status filter options depend on the current view
+const ACTIVE_STATUS_OPTIONS = STATUS_OPTIONS.filter(o => o.value === 'open' || o.value === 'in_progress' || o.value === 'closed');
+const ALL_STATUS_OPTIONS = STATUS_OPTIONS;
 
 const PRIORITY_BADGES: Record<string, string> = {
     urgent: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
@@ -244,7 +245,7 @@ export function ArtifactList() {
     const [filterType, setFilterType] = useState<string>('');
     const [filterStatus, setFilterStatus] = useState<string>('');
     const [filterCategory, setFilterCategory] = useState<string>('');
-    const [iceboxView, setIceboxView] = useState<'active' | 'icebox' | 'all'>('active');
+    const [iceboxView, setIceboxView] = useState<'active' | 'new' | 'icebox' | 'all'>('active');
 
     // Sorting
     const [sortField, setSortField] = useState<SortField>('created_at');
@@ -317,10 +318,12 @@ export function ArtifactList() {
     }, [sortField]);
 
     const sortedArtifacts = useMemo(() => {
-        // Step 1: Apply icebox view + status filter
+        // Step 1: Apply view filter + status filter
         let filtered = artifacts;
         if (iceboxView === 'active') {
-            filtered = filtered.filter(a => a.status !== 'icebox');
+            filtered = filtered.filter(a => a.status !== 'icebox' && a.status !== 'new');
+        } else if (iceboxView === 'new') {
+            filtered = filtered.filter(a => a.status === 'new');
         } else if (iceboxView === 'icebox') {
             filtered = filtered.filter(a => a.status === 'icebox');
         }
@@ -768,13 +771,13 @@ export function ArtifactList() {
                     </div>
                 </div>
 
-                {/* Filter Pills - always visible */}
+                {/* Filter Row 1: View + Status */}
                 <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-                    {/* Icebox view toggle */}
                     <div className="flex items-center gap-1.5">
                         <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-1">View:</span>
                         {([
                             { value: 'active' as const, label: 'Active' },
+                            { value: 'new' as const, label: 'New' },
                             { value: 'icebox' as const, label: 'Icebox' },
                             { value: 'all' as const, label: 'All' },
                         ]).map(opt => (
@@ -782,13 +785,15 @@ export function ArtifactList() {
                                 key={opt.value}
                                 onClick={() => {
                                     setIceboxView(opt.value);
-                                    if (opt.value === 'icebox') setFilterStatus('');
+                                    setFilterStatus('');
                                 }}
                                 className={`px-2 py-0.5 text-xs rounded-full transition-colors ${
                                     iceboxView === opt.value
                                         ? opt.value === 'icebox'
                                             ? 'bg-gray-500 text-white'
-                                            : 'bg-purple-600 text-white'
+                                            : opt.value === 'new'
+                                                ? 'bg-purple-600 text-white'
+                                                : 'bg-purple-600 text-white'
                                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
                                 }`}
                             >
@@ -796,7 +801,30 @@ export function ArtifactList() {
                             </button>
                         ))}
                     </div>
-                    <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
+                    {/* Status pills - only shown for Active and All views */}
+                    {(iceboxView === 'active' || iceboxView === 'all') && (
+                        <>
+                            <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
+                            <FilterPills
+                                label="Status"
+                                value={filterStatus}
+                                options={(iceboxView === 'active' ? ACTIVE_STATUS_OPTIONS : ALL_STATUS_OPTIONS).map(o => ({
+                                    value: o.value,
+                                    label: o.label,
+                                    color: o.value === 'new' ? 'bg-purple-600 text-white'
+                                        : o.value === 'open' ? 'bg-yellow-500 text-white'
+                                        : o.value === 'in_progress' ? 'bg-blue-600 text-white'
+                                        : o.value === 'icebox' ? 'bg-gray-500 text-white'
+                                        : 'bg-green-600 text-white',
+                                }))}
+                                onChange={setFilterStatus}
+                            />
+                        </>
+                    )}
+                </div>
+
+                {/* Filter Row 2: Type + Category */}
+                <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
                     <FilterPills
                         label="Type"
                         value={filterType}
@@ -807,25 +835,6 @@ export function ArtifactList() {
                         ]}
                         onChange={setFilterType}
                     />
-                    {/* Status pills - hidden in icebox view since there's only one status */}
-                    {iceboxView !== 'icebox' && (
-                        <>
-                            <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
-                            <FilterPills
-                                label="Status"
-                                value={filterStatus}
-                                options={STATUS_FILTER_OPTIONS.map(o => ({
-                                    value: o.value,
-                                    label: o.label,
-                                    color: o.value === 'new' ? 'bg-purple-600 text-white'
-                                        : o.value === 'open' ? 'bg-yellow-500 text-white'
-                                        : o.value === 'in_progress' ? 'bg-blue-600 text-white'
-                                        : 'bg-green-600 text-white',
-                                }))}
-                                onChange={setFilterStatus}
-                            />
-                        </>
-                    )}
                     {categories.length > 0 && (
                         <>
                             <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
