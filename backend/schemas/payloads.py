@@ -1519,7 +1519,8 @@ ARTIFACT_CHANGES: {
       "action": "create",
       "title": "New artifact title",
       "artifact_type": "bug",
-      "status": "open",
+      "status": "new",
+      "priority": "high",
       "category": "New Category Name",
       "description": "Optional description"
     },
@@ -1527,7 +1528,7 @@ ARTIFACT_CHANGES: {
       "action": "update",
       "id": 42,
       "title": "Updated title (optional)",
-      "status": "backburner",
+      "status": "icebox",
       "category": "Better Name",
       "artifact_type": "bug",
       "description": "Updated description (optional)"
@@ -1546,8 +1547,15 @@ Guidelines:
 - Include reasoning to explain your proposal
 - If artifact changes need NEW categories, include them in category_operations
 - For updates, only include fields that are actually changing
-- Valid statuses: open, in_progress, backburner, closed
-- Valid types: bug, feature
+- Valid statuses: new, open, in_progress, icebox, closed
+  - "new" = just added, needs triage
+  - "open" = triaged and accepted for work
+  - "in_progress" = actively being worked on
+  - "icebox" = explicitly shelved / not now
+  - "closed" = done/resolved
+- When creating new artifacts, default to status "new" unless the user indicates otherwise
+- Valid types: bug, feature, task
+- Valid priorities: urgent, high, medium, low (optional)
 - category_operations is optional — omit it if no category changes are needed
 """,
     schema={
@@ -1577,8 +1585,9 @@ Guidelines:
                         "id": {"type": "integer"},
                         "title": {"type": "string"},
                         "title_hint": {"type": "string"},
-                        "artifact_type": {"type": "string", "enum": ["bug", "feature"]},
-                        "status": {"type": "string", "enum": ["open", "in_progress", "backburner", "closed"]},
+                        "artifact_type": {"type": "string", "enum": ["bug", "feature", "task"]},
+                        "status": {"type": "string", "enum": ["new", "open", "in_progress", "icebox", "closed"]},
+                        "priority": {"type": "string", "enum": ["urgent", "high", "medium", "low"]},
                         "category": {"type": "string"},
                         "description": {"type": "string"}
                     },

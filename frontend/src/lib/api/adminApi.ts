@@ -425,7 +425,7 @@ export const adminApi = {
   /**
    * Create a new artifact (platform admin only)
    */
-  async createArtifact(data: { title: string; artifact_type: string; description?: string; category?: string; priority?: string }): Promise<Artifact> {
+  async createArtifact(data: { title: string; artifact_type: string; description?: string; category?: string; priority?: string; status?: string }): Promise<Artifact> {
     const response = await api.post('/api/admin/artifacts', data);
     return response.data;
   },

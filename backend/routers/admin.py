@@ -1665,6 +1665,7 @@ class ArtifactCreate(BaseModel):
     description: Optional[str] = Field(None, description="Artifact description")
     category: Optional[str] = Field(None, max_length=100, description="Category tag")
     priority: Optional[str] = Field(None, description="Priority: 'urgent', 'high', 'medium', or 'low'")
+    status: Optional[str] = Field(None, description="Status: 'new', 'open', 'in_progress', 'icebox', or 'closed'. Defaults to 'new'.")
 
 
 _UNSET = object()
@@ -1776,6 +1777,7 @@ async def create_artifact(
             description=data.description,
             category=data.category,
             priority=data.priority,
+            status=data.status,
         )
         logger.info(f"create_artifact complete - artifact_id={artifact.id}")
         return ArtifactSchema.model_validate(artifact, from_attributes=True)

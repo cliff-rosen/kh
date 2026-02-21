@@ -16,6 +16,7 @@ interface ArtifactChange {
     title_hint?: string;
     artifact_type?: string;
     status?: string;
+    priority?: string;
     category?: string;
     description?: string;
 }
@@ -31,6 +32,7 @@ interface ExistingArtifact {
     title: string;
     artifact_type: string;
     status: string;
+    priority: string | null;
     category: string | null;
     description: string | null;
 }
@@ -553,6 +555,13 @@ const TYPE_LABELS: Record<string, string> = {
     task: 'Task',
 };
 
+const PRIORITY_LABELS: Record<string, string> = {
+    urgent: 'Urgent',
+    high: 'High',
+    medium: 'Medium',
+    low: 'Low',
+};
+
 function FieldDiff({ label, oldVal, newVal }: { label: string; oldVal?: string | null; newVal?: string | null }) {
     const oldDisplay = oldVal || '(none)';
     const newDisplay = newVal || '(none)';
@@ -582,6 +591,11 @@ function ChangeDetail({ change, existing }: { change: ArtifactChange; existing?:
                             Status: <span className="font-medium">{STATUS_LABELS[change.status] || change.status}</span>
                         </span>
                     )}
+                    {change.priority && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                            Priority: <span className="font-medium">{PRIORITY_LABELS[change.priority] || change.priority}</span>
+                        </span>
+                    )}
                     {change.category && (
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                             Category: <span className="font-medium">{change.category}</span>
@@ -607,6 +621,13 @@ function ChangeDetail({ change, existing }: { change: ArtifactChange; existing?:
                 label: 'Status',
                 oldVal: existing?.status ? (STATUS_LABELS[existing.status] || existing.status) : null,
                 newVal: STATUS_LABELS[change.status] || change.status,
+            });
+        }
+        if (change.priority !== undefined && change.priority !== existing?.priority) {
+            diffs.push({
+                label: 'Priority',
+                oldVal: existing?.priority ? (PRIORITY_LABELS[existing.priority] || existing.priority) : null,
+                newVal: change.priority ? (PRIORITY_LABELS[change.priority] || change.priority) : null,
             });
         }
         if (change.category !== undefined && change.category !== existing?.category) {

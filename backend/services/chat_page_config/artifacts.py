@@ -35,9 +35,15 @@ IMPORTANT - CATEGORIES:
 ARTIFACT FIELDS:
 - title: Short descriptive name
 - type: "bug" (defects, issues), "feature" (enhancements, requests), or "task" (general work items)
-- status: "open" (new/active), "in_progress" (being worked on), "backburner" (deprioritized), "closed" (done/resolved)
+- status: "new" (just added, needs triage), "open" (triaged and accepted), "in_progress" (being worked on), "icebox" (explicitly shelved), "closed" (done/resolved)
+- priority: "urgent", "high", "medium", or "low" (optional)
 - category: Optional grouping label (e.g., "UI", "Backend", "Performance")
 - description: Optional detailed text
+
+STATUS WORKFLOW:
+- New items start as "new" and get triaged into "open" (work on it) or "icebox" (not now)
+- "icebox" is fundamentally different from the other statuses — it means the item has been explicitly shelved
+- When creating new artifacts, default to status "new" unless the user specifies otherwise
 
 Be concise and action-oriented. When the user asks to change, reorganize, create, or batch-modify, propose changes via ARTIFACT_CHANGES so they can review and accept."""
 
@@ -62,7 +68,7 @@ Current status: No artifacts found (may be filtered).
 
 WHAT ARE ARTIFACTS:
 Artifacts are bugs, feature requests, and tasks tracked by platform admins. Each has a type (bug/feature/task),
-status (open, in_progress, backburner, closed), an optional category for grouping, and a description.
+status (new, open, in_progress, icebox, closed), an optional priority (urgent/high/medium/low), an optional category for grouping, and a description.
 
 You can help the user:
 - Discuss priorities and triage strategy
@@ -127,7 +133,7 @@ You can help the user:
 - Suggest category groupings
 - Analyze patterns (e.g., many bugs in one area)
 - Draft descriptions or acceptance criteria
-- Recommend what to tackle next vs. backburner"""
+- Recommend what to tackle next vs. icebox"""
 
 
 # =============================================================================

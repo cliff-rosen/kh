@@ -29,6 +29,7 @@ def _artifact_to_dict(artifact) -> Dict[str, Any]:
         "description": artifact.description,
         "type": artifact.artifact_type.value,
         "status": artifact.status.value,
+        "priority": artifact.priority.value if artifact.priority else None,
         "category": artifact.category,
         "created_by": artifact.created_by,
         "created_at": artifact.created_at.isoformat() if artifact.created_at else None,
@@ -117,6 +118,16 @@ async def execute_create_artifact(
     if artifact_type not in ("bug", "feature", "task"):
         return "Error: type must be 'bug', 'feature', or 'task'."
 
+    # Validate optional status
+    status = params.get("status")
+    if status and status not in ("new", "open", "in_progress", "icebox", "closed"):
+        return "Error: status must be 'new', 'open', 'in_progress', 'icebox', or 'closed'."
+
+    # Validate optional priority
+    priority = params.get("priority")
+    if priority and priority not in ("urgent", "high", "medium", "low"):
+        return "Error: priority must be 'urgent', 'high', 'medium', or 'low'."
+
     try:
         service = ArtifactService(db)
         artifact = await service.create_artifact(
@@ -125,6 +136,8 @@ async def execute_create_artifact(
             created_by=user_id,
             description=params.get("description"),
             category=params.get("category"),
+            priority=priority,
+            status=status,
         )
 
         payload = {
@@ -157,15 +170,18 @@ async def execute_update_artifact(
 
     # Validate enum values before passing to service
     if "status" in params and params["status"]:
-        if params["status"] not in ("open", "in_progress", "backburner", "closed"):
-            return "Error: status must be 'open', 'in_progress', 'backburner', or 'closed'."
+        if params["status"] not in ("new", "open", "in_progress", "icebox", "closed"):
+            return "Error: status must be 'new', 'open', 'in_progress', 'icebox', or 'closed'."
     if "type" in params and params["type"]:
         if params["type"] not in ("bug", "feature", "task"):
             return "Error: type must be 'bug', 'feature', or 'task'."
+    if "priority" in params and params["priority"]:
+        if params["priority"] not in ("urgent", "high", "medium", "low"):
+            return "Error: priority must be 'urgent', 'high', 'medium', or 'low'."
 
     try:
         service = ArtifactService(db)
-        artifact = await service.update_artifact(
+        kwargs: Dict[str, Any] = dict(
             artifact_id=int(artifact_id),
             title=params.get("title"),
             description=params.get("description"),
@@ -173,6 +189,9 @@ async def execute_update_artifact(
             artifact_type=params.get("type"),
             category=params.get("category"),
         )
+        if "priority" in params:
+            kwargs["priority"] = params["priority"]
+        artifact = await service.update_artifact(**kwargs)
 
         if not artifact:
             return f"Error: Artifact #{artifact_id} not found."
@@ -379,7 +398,7 @@ async def execute_delete_artifact_category(
 
 register_tool(ToolConfig(
     name="list_artifacts",
-    description="List all bugs, feature requests, and tasks. Optionally filter by type (bug/feature/task), status (open/in_progress/backburner/closed), and category.",
+    description="List all bugs, feature requests, and tasks. Optionally filter by type (bug/feature/task), status (new/open/in_progress/icebox/closed), and category.",
     input_schema={
         "type": "object",
         "properties": {
@@ -390,7 +409,7 @@ register_tool(ToolConfig(
             },
             "status": {
                 "type": "string",
-                "enum": ["open", "in_progress", "backburner", "closed"],
+                "enum": ["new", "open", "in_progress", "icebox", "closed"],
                 "description": "Filter by status."
             },
             "category": {
@@ -407,7 +426,7 @@ register_tool(ToolConfig(
 
 register_tool(ToolConfig(
     name="create_artifact",
-    description="Create a new bug report, feature request, or task. Provide a title, type (bug, feature, or task), and optional description and category.",
+    description="Create a new bug report, feature request, or task. Provide a title, type, and optional description, category, priority, and status.",
     input_schema={
         "type": "object",
         "properties": {
@@ -427,6 +446,16 @@ register_tool(ToolConfig(
             "category": {
                 "type": "string",
                 "description": "Category name for grouping (optional)."
+            },
+            "priority": {
+                "type": "string",
+                "enum": ["urgent", "high", "medium", "low"],
+                "description": "Priority level (optional)."
+            },
+            "status": {
+                "type": "string",
+                "enum": ["new", "open", "in_progress", "icebox", "closed"],
+                "description": "Status (optional, defaults to 'new')."
             }
         },
         "required": ["title", "type"]
@@ -439,7 +468,7 @@ register_tool(ToolConfig(
 
 register_tool(ToolConfig(
     name="update_artifact",
-    description="Update an existing artifact (bug, feature, or task). You can change the title, description, status, type, or category.",
+    description="Update an existing artifact (bug, feature, or task). You can change the title, description, status, priority, type, or category.",
     input_schema={
         "type": "object",
         "properties": {
@@ -457,8 +486,13 @@ register_tool(ToolConfig(
             },
             "status": {
                 "type": "string",
-                "enum": ["open", "in_progress", "backburner", "closed"],
+                "enum": ["new", "open", "in_progress", "icebox", "closed"],
                 "description": "New status (optional)."
+            },
+            "priority": {
+                "type": "string",
+                "enum": ["urgent", "high", "medium", "low"],
+                "description": "New priority (optional). Use empty string to clear."
             },
             "type": {
                 "type": "string",

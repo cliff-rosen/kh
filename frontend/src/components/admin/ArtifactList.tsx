@@ -31,6 +31,9 @@ const STATUS_OPTIONS = [
 
 const STATUS_LABELS: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map(o => [o.value, o.label]));
 
+// Filter pills exclude Icebox (handled by separate view toggle)
+const STATUS_FILTER_OPTIONS = STATUS_OPTIONS.filter(o => o.value !== 'icebox');
+
 const PRIORITY_BADGES: Record<string, string> = {
     urgent: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
     high: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
@@ -115,6 +118,63 @@ function RadioGroup({ label, value, options, onChange }: {
     );
 }
 
+// Workflow statuses (normal progression) vs icebox (shelved)
+const WORKFLOW_STATUSES = STATUS_OPTIONS.filter(o => o.value !== 'icebox');
+const ICEBOX_STATUS = STATUS_OPTIONS.find(o => o.value === 'icebox')!;
+
+function StatusRadioGroup({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    return (
+        <div>
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Status</div>
+            <div className="flex flex-col gap-1">
+                {WORKFLOW_STATUSES.map((opt) => (
+                    <label
+                        key={opt.value}
+                        className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors text-sm ${
+                            value === opt.value
+                                ? 'bg-purple-50 dark:bg-purple-900/20'
+                                : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                        }`}
+                    >
+                        <input
+                            type="radio"
+                            name="status"
+                            value={opt.value}
+                            checked={value === opt.value}
+                            onChange={() => onChange(opt.value)}
+                            className="text-purple-600 focus:ring-purple-500"
+                        />
+                        <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${STATUS_BADGES[opt.value]}`}>
+                            {opt.label}
+                        </span>
+                    </label>
+                ))}
+                <div className="border-t border-gray-200 dark:border-gray-600 my-1" />
+                <label
+                    className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors text-sm ${
+                        value === 'icebox'
+                            ? 'bg-purple-50 dark:bg-purple-900/20'
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                    }`}
+                >
+                    <input
+                        type="radio"
+                        name="status"
+                        value="icebox"
+                        checked={value === 'icebox'}
+                        onChange={() => onChange('icebox')}
+                        className="text-purple-600 focus:ring-purple-500"
+                    />
+                    <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${STATUS_BADGES.icebox}`}>
+                        {ICEBOX_STATUS.label}
+                    </span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500 italic">shelved</span>
+                </label>
+            </div>
+        </div>
+    );
+}
+
 function FilterPills({ label, value, options, onChange }: {
     label: string;
     value: string;
@@ -184,6 +244,7 @@ export function ArtifactList() {
     const [filterType, setFilterType] = useState<string>('');
     const [filterStatus, setFilterStatus] = useState<string>('');
     const [filterCategory, setFilterCategory] = useState<string>('');
+    const [iceboxView, setIceboxView] = useState<'active' | 'icebox' | 'all'>('active');
 
     // Sorting
     const [sortField, setSortField] = useState<SortField>('created_at');
@@ -205,6 +266,7 @@ export function ArtifactList() {
     const [newDescription, setNewDescription] = useState('');
     const [newCategory, setNewCategory] = useState('');
     const [newPriority, setNewPriority] = useState('');
+    const [newStatus, setNewStatus] = useState('new');
     const [isCreating, setIsCreating] = useState(false);
 
     // Category management
@@ -220,7 +282,7 @@ export function ArtifactList() {
 
     useEffect(() => {
         loadArtifacts();
-    }, [filterType, filterStatus, filterCategory]);
+    }, [filterType, filterCategory]);
 
     const loadCategories = async () => {
         try {
@@ -235,9 +297,8 @@ export function ArtifactList() {
         setIsLoading(true);
         setError(null);
         try {
-            const params: { type?: string; status?: string; category?: string } = {};
+            const params: { type?: string; category?: string } = {};
             if (filterType) params.type = filterType;
-            if (filterStatus) params.status = filterStatus;
             if (filterCategory) params.category = filterCategory;
             const data = await adminApi.getArtifacts(params);
             setArtifacts(data);
@@ -256,7 +317,19 @@ export function ArtifactList() {
     }, [sortField]);
 
     const sortedArtifacts = useMemo(() => {
-        const sorted = [...artifacts];
+        // Step 1: Apply icebox view + status filter
+        let filtered = artifacts;
+        if (iceboxView === 'active') {
+            filtered = filtered.filter(a => a.status !== 'icebox');
+        } else if (iceboxView === 'icebox') {
+            filtered = filtered.filter(a => a.status === 'icebox');
+        }
+        if (filterStatus) {
+            filtered = filtered.filter(a => a.status === filterStatus);
+        }
+
+        // Step 2: Sort
+        const sorted = [...filtered];
         const dir = sortDir === 'asc' ? 1 : -1;
         sorted.sort((a, b) => {
             let aVal: string, bVal: string;
@@ -297,7 +370,7 @@ export function ArtifactList() {
             return 0;
         });
         return sorted;
-    }, [artifacts, sortField, sortDir]);
+    }, [artifacts, sortField, sortDir, iceboxView, filterStatus]);
 
     // ==================== Category Management ====================
 
@@ -341,12 +414,14 @@ export function ArtifactList() {
                 description: newDescription.trim() || undefined,
                 category: newCategory || undefined,
                 priority: newPriority || undefined,
+                status: newStatus || undefined,
             });
             setNewTitle('');
             setNewType('bug');
             setNewDescription('');
             setNewCategory('');
             setNewPriority('');
+            setNewStatus('new');
             setShowCreateDialog(false);
             await loadArtifacts();
         } catch (err) {
@@ -576,19 +651,19 @@ export function ArtifactList() {
             markRunning();
             try {
                 if (change.action === 'create') {
-                    const created = await adminApi.createArtifact({
+                    await adminApi.createArtifact({
                         title: change.title || 'Untitled',
                         artifact_type: change.artifact_type || 'feature',
                         category: change.category,
                         description: change.description,
+                        priority: change.priority,
+                        status: change.status || 'new',
                     });
-                    if (change.status && change.status !== 'open') {
-                        await adminApi.updateArtifact(created.id, { status: change.status });
-                    }
                 } else if (change.action === 'update' && change.id) {
                     const updates: Record<string, unknown> = {};
                     if (change.title !== undefined) updates.title = change.title;
                     if (change.status !== undefined) updates.status = change.status;
+                    if (change.priority !== undefined) updates.priority = change.priority;
                     if (change.category !== undefined) updates.category = change.category;
                     if (change.artifact_type !== undefined) updates.artifact_type = change.artifact_type;
                     if (change.description !== undefined) updates.description = change.description;
@@ -695,6 +770,33 @@ export function ArtifactList() {
 
                 {/* Filter Pills - always visible */}
                 <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                    {/* Icebox view toggle */}
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-1">View:</span>
+                        {([
+                            { value: 'active' as const, label: 'Active' },
+                            { value: 'icebox' as const, label: 'Icebox' },
+                            { value: 'all' as const, label: 'All' },
+                        ]).map(opt => (
+                            <button
+                                key={opt.value}
+                                onClick={() => {
+                                    setIceboxView(opt.value);
+                                    if (opt.value === 'icebox') setFilterStatus('');
+                                }}
+                                className={`px-2 py-0.5 text-xs rounded-full transition-colors ${
+                                    iceboxView === opt.value
+                                        ? opt.value === 'icebox'
+                                            ? 'bg-gray-500 text-white'
+                                            : 'bg-purple-600 text-white'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                                }`}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
                     <FilterPills
                         label="Type"
                         value={filterType}
@@ -705,21 +807,25 @@ export function ArtifactList() {
                         ]}
                         onChange={setFilterType}
                     />
-                    <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
-                    <FilterPills
-                        label="Status"
-                        value={filterStatus}
-                        options={STATUS_OPTIONS.map(o => ({
-                            value: o.value,
-                            label: o.label,
-                            color: o.value === 'new' ? 'bg-purple-600 text-white'
-                                : o.value === 'open' ? 'bg-yellow-500 text-white'
-                                : o.value === 'in_progress' ? 'bg-blue-600 text-white'
-                                : o.value === 'icebox' ? 'bg-gray-500 text-white'
-                                : 'bg-green-600 text-white',
-                        }))}
-                        onChange={setFilterStatus}
-                    />
+                    {/* Status pills - hidden in icebox view since there's only one status */}
+                    {iceboxView !== 'icebox' && (
+                        <>
+                            <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
+                            <FilterPills
+                                label="Status"
+                                value={filterStatus}
+                                options={STATUS_FILTER_OPTIONS.map(o => ({
+                                    value: o.value,
+                                    label: o.label,
+                                    color: o.value === 'new' ? 'bg-purple-600 text-white'
+                                        : o.value === 'open' ? 'bg-yellow-500 text-white'
+                                        : o.value === 'in_progress' ? 'bg-blue-600 text-white'
+                                        : 'bg-green-600 text-white',
+                                }))}
+                                onChange={setFilterStatus}
+                            />
+                        </>
+                    )}
                     {categories.length > 0 && (
                         <>
                             <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
@@ -938,14 +1044,8 @@ export function ArtifactList() {
                                                                 ))}
                                                             </div>
                                                         </div>
-                                                        <RadioGroup
-                                                            label="Status"
+                                                        <StatusRadioGroup
                                                             value={editing.status}
-                                                            options={STATUS_OPTIONS.map(o => ({
-                                                                value: o.value,
-                                                                label: o.label,
-                                                                color: STATUS_BADGES[o.value],
-                                                            }))}
                                                             onChange={(v) => setEditing({ ...editing, status: v })}
                                                         />
                                                         <div>
@@ -1134,7 +1234,7 @@ export function ArtifactList() {
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 />
                             </div>
-                            <div className="flex gap-6">
+                            <div className="flex flex-wrap gap-6">
                                 <RadioGroup
                                     label="Type"
                                     value={newType}
@@ -1144,6 +1244,10 @@ export function ArtifactList() {
                                         { value: 'task', label: 'Task', color: TYPE_BADGES.task },
                                     ]}
                                     onChange={(v) => setNewType(v as 'bug' | 'feature' | 'task')}
+                                />
+                                <StatusRadioGroup
+                                    value={newStatus}
+                                    onChange={(v) => setNewStatus(v)}
                                 />
                                 <div>
                                     <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Priority</div>

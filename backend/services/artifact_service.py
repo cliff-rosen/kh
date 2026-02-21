@@ -69,6 +69,7 @@ class ArtifactService:
         description: Optional[str] = None,
         category: Optional[str] = None,
         priority: Optional[str] = None,
+        status: Optional[str] = None,
     ) -> Artifact:
         """Create a new artifact."""
         category_id = await self._resolve_category_id(category)
@@ -76,6 +77,7 @@ class ArtifactService:
             title=title,
             description=description,
             artifact_type=ArtifactType(artifact_type),
+            status=ArtifactStatus(status) if status else ArtifactStatus.NEW,
             category_id=category_id,
             priority=ArtifactPriority(priority) if priority else None,
             created_by=created_by,
