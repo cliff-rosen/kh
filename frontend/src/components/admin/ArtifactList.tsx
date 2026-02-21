@@ -724,7 +724,7 @@ export function ArtifactList() {
     const hasSelection = selected.size > 0;
 
     return (
-        <div className="-mx-4 -mb-8 h-[calc(100vh-12rem)] flex">
+        <div className="-mx-4 h-full flex">
             {/* Chat Tray */}
             <ChatTray
                 initialContext={chatContext}
