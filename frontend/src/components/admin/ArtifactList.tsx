@@ -108,7 +108,7 @@ interface EditState {
     category: string;
 }
 
-type SortField = 'artifact_type' | 'title' | 'priority' | 'area' | 'status' | 'category' | 'created_at' | 'updated_at';
+type SortField = 'artifact_type' | 'title' | 'priority' | 'area' | 'status' | 'category' | 'created_at';
 type SortDir = 'asc' | 'desc';
 
 function RadioGroup({ label, value, options, onChange }: {
@@ -446,10 +446,6 @@ export function ArtifactList() {
                 case 'created_at':
                     aVal = a.created_at;
                     bVal = b.created_at;
-                    break;
-                case 'updated_at':
-                    aVal = a.updated_at;
-                    bVal = b.updated_at;
                     break;
                 default:
                     return 0;
@@ -825,7 +821,7 @@ export function ArtifactList() {
         );
     }
 
-    const COL_COUNT = 10;
+    const COL_COUNT = 8;
     const hasSelection = selected.size > 0;
 
     return (
@@ -1085,12 +1081,6 @@ export function ArtifactList() {
                                 <th className="px-4 py-3 text-left w-36">
                                     <SortHeader label="Category" field="category" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                                 </th>
-                                <th className="px-4 py-3 text-left w-36">
-                                    <SortHeader label="Created" field="created_at" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                                </th>
-                                <th className="px-4 py-3 text-left w-36">
-                                    <SortHeader label="Updated" field="updated_at" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                                </th>
                                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
                                     Actions
                                 </th>
@@ -1170,6 +1160,22 @@ export function ArtifactList() {
                                                             options={categories.map(cat => ({ value: cat.name, label: cat.name, color: getCategoryColor(cat.name, categories) }))}
                                                             onChange={(v) => setEditing({ ...editing, category: v })}
                                                         />
+                                                    </div>
+
+                                                    {/* Created / Updated metadata */}
+                                                    <div className="flex items-center gap-6 mb-4 text-xs text-gray-500 dark:text-gray-400">
+                                                        <div>
+                                                            <span className="font-medium uppercase tracking-wider">Created</span>{' '}
+                                                            {artifact.created_by_name && <span>by {artifact.created_by_name}</span>}
+                                                            {' '}<span>{new Date(artifact.created_at).toLocaleString()}</span>
+                                                        </div>
+                                                        {artifact.updated_at && artifact.updated_at !== artifact.created_at && (
+                                                            <div>
+                                                                <span className="font-medium uppercase tracking-wider">Updated</span>{' '}
+                                                                {artifact.updated_by_name && <span>by {artifact.updated_by_name}</span>}
+                                                                {' '}<span>{new Date(artifact.updated_at).toLocaleString()}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     {/* Actions */}
@@ -1265,18 +1271,6 @@ export function ArtifactList() {
                                             ) : (
                                                 <span className="text-gray-400 dark:text-gray-500 text-xs">-</span>
                                             )}
-                                        </td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                            {artifact.created_by_name && (
-                                                <div className="text-gray-700 dark:text-gray-300 text-xs font-medium">{artifact.created_by_name}</div>
-                                            )}
-                                            <div className="text-xs">{new Date(artifact.created_at).toLocaleDateString()}</div>
-                                        </td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                            {artifact.updated_by_name && (
-                                                <div className="text-gray-700 dark:text-gray-300 text-xs font-medium">{artifact.updated_by_name}</div>
-                                            )}
-                                            <div className="text-xs">{new Date(artifact.updated_at).toLocaleDateString()}</div>
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap text-right text-sm" onClick={(e) => e.stopPropagation()}>
                                             <button
