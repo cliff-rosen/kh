@@ -59,9 +59,9 @@ export default function AdminPage() {
     const needsFullWidth = activeTab === 'artifacts';
 
     return (
-        <div className={needsFullWidth ? 'px-4 py-8' : 'max-w-7xl mx-auto px-4 py-8'}>
+        <div className={needsFullWidth ? 'h-full flex flex-col px-4 py-4' : 'max-w-7xl mx-auto px-4 py-8'}>
             {/* Page Header */}
-            <div className="mb-8">
+            <div className={needsFullWidth ? 'flex-shrink-0 mb-4' : 'mb-8'}>
                 <div className="flex items-center gap-3 mb-2">
                     <ShieldCheckIcon className="h-8 w-8 text-purple-600 dark:text-purple-400" />
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -74,7 +74,7 @@ export default function AdminPage() {
             </div>
 
             {/* Tab Navigation - Grouped */}
-            <div className="mb-6">
+            <div className={needsFullWidth ? 'flex-shrink-0 mb-4' : 'mb-6'}>
                 <div className="border-b border-gray-200 dark:border-gray-700">
                     <nav className="-mb-px flex items-center">
                         {tabGroups.map((group, groupIndex) => (
@@ -115,7 +115,7 @@ export default function AdminPage() {
             </div>
 
             {/* Active Tab Content */}
-            <div>
+            <div className={needsFullWidth ? 'flex-1 min-h-0' : ''}>
                 {activeTab === 'organizations' && <OrganizationList />}
                 {activeTab === 'streams' && <GlobalStreamList />}
                 {activeTab === 'users' && <UserList />}
