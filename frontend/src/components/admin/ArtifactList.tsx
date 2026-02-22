@@ -703,9 +703,9 @@ export function ArtifactList() {
             created_by_name: a.created_by_name, updated_by_name: a.updated_by_name,
         })),
         categories: categories.map(c => ({ id: c.id, name: c.name })),
-        filters: { type: filterType, status: filterStatus, category: filterCategory, area: filterArea },
+        filters: { view: iceboxView, type: filterType, status: filterStatus, category: filterCategory, area: filterArea },
         selected_count: selected.size,
-    }), [artifacts, categories, filterType, filterStatus, filterCategory, filterArea, selected.size]);
+    }), [artifacts, categories, iceboxView, filterType, filterStatus, filterCategory, filterArea, selected.size]);
 
     /** Step-by-step executor: processes each operation individually and reports progress */
     const handleApplyArtifactChanges: AcceptExecutor = useCallback(async (data, steps, onProgress) => {
@@ -851,7 +851,7 @@ export function ArtifactList() {
                 {/* Header row: title + action buttons */}
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Artifacts ({artifacts.length})
+                        Artifacts ({sortedArtifacts.length}{sortedArtifacts.length !== artifacts.length ? ` / ${artifacts.length}` : ''})
                     </h2>
                     <div className="flex items-center gap-2">
                         <button
