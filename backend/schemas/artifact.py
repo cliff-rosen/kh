@@ -27,6 +27,7 @@ class Artifact(BaseModel):
     artifact_type: str  # "bug" | "feature" | "task"
     status: str         # "new" | "open" | "in_progress" | "icebox" | "closed"
     priority: Optional[str] = None  # "urgent" | "high" | "medium" | "low"
+    area: Optional[str] = None      # functional area (login_auth, streams, etc.)
     category: Optional[str] = None
     created_by: int
     created_at: datetime

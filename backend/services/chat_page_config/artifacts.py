@@ -37,6 +37,7 @@ ARTIFACT FIELDS:
 - type: "bug" (defects, issues), "feature" (enhancements, requests), or "task" (general work items)
 - status: "new", "open", "in_progress", "icebox", or "closed" (see workflow below)
 - priority: "urgent", "high", "medium", or "low" (optional)
+- area: Functional area of the platform (optional). Values: login_auth (Login & Auth), user_prefs (User Prefs), streams (Streams), reports (Reports), articles (Articles), notes (Notes), users (Users), organizations (Organizations), data_sources (Data Sources), chat_system (Chat System), help_content (Help Content), system_ops (System Ops)
 - category: Optional grouping label (e.g., "UI", "Backend", "Performance")
 - description: Optional detailed text
 
@@ -89,24 +90,28 @@ You can help the user:
 - Analyze patterns in their backlog
 - Draft descriptions or acceptance criteria for new items"""
 
-    # Count by status, type, priority, category
+    # Count by status, type, priority, area, category
     status_counts: Dict[str, int] = {}
     type_counts: Dict[str, int] = {}
     priority_counts: Dict[str, int] = {}
+    area_counts: Dict[str, int] = {}
     category_counts: Dict[str, int] = {}
     for a in artifacts:
         s = a.get("status", "unknown")
         t = a.get("artifact_type", "unknown")
         p = a.get("priority") or "unset"
+        ar = a.get("area") or "unset"
         c = a.get("category") or "uncategorized"
         status_counts[s] = status_counts.get(s, 0) + 1
         type_counts[t] = type_counts.get(t, 0) + 1
         priority_counts[p] = priority_counts.get(p, 0) + 1
+        area_counts[ar] = area_counts.get(ar, 0) + 1
         category_counts[c] = category_counts.get(c, 0) + 1
 
     status_summary = ", ".join(f"{v} {k}" for k, v in sorted(status_counts.items()))
     type_summary = ", ".join(f"{v} {k}s" for k, v in sorted(type_counts.items()))
     priority_summary = ", ".join(f"{v} {k}" for k, v in sorted(priority_counts.items()))
+    area_summary = ", ".join(f"{k}: {v}" for k, v in sorted(area_counts.items()))
     category_summary = ", ".join(f"{k}: {v}" for k, v in sorted(category_counts.items()))
 
     # Active filters
@@ -115,6 +120,8 @@ You can help the user:
         filter_parts.append(f"type={filters['type']}")
     if filters.get("status"):
         filter_parts.append(f"status={filters['status']}")
+    if filters.get("area"):
+        filter_parts.append(f"area={filters['area']}")
     if filters.get("category"):
         filter_parts.append(f"category={filters['category']}")
     filter_text = f"Active filters: {', '.join(filter_parts)}" if filter_parts else "No filters active"
@@ -124,9 +131,10 @@ You can help the user:
     for a in artifacts[:20]:
         cat = f" [{a.get('category')}]" if a.get("category") else ""
         pri = f" P:{a.get('priority')}" if a.get("priority") else ""
+        area = f" @{a.get('area')}" if a.get("area") else ""
         artifact_lines.append(
             f"  - #{a.get('id', '?')} [{a.get('artifact_type', '?').upper()}] {a.get('title', 'Untitled')} "
-            f"({a.get('status', '?')}{pri}){cat}"
+            f"({a.get('status', '?')}{pri}){area}{cat}"
         )
     artifact_text = "\n".join(artifact_lines)
     more_text = f"\n  ... and {artifact_count - 20} more" if artifact_count > 20 else ""
@@ -144,6 +152,7 @@ You can help the user:
 Total visible: {artifact_count} artifacts ({type_summary})
 By status: {status_summary}
 By priority: {priority_summary}
+By area: {area_summary}
 By category: {category_summary}
 Available categories: {category_list}{selected_text}
 

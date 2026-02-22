@@ -106,6 +106,21 @@ class ArtifactPriority(str, PyEnum):
     MEDIUM = "medium"
     LOW = "low"
 
+class ArtifactArea(str, PyEnum):
+    """Functional area of the platform an artifact relates to"""
+    LOGIN_AUTH = "login_auth"
+    USER_PREFS = "user_prefs"
+    STREAMS = "streams"
+    REPORTS = "reports"
+    ARTICLES = "articles"
+    NOTES = "notes"
+    USERS = "users"
+    ORGANIZATIONS = "organizations"
+    DATA_SOURCES = "data_sources"
+    CHAT_SYSTEM = "chat_system"
+    HELP_CONTENT = "help_content"
+    SYSTEM_OPS = "system_ops"
+
 class ArtifactStatus(str, PyEnum):
     """Status of an artifact"""
     NEW = "new"
@@ -904,6 +919,7 @@ class Artifact(Base):
     artifact_type = Column(Enum(ArtifactType, values_callable=lambda x: [e.value for e in x], name='artifacttype'), nullable=False)
     status = Column(Enum(ArtifactStatus, values_callable=lambda x: [e.value for e in x], name='artifactstatus'), nullable=False, default=ArtifactStatus.NEW)
     priority = Column(Enum(ArtifactPriority, values_callable=lambda x: [e.value for e in x], name='artifactpriority'), nullable=True)
+    area = Column(Enum(ArtifactArea, values_callable=lambda x: [e.value for e in x], name='artifactarea'), nullable=True)
     category_id = Column(Integer, ForeignKey("artifact_categories.id", ondelete="SET NULL"), nullable=True, index=True)
     created_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)

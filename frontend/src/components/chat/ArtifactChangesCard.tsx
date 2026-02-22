@@ -17,6 +17,7 @@ interface ArtifactChange {
     artifact_type?: string;
     status?: string;
     priority?: string;
+    area?: string;
     category?: string;
     description?: string;
 }
@@ -33,6 +34,7 @@ interface ExistingArtifact {
     artifact_type: string;
     status: string;
     priority: string | null;
+    area: string | null;
     category: string | null;
     description: string | null;
 }
@@ -562,6 +564,21 @@ const PRIORITY_LABELS: Record<string, string> = {
     low: 'Low',
 };
 
+const AREA_LABELS: Record<string, string> = {
+    login_auth: 'Login & Auth',
+    user_prefs: 'User Prefs',
+    streams: 'Streams',
+    reports: 'Reports',
+    articles: 'Articles',
+    notes: 'Notes',
+    users: 'Users',
+    organizations: 'Organizations',
+    data_sources: 'Data Sources',
+    chat_system: 'Chat System',
+    help_content: 'Help Content',
+    system_ops: 'System Ops',
+};
+
 function FieldDiff({ label, oldVal, newVal }: { label: string; oldVal?: string | null; newVal?: string | null }) {
     const oldDisplay = oldVal || '(none)';
     const newDisplay = newVal || '(none)';
@@ -596,6 +613,11 @@ function ChangeDetail({ change, existing }: { change: ArtifactChange; existing?:
                             Priority: <span className="font-medium">{PRIORITY_LABELS[change.priority] || change.priority}</span>
                         </span>
                     )}
+                    {change.area && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                            Area: <span className="font-medium">{AREA_LABELS[change.area] || change.area}</span>
+                        </span>
+                    )}
                     {change.category && (
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                             Category: <span className="font-medium">{change.category}</span>
@@ -628,6 +650,13 @@ function ChangeDetail({ change, existing }: { change: ArtifactChange; existing?:
                 label: 'Priority',
                 oldVal: existing?.priority ? (PRIORITY_LABELS[existing.priority] || existing.priority) : null,
                 newVal: change.priority ? (PRIORITY_LABELS[change.priority] || change.priority) : null,
+            });
+        }
+        if (change.area !== undefined && change.area !== existing?.area) {
+            diffs.push({
+                label: 'Area',
+                oldVal: existing?.area ? (AREA_LABELS[existing.area] || existing.area) : null,
+                newVal: change.area ? (AREA_LABELS[change.area] || change.area) : null,
             });
         }
         if (change.category !== undefined && change.category !== existing?.category) {

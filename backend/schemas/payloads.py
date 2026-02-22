@@ -1448,6 +1448,7 @@ register_payload_type(PayloadType(
                         "type": {"type": "string", "enum": ["bug", "feature", "task"]},
                         "status": {"type": "string", "enum": ["new", "open", "in_progress", "icebox", "closed"]},
                         "priority": {"type": ["string", "null"], "enum": ["urgent", "high", "medium", "low", None]},
+                        "area": {"type": ["string", "null"]},
                         "category": {"type": ["string", "null"]},
                         "created_by": {"type": "integer"},
                         "created_at": {"type": ["string", "null"]},
@@ -1475,6 +1476,7 @@ register_payload_type(PayloadType(
             "type": {"type": "string", "enum": ["bug", "feature", "task"]},
             "status": {"type": "string", "enum": ["new", "open", "in_progress", "icebox", "closed"]},
             "priority": {"type": ["string", "null"], "enum": ["urgent", "high", "medium", "low", None]},
+            "area": {"type": ["string", "null"]},
             "category": {"type": ["string", "null"]},
             "created_by": {"type": "integer"},
             "created_at": {"type": ["string", "null"]},
@@ -1521,6 +1523,7 @@ ARTIFACT_CHANGES: {
       "artifact_type": "bug",
       "status": "new",
       "priority": "high",
+      "area": "login_auth",
       "category": "New Category Name",
       "description": "Optional description"
     },
@@ -1556,6 +1559,7 @@ Guidelines:
 - When creating new artifacts, default to status "new" unless the user indicates otherwise
 - Valid types: bug, feature, task
 - Valid priorities: urgent, high, medium, low (optional)
+- Valid areas: login_auth, user_prefs, streams, reports, articles, notes, users, organizations, data_sources, chat_system, help_content, system_ops (optional)
 - category_operations is optional — omit it if no category changes are needed
 """,
     schema={
@@ -1588,6 +1592,7 @@ Guidelines:
                         "artifact_type": {"type": "string", "enum": ["bug", "feature", "task"]},
                         "status": {"type": "string", "enum": ["new", "open", "in_progress", "icebox", "closed"]},
                         "priority": {"type": "string", "enum": ["urgent", "high", "medium", "low"]},
+                        "area": {"type": "string", "enum": ["login_auth", "user_prefs", "streams", "reports", "articles", "notes", "users", "organizations", "data_sources", "chat_system", "help_content", "system_ops"]},
                         "category": {"type": "string"},
                         "description": {"type": "string"}
                     },

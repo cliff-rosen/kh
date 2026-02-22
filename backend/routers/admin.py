@@ -1655,6 +1655,7 @@ class ArtifactBulkUpdate(BaseModel):
     status: Optional[str] = Field(None, description="New status for all")
     category: Optional[str] = Field(None, description="New category for all (empty string to clear)")
     priority: Optional[str] = Field(None, description="New priority for all (empty string to clear)")
+    area: Optional[str] = Field(None, description="New area for all (empty string to clear)")
 
 
 class ArtifactCreate(BaseModel):
@@ -1666,6 +1667,7 @@ class ArtifactCreate(BaseModel):
     category: Optional[str] = Field(None, max_length=100, description="Category tag")
     priority: Optional[str] = Field(None, description="Priority: 'urgent', 'high', 'medium', or 'low'")
     status: Optional[str] = Field(None, description="Status: 'new', 'open', 'in_progress', 'icebox', or 'closed'. Defaults to 'new'.")
+    area: Optional[str] = Field(None, description="Functional area: 'login_auth', 'user_prefs', 'streams', etc.")
 
 
 _UNSET = object()
@@ -1682,6 +1684,7 @@ class ArtifactUpdate(BaseModel):
     artifact_type: Optional[str] = None
     category: Optional[str] = Field(default=_UNSET, max_length=100)
     priority: Optional[str] = Field(default=_UNSET)
+    area: Optional[str] = Field(default=_UNSET)
 
 
 @router.get(
@@ -1778,6 +1781,7 @@ async def create_artifact(
             category=data.category,
             priority=data.priority,
             status=data.status,
+            area=data.area,
         )
         logger.info(f"create_artifact complete - artifact_id={artifact.id}")
         return ArtifactSchema.model_validate(artifact, from_attributes=True)
@@ -1822,6 +1826,8 @@ async def update_artifact(
             kwargs["category"] = data.category
         if data.priority is not _UNSET:
             kwargs["priority"] = data.priority
+        if data.area is not _UNSET:
+            kwargs["area"] = data.area
         artifact = await artifact_service.update_artifact(**kwargs)
         if not artifact:
             raise HTTPException(
@@ -1895,6 +1901,7 @@ async def bulk_update_artifacts(
             status=data.status,
             category=data.category,
             priority=data.priority,
+            area=data.area,
         )
         return {"updated": count}
 

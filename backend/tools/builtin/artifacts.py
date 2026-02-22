@@ -30,6 +30,7 @@ def _artifact_to_dict(artifact) -> Dict[str, Any]:
         "type": artifact.artifact_type.value,
         "status": artifact.status.value,
         "priority": artifact.priority.value if artifact.priority else None,
+        "area": artifact.area.value if artifact.area else None,
         "category": artifact.category,
         "created_by": artifact.created_by,
         "created_at": artifact.created_at.isoformat() if artifact.created_at else None,
@@ -128,6 +129,13 @@ async def execute_create_artifact(
     if priority and priority not in ("urgent", "high", "medium", "low"):
         return "Error: priority must be 'urgent', 'high', 'medium', or 'low'."
 
+    # Validate optional area
+    area = params.get("area")
+    valid_areas = ("login_auth", "user_prefs", "streams", "reports", "articles", "notes",
+                   "users", "organizations", "data_sources", "chat_system", "help_content", "system_ops")
+    if area and area not in valid_areas:
+        return f"Error: area must be one of: {', '.join(valid_areas)}."
+
     try:
         service = ArtifactService(db)
         artifact = await service.create_artifact(
@@ -138,6 +146,7 @@ async def execute_create_artifact(
             category=params.get("category"),
             priority=priority,
             status=status,
+            area=area,
         )
 
         payload = {
@@ -178,6 +187,11 @@ async def execute_update_artifact(
     if "priority" in params and params["priority"]:
         if params["priority"] not in ("urgent", "high", "medium", "low"):
             return "Error: priority must be 'urgent', 'high', 'medium', or 'low'."
+    if "area" in params and params["area"]:
+        valid_areas = ("login_auth", "user_prefs", "streams", "reports", "articles", "notes",
+                       "users", "organizations", "data_sources", "chat_system", "help_content", "system_ops")
+        if params["area"] not in valid_areas:
+            return f"Error: area must be one of: {', '.join(valid_areas)}."
 
     try:
         service = ArtifactService(db)
@@ -191,6 +205,8 @@ async def execute_update_artifact(
         )
         if "priority" in params:
             kwargs["priority"] = params["priority"]
+        if "area" in params:
+            kwargs["area"] = params["area"]
         artifact = await service.update_artifact(**kwargs)
 
         if not artifact:
@@ -456,6 +472,12 @@ register_tool(ToolConfig(
                 "type": "string",
                 "enum": ["new", "open", "in_progress", "icebox", "closed"],
                 "description": "Status (optional, defaults to 'new')."
+            },
+            "area": {
+                "type": "string",
+                "enum": ["login_auth", "user_prefs", "streams", "reports", "articles", "notes",
+                         "users", "organizations", "data_sources", "chat_system", "help_content", "system_ops"],
+                "description": "Functional area of the platform (optional)."
             }
         },
         "required": ["title", "type"]
@@ -502,6 +524,12 @@ register_tool(ToolConfig(
             "category": {
                 "type": "string",
                 "description": "New category name (optional). Use empty string to clear."
+            },
+            "area": {
+                "type": "string",
+                "enum": ["login_auth", "user_prefs", "streams", "reports", "articles", "notes",
+                         "users", "organizations", "data_sources", "chat_system", "help_content", "system_ops"],
+                "description": "New functional area (optional). Use empty string to clear."
             }
         },
         "required": ["id"]

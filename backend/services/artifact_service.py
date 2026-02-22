@@ -11,7 +11,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
-from models import Artifact, ArtifactCategory, ArtifactType, ArtifactStatus, ArtifactPriority
+from models import Artifact, ArtifactCategory, ArtifactType, ArtifactStatus, ArtifactPriority, ArtifactArea
 from database import get_async_db
 
 logger = logging.getLogger(__name__)
@@ -70,6 +70,7 @@ class ArtifactService:
         category: Optional[str] = None,
         priority: Optional[str] = None,
         status: Optional[str] = None,
+        area: Optional[str] = None,
     ) -> Artifact:
         """Create a new artifact."""
         category_id = await self._resolve_category_id(category)
@@ -80,6 +81,7 @@ class ArtifactService:
             status=ArtifactStatus(status) if status else ArtifactStatus.NEW,
             category_id=category_id,
             priority=ArtifactPriority(priority) if priority else None,
+            area=ArtifactArea(area) if area else None,
             created_by=created_by,
         )
         self.db.add(artifact)
@@ -98,6 +100,7 @@ class ArtifactService:
         artifact_type: Optional[str] = None,
         category: Optional[str] = _UNSET,
         priority: Optional[str] = _UNSET,
+        area: Optional[str] = _UNSET,
     ) -> Optional[Artifact]:
         """Update an existing artifact. Returns None if not found."""
         artifact = await self.get_artifact_by_id(artifact_id)
@@ -116,6 +119,8 @@ class ArtifactService:
             artifact.category_id = await self._resolve_category_id(category if category else None)
         if priority is not self._UNSET:
             artifact.priority = ArtifactPriority(priority) if priority else None
+        if area is not self._UNSET:
+            artifact.area = ArtifactArea(area) if area else None
 
         await self.db.commit()
         await self.db.refresh(artifact)
@@ -139,8 +144,9 @@ class ArtifactService:
         status: Optional[str] = None,
         category: Optional[str] = None,
         priority: Optional[str] = None,
+        area: Optional[str] = None,
     ) -> int:
-        """Bulk update status, category, and/or priority for multiple artifacts. Returns count updated."""
+        """Bulk update status, category, priority, and/or area for multiple artifacts. Returns count updated."""
         if not artifact_ids:
             return 0
 
@@ -161,6 +167,8 @@ class ArtifactService:
                 artifact.category_id = category_id
             if priority is not None:
                 artifact.priority = ArtifactPriority(priority) if priority != '' else None
+            if area is not None:
+                artifact.area = ArtifactArea(area) if area != '' else None
 
         await self.db.commit()
         return len(artifacts)
