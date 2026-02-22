@@ -1248,8 +1248,7 @@ class ReportService:
         images = None
         try:
             logo_path = os.path.join(
-                os.path.dirname(__file__), '..', '..',
-                'frontend', 'public', 'logos', 'KH logo black.png'
+                os.path.dirname(__file__), '..', 'assets', 'KH logo black.png'
             )
             logo_path = os.path.normpath(logo_path)
             if os.path.exists(logo_path):
