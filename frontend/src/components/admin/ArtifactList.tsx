@@ -697,15 +697,16 @@ export function ArtifactList() {
 
     const chatContext = useMemo(() => ({
         current_page: 'artifacts',
-        artifacts: artifacts.map(a => ({
+        artifacts: sortedArtifacts.map(a => ({
             id: a.id, title: a.title, artifact_type: a.artifact_type,
             status: a.status, priority: a.priority, area: a.area, category: a.category, description: a.description,
             created_by_name: a.created_by_name, updated_by_name: a.updated_by_name,
         })),
+        total_artifact_count: artifacts.length,
         categories: categories.map(c => ({ id: c.id, name: c.name })),
         filters: { view: iceboxView, type: filterType, status: filterStatus, category: filterCategory, area: filterArea },
         selected_count: selected.size,
-    }), [artifacts, categories, iceboxView, filterType, filterStatus, filterCategory, filterArea, selected.size]);
+    }), [sortedArtifacts, artifacts.length, categories, iceboxView, filterType, filterStatus, filterCategory, filterArea, selected.size]);
 
     /** Step-by-step executor: processes each operation individually and reports progress */
     const handleApplyArtifactChanges: AcceptExecutor = useCallback(async (data, steps, onProgress) => {
@@ -798,6 +799,7 @@ export function ArtifactList() {
                 <ArtifactChangesCard
                     proposal={payload}
                     existingArtifacts={artifacts}
+                    categories={categories.map(c => ({ id: c.id, name: c.name }))}
                     onAccept={async (data, steps, onProgress) => {
                         await handleApplyArtifactChanges(data, steps, onProgress);
                         callbacks.onAccept?.(data);
@@ -806,12 +808,12 @@ export function ArtifactList() {
                 />
             ),
             renderOptions: {
-                panelWidth: '600px',
+                panelWidth: '700px',
                 headerTitle: 'Proposed Changes',
                 headerIcon: '\uD83D\uDCCB',
             }
         }
-    }), [handleApplyArtifactChanges, artifacts]);
+    }), [handleApplyArtifactChanges, artifacts, categories]);
 
     if (isLoading && artifacts.length === 0) {
         return (
