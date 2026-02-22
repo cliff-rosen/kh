@@ -394,6 +394,95 @@ class EmailService:
             html_content=html_content
         )
 
+    async def send_pipeline_failure_alert_email(
+        self,
+        recipient_email: str,
+        recipient_name: str,
+        execution_id: str,
+        stream_name: str,
+        error_message: str,
+    ) -> bool:
+        """
+        Send a pipeline failure alert email to an admin.
+
+        Args:
+            recipient_email: Admin's email address
+            recipient_name: Admin's display name
+            execution_id: ID of the failed execution
+            stream_name: Name of the research stream
+            error_message: Error message from the failure
+
+        Returns:
+            bool: True if email sent successfully, False otherwise
+        """
+        from datetime import datetime
+
+        base_url = settings.FRONTEND_URL or 'http://localhost:5173'
+        execution_url = f"{base_url}/operations/executions/{execution_id}"
+
+        # Truncate long error messages
+        truncated_error = error_message[:500] + "..." if len(error_message) > 500 else error_message
+        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+        subject = f"Pipeline Failed: {stream_name}"
+
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #f97316, #dc2626); color: white; padding: 24px; border-radius: 8px 8px 0 0; }}
+        .content {{ background: #f9fafb; padding: 24px; border: 1px solid #e5e7eb; border-top: none; }}
+        .metadata {{ background: white; padding: 16px; border-radius: 8px; margin: 16px 0; }}
+        .metadata-row {{ display: flex; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }}
+        .metadata-row:last-child {{ border-bottom: none; }}
+        .metadata-label {{ color: #6b7280; width: 120px; }}
+        .metadata-value {{ color: #111827; font-weight: 500; }}
+        .error-box {{ background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin: 16px 0; font-family: monospace; font-size: 13px; color: #991b1b; white-space: pre-wrap; word-break: break-word; }}
+        .button {{ display: inline-block; background: #dc2626; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; margin-top: 16px; }}
+        .footer {{ text-align: center; padding: 16px; color: #6b7280; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 style="margin: 0; font-size: 20px;">Pipeline Execution Failed</h1>
+        </div>
+        <div class="content">
+            <p>Hi {recipient_name},</p>
+            <p>A scheduled pipeline run has failed and may require attention.</p>
+
+            <div class="metadata">
+                <div class="metadata-row">
+                    <span class="metadata-label">Stream:</span>
+                    <span class="metadata-value">{stream_name}</span>
+                </div>
+                <div class="metadata-row">
+                    <span class="metadata-label">Date/Time:</span>
+                    <span class="metadata-value">{now_str}</span>
+                </div>
+            </div>
+
+            <div class="error-box">{truncated_error}</div>
+
+            <a href="{execution_url}" class="button">View Execution Details</a>
+        </div>
+        <div class="footer">
+            {self.app_name} &bull; Research Intelligence Platform
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        return await self.send_html_email(
+            to_email=recipient_email,
+            subject=subject,
+            html_content=html_content
+        )
+
     def _log_smtp_error(self, e: Exception) -> None:
         """Log helpful SMTP error messages"""
         if "Application-specific password required" in str(e):

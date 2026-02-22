@@ -21,9 +21,11 @@ try:
 except ImportError:
     from backports.zoneinfo import ZoneInfo
 
-from models import ResearchStream, PipelineExecution, ExecutionStatus, RunType
+from models import ResearchStream, PipelineExecution, ExecutionStatus, RunType, Report
 from services.pipeline_service import PipelineService
 from services.execution_service import ExecutionService
+from services.user_service import UserService
+from services.email_service import get_email_service
 from worker.status_broker import broker
 
 # Day name -> weekday number (Monday=0 .. Sunday=6)
@@ -159,6 +161,13 @@ class JobDispatcher:
             logger.info(f"Scheduled execution {execution_id} completed successfully")
             await broker.publish_complete(execution_id, success=True)
 
+            # Notify admins of successful completion
+            await self._notify_admins_scheduled_complete(
+                execution_id=execution_id,
+                stream_name=stream.stream_name,
+                success=True,
+            )
+
         except Exception as e:
             logger.error(f"Scheduled execution {execution_id} failed: {e}", exc_info=True)
             try:
@@ -172,7 +181,88 @@ class JobDispatcher:
             await self.db.commit()
             await broker.publish_complete(execution_id, success=False, error=str(e))
 
+            # Notify admins of failure
+            await self._notify_admins_scheduled_complete(
+                execution_id=execution_id,
+                stream_name=stream.stream_name,
+                success=False,
+                error_message=str(e),
+            )
+
         return execution_id
+
+    async def _notify_admins_scheduled_complete(
+        self,
+        execution_id: str,
+        stream_name: str,
+        success: bool,
+        error_message: Optional[str] = None,
+    ) -> None:
+        """
+        Notify platform admins when a scheduled pipeline run completes.
+
+        On success: sends approval request emails with report details.
+        On failure: sends failure alert emails.
+
+        Email failures are logged but never break the pipeline flow.
+        """
+        try:
+            user_service = UserService(self.db)
+            admins = await user_service.get_admin_users_for_approval(org_id=None)
+
+            if not admins:
+                logger.warning("No platform admins found to notify for scheduled run")
+                return
+
+            email_service = get_email_service()
+
+            if success:
+                # Re-query execution to get report_id
+                execution = await self.execution_service.get_by_id(execution_id)
+                if not execution or not execution.report_id:
+                    logger.warning(f"Cannot notify: execution {execution_id} has no report_id")
+                    return
+
+                # Load the report for name and article count
+                stmt = select(Report).where(Report.report_id == execution.report_id)
+                result = await self.db.execute(stmt)
+                report = result.scalars().first()
+
+                if not report:
+                    logger.warning(f"Cannot notify: report {execution.report_id} not found")
+                    return
+
+                report_name = report.report_name
+                article_count = (report.pipeline_metrics or {}).get('final_article_count', 0)
+
+                for admin in admins:
+                    admin_name = admin.full_name or admin.email
+                    logger.info(f"Sending approval request email to {admin.email} for report {report_name}")
+                    await email_service.send_approval_request_email(
+                        recipient_email=admin.email,
+                        recipient_name=admin_name,
+                        report_id=report.report_id,
+                        report_name=report_name,
+                        stream_name=stream_name,
+                        article_count=article_count,
+                        requester_name="Scheduled Pipeline",
+                    )
+            else:
+                for admin in admins:
+                    admin_name = admin.full_name or admin.email
+                    logger.info(f"Sending pipeline failure alert to {admin.email} for stream {stream_name}")
+                    await email_service.send_pipeline_failure_alert_email(
+                        recipient_email=admin.email,
+                        recipient_name=admin_name,
+                        execution_id=execution_id,
+                        stream_name=stream_name,
+                        error_message=error_message or "Unknown error",
+                    )
+
+            logger.info(f"Notified {len(admins)} admin(s) about scheduled run completion (success={success})")
+
+        except Exception as e:
+            logger.error(f"Failed to notify admins for execution {execution_id}: {e}", exc_info=True)
 
     def _update_next_scheduled_run(self, stream: ResearchStream) -> None:
         """Calculate and set the next scheduled run time"""
