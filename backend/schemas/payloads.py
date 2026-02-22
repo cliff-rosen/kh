@@ -1451,6 +1451,9 @@ register_payload_type(PayloadType(
                         "area": {"type": ["string", "null"]},
                         "category": {"type": ["string", "null"]},
                         "created_by": {"type": "integer"},
+                        "created_by_name": {"type": ["string", "null"]},
+                        "updated_by": {"type": ["integer", "null"]},
+                        "updated_by_name": {"type": ["string", "null"]},
                         "created_at": {"type": ["string", "null"]},
                         "updated_at": {"type": ["string", "null"]}
                     }
@@ -1479,6 +1482,9 @@ register_payload_type(PayloadType(
             "area": {"type": ["string", "null"]},
             "category": {"type": ["string", "null"]},
             "created_by": {"type": "integer"},
+            "created_by_name": {"type": ["string", "null"]},
+            "updated_by": {"type": ["integer", "null"]},
+            "updated_by_name": {"type": ["string", "null"]},
             "created_at": {"type": ["string", "null"]},
             "updated_at": {"type": ["string", "null"]}
         }

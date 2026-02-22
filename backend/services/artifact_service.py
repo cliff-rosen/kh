@@ -9,6 +9,7 @@ from typing import List, Optional, Tuple
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from fastapi import Depends
 
 from models import Artifact, ArtifactCategory, ArtifactType, ArtifactStatus, ArtifactPriority, ArtifactArea
@@ -42,7 +43,11 @@ class ArtifactService:
         category: Optional[str] = None,
     ) -> List[Artifact]:
         """List all artifacts with optional type, status, and category filters."""
-        stmt = select(Artifact).order_by(Artifact.created_at.desc())
+        stmt = (
+            select(Artifact)
+            .options(selectinload(Artifact.creator), selectinload(Artifact.updater))
+            .order_by(Artifact.created_at.desc())
+        )
 
         if artifact_type:
             stmt = stmt.where(Artifact.artifact_type == ArtifactType(artifact_type))
@@ -57,7 +62,9 @@ class ArtifactService:
     async def get_artifact_by_id(self, artifact_id: int) -> Optional[Artifact]:
         """Get a single artifact by ID."""
         result = await self.db.execute(
-            select(Artifact).where(Artifact.id == artifact_id)
+            select(Artifact)
+            .options(selectinload(Artifact.creator), selectinload(Artifact.updater))
+            .where(Artifact.id == artifact_id)
         )
         return result.scalars().first()
 
@@ -83,11 +90,12 @@ class ArtifactService:
             priority=ArtifactPriority(priority) if priority else None,
             area=ArtifactArea(area) if area else None,
             created_by=created_by,
+            updated_by=created_by,
         )
         self.db.add(artifact)
         await self.db.commit()
         await self.db.refresh(artifact)
-        return artifact
+        return await self.get_artifact_by_id(artifact.id)  # type: ignore[return-value]
 
     _UNSET = object()
 
@@ -101,6 +109,7 @@ class ArtifactService:
         category: Optional[str] = _UNSET,
         priority: Optional[str] = _UNSET,
         area: Optional[str] = _UNSET,
+        updated_by: Optional[int] = None,
     ) -> Optional[Artifact]:
         """Update an existing artifact. Returns None if not found."""
         artifact = await self.get_artifact_by_id(artifact_id)
@@ -121,10 +130,11 @@ class ArtifactService:
             artifact.priority = ArtifactPriority(priority) if priority else None
         if area is not self._UNSET:
             artifact.area = ArtifactArea(area) if area else None
+        if updated_by is not None:
+            artifact.updated_by = updated_by
 
         await self.db.commit()
-        await self.db.refresh(artifact)
-        return artifact
+        return await self.get_artifact_by_id(artifact.id)  # type: ignore[return-value]
 
     async def delete_artifact(self, artifact_id: int) -> Optional[str]:
         """Delete an artifact by ID. Returns the title if deleted, None if not found."""
@@ -145,6 +155,7 @@ class ArtifactService:
         category: Optional[str] = None,
         priority: Optional[str] = None,
         area: Optional[str] = None,
+        updated_by: Optional[int] = None,
     ) -> int:
         """Bulk update status, category, priority, and/or area for multiple artifacts. Returns count updated."""
         if not artifact_ids:
@@ -156,7 +167,11 @@ class ArtifactService:
         if resolve_category:
             category_id = await self._resolve_category_id(category if category != '' else None)
 
-        stmt = select(Artifact).where(Artifact.id.in_(artifact_ids))
+        stmt = (
+            select(Artifact)
+            .options(selectinload(Artifact.creator), selectinload(Artifact.updater))
+            .where(Artifact.id.in_(artifact_ids))
+        )
         result = await self.db.execute(stmt)
         artifacts = list(result.scalars().all())
 
@@ -169,6 +184,8 @@ class ArtifactService:
                 artifact.priority = ArtifactPriority(priority) if priority != '' else None
             if area is not None:
                 artifact.area = ArtifactArea(area) if area != '' else None
+            if updated_by is not None:
+                artifact.updated_by = updated_by
 
         await self.db.commit()
         return len(artifacts)

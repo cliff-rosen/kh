@@ -108,7 +108,7 @@ interface EditState {
     category: string;
 }
 
-type SortField = 'artifact_type' | 'title' | 'priority' | 'area' | 'status' | 'category' | 'created_at';
+type SortField = 'artifact_type' | 'title' | 'priority' | 'area' | 'status' | 'category' | 'created_at' | 'updated_at';
 type SortDir = 'asc' | 'desc';
 
 function RadioGroup({ label, value, options, onChange }: {
@@ -447,6 +447,10 @@ export function ArtifactList() {
                     aVal = a.created_at;
                     bVal = b.created_at;
                     break;
+                case 'updated_at':
+                    aVal = a.updated_at;
+                    bVal = b.updated_at;
+                    break;
                 default:
                     return 0;
             }
@@ -700,6 +704,7 @@ export function ArtifactList() {
         artifacts: artifacts.map(a => ({
             id: a.id, title: a.title, artifact_type: a.artifact_type,
             status: a.status, priority: a.priority, area: a.area, category: a.category, description: a.description,
+            created_by_name: a.created_by_name, updated_by_name: a.updated_by_name,
         })),
         categories: categories.map(c => ({ id: c.id, name: c.name })),
         filters: { type: filterType, status: filterStatus, category: filterCategory, area: filterArea },
@@ -820,7 +825,7 @@ export function ArtifactList() {
         );
     }
 
-    const COL_COUNT = 9;
+    const COL_COUNT = 10;
     const hasSelection = selected.size > 0;
 
     return (
@@ -1080,8 +1085,11 @@ export function ArtifactList() {
                                 <th className="px-4 py-3 text-left w-36">
                                     <SortHeader label="Category" field="category" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                                 </th>
-                                <th className="px-4 py-3 text-left w-28">
+                                <th className="px-4 py-3 text-left w-36">
                                     <SortHeader label="Created" field="created_at" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                                </th>
+                                <th className="px-4 py-3 text-left w-36">
+                                    <SortHeader label="Updated" field="updated_at" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                                 </th>
                                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
                                     Actions
@@ -1259,7 +1267,16 @@ export function ArtifactList() {
                                             )}
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                            {new Date(artifact.created_at).toLocaleDateString()}
+                                            {artifact.created_by_name && (
+                                                <div className="text-gray-700 dark:text-gray-300 text-xs font-medium">{artifact.created_by_name}</div>
+                                            )}
+                                            <div className="text-xs">{new Date(artifact.created_at).toLocaleDateString()}</div>
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                            {artifact.updated_by_name && (
+                                                <div className="text-gray-700 dark:text-gray-300 text-xs font-medium">{artifact.updated_by_name}</div>
+                                            )}
+                                            <div className="text-xs">{new Date(artifact.updated_at).toLocaleDateString()}</div>
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap text-right text-sm" onClick={(e) => e.stopPropagation()}>
                                             <button

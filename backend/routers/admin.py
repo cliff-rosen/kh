@@ -1828,6 +1828,7 @@ async def update_artifact(
             kwargs["priority"] = data.priority
         if data.area is not _UNSET:
             kwargs["area"] = data.area
+        kwargs["updated_by"] = current_user.user_id
         artifact = await artifact_service.update_artifact(**kwargs)
         if not artifact:
             raise HTTPException(
@@ -1902,6 +1903,7 @@ async def bulk_update_artifacts(
             category=data.category,
             priority=data.priority,
             area=data.area,
+            updated_by=current_user.user_id,
         )
         return {"updated": count}
 

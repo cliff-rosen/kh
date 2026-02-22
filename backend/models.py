@@ -922,17 +922,29 @@ class Artifact(Base):
     area = Column(Enum(ArtifactArea, values_callable=lambda x: [e.value for e in x], name='artifactarea'), nullable=True)
     category_id = Column(Integer, ForeignKey("artifact_categories.id", ondelete="SET NULL"), nullable=True, index=True)
     created_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    updated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    creator = relationship("User")
+    creator = relationship("User", foreign_keys=[created_by])
+    updater = relationship("User", foreign_keys=[updated_by])
     category_rel = relationship("ArtifactCategory", lazy="joined")
 
     @property
     def category(self):
         """Return category name for API compatibility."""
         return self.category_rel.name if self.category_rel else None
+
+    @property
+    def created_by_name(self):
+        """Return creator's display name."""
+        return self.creator.full_name or self.creator.email if self.creator else None
+
+    @property
+    def updated_by_name(self):
+        """Return updater's display name."""
+        return self.updater.full_name or self.updater.email if self.updater else None
 
 
 # Add relationships to User model

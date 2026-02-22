@@ -33,6 +33,9 @@ def _artifact_to_dict(artifact) -> Dict[str, Any]:
         "area": artifact.area.value if artifact.area else None,
         "category": artifact.category,
         "created_by": artifact.created_by,
+        "created_by_name": artifact.created_by_name,
+        "updated_by": artifact.updated_by,
+        "updated_by_name": artifact.updated_by_name,
         "created_at": artifact.created_at.isoformat() if artifact.created_at else None,
         "updated_at": artifact.updated_at.isoformat() if artifact.updated_at else None,
     }
@@ -202,6 +205,7 @@ async def execute_update_artifact(
             status=params.get("status"),
             artifact_type=params.get("type"),
             category=params.get("category"),
+            updated_by=user_id,
         )
         if "priority" in params:
             kwargs["priority"] = params["priority"]

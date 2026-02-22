@@ -30,6 +30,9 @@ class Artifact(BaseModel):
     area: Optional[str] = None      # functional area (login_auth, streams, etc.)
     category: Optional[str] = None
     created_by: int
+    created_by_name: Optional[str] = None
+    updated_by: Optional[int] = None
+    updated_by_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

@@ -20,6 +20,9 @@ export interface Artifact {
   area: string | null;     // functional area (login_auth, streams, etc.)
   category: string | null;
   created_by: number;
+  created_by_name: string | null;
+  updated_by: number | null;
+  updated_by_name: string | null;
   created_at: string;
   updated_at: string;
 }
