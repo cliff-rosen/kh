@@ -63,12 +63,16 @@ class EmailService:
             bool: True if email sent successfully, False otherwise
         """
         try:
-            # For development, log instead of sending
+            # Check SMTP credentials
             if not self.smtp_username or not self.smtp_password:
-                logger.info(f"DEV MODE: Would send email to {to_email}")
-                logger.info(f"DEV MODE: Subject: {subject}")
-                logger.info(f"DEV MODE: Body:\n{body}")
-                return True
+                if settings.IS_PRODUCTION:
+                    logger.error(f"SMTP credentials missing in production! Cannot send email to {to_email}")
+                    return False
+                else:
+                    logger.info(f"DEV MODE: Would send email to {to_email}")
+                    logger.info(f"DEV MODE: Subject: {subject}")
+                    logger.info(f"DEV MODE: Body:\n{body}")
+                    return True
 
             # Create message
             msg = MIMEText(body, 'plain')
@@ -124,15 +128,19 @@ class EmailService:
             else:
                 from_header = self.from_email
 
-            # For development, log instead of sending
+            # Check SMTP credentials
             if not self.smtp_username or not self.smtp_password:
-                logger.info(f"DEV MODE: Would send email to {to_email}")
-                logger.info(f"DEV MODE: From: {from_header}")
-                logger.info(f"DEV MODE: Subject: {subject}")
-                logger.info(f"DEV MODE: HTML content length: {len(html_content)} chars")
-                if images:
-                    logger.info(f"DEV MODE: Images: {list(images.keys())}")
-                return True
+                if settings.IS_PRODUCTION:
+                    logger.error(f"SMTP credentials missing in production! Cannot send email to {to_email}")
+                    return False
+                else:
+                    logger.info(f"DEV MODE: Would send email to {to_email}")
+                    logger.info(f"DEV MODE: From: {from_header}")
+                    logger.info(f"DEV MODE: Subject: {subject}")
+                    logger.info(f"DEV MODE: HTML content length: {len(html_content)} chars")
+                    if images:
+                        logger.info(f"DEV MODE: Images: {list(images.keys())}")
+                    return True
 
             # Create message structure
             # If we have images, use multipart/related as outer container

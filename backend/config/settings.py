@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     # Worker Service URL (for pipeline execution)
     WORKER_URL: str = os.getenv("WORKER_URL", "http://localhost:8001")
 
+    # Environment
+    IS_PRODUCTION: bool = _is_production
+
     # Email/SMTP settings
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
