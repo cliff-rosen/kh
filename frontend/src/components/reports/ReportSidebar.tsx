@@ -81,9 +81,20 @@ export default function ReportSidebar({
                                     className="flex-1"
                                 >
                                     <div className="flex items-start justify-between">
-                                        <h3 className="font-semibold text-gray-900 dark:text-white flex-1">
-                                            {report.report_name}
-                                        </h3>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-semibold text-gray-900 dark:text-white">
+                                                {report.report_name}
+                                            </h3>
+                                            {report.approval_status !== 'approved' && (
+                                                <span className={`inline-flex items-center mt-1 px-1.5 py-0.5 text-[10px] font-semibold rounded ${
+                                                    report.approval_status === 'awaiting_approval'
+                                                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+                                                        : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                                                }`}>
+                                                    {report.approval_status === 'awaiting_approval' ? 'Awaiting Approval' : 'Rejected'}
+                                                </span>
+                                            )}
+                                        </div>
                                         {onDeleteReport && (
                                             <button
                                                 onClick={(e) => {

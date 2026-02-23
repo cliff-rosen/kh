@@ -850,7 +850,11 @@ class ReportService:
         user: User,
         research_stream_id: int
     ) -> List[ReportWithArticleCount]:
-        """Get all reports for a specific stream (async)."""
+        """Get all reports for a specific stream (async).
+
+        Non-admin users only see approved reports.
+        Admins (platform_admin, org_admin) see all reports.
+        """
         accessible_stream_ids = await self.get_accessible_stream_ids(user)
 
         if research_stream_id not in accessible_stream_ids:
@@ -860,8 +864,13 @@ class ReportService:
             select(Report, ResearchStream)
             .join(ResearchStream, Report.research_stream_id == ResearchStream.stream_id)
             .where(Report.research_stream_id == research_stream_id)
-            .order_by(Report.report_date.desc())
         )
+
+        # Non-admin users only see approved reports
+        if user.role == UserRole.MEMBER:
+            stmt = stmt.where(Report.approval_status == ApprovalStatus.APPROVED)
+
+        stmt = stmt.order_by(Report.report_date.desc())
 
         result = await self.db.execute(stmt)
         rows = result.all()

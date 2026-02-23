@@ -104,6 +104,17 @@ export default function ReportHeader({
                 </div>
             </div>
 
+            {/* Approval status banner */}
+            {report.approval_status !== 'approved' && (
+                <div className={`mt-3 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
+                    report.approval_status === 'awaiting_approval'
+                        ? 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800'
+                        : 'bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800'
+                }`}>
+                    <span>{report.approval_status === 'awaiting_approval' ? 'This report is awaiting approval and is not visible to subscribers.' : 'This report was rejected and is not visible to subscribers.'}</span>
+                </div>
+            )}
+
             {/* Second line: Dates (left) + View buttons (right) */}
             <div className="flex items-center justify-between mt-3">
                 <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
