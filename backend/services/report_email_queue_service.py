@@ -9,8 +9,7 @@ Manages the email queue for scheduled report delivery.
 
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, or_, select, func
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy import and_, select, func
 from typing import List, Optional, Tuple
 from datetime import datetime, date, timedelta
 from fastapi import Depends
@@ -23,8 +22,6 @@ except ImportError:
 from models import (
     ReportEmailQueue, ReportEmailQueueStatus,
     Report, User, ResearchStream,
-    OrgStreamSubscription, UserStreamSubscription,
-    ApprovalStatus, StreamScope
 )
 from schemas.report_email_queue import (
     ReportEmailQueueCreate,
@@ -60,6 +57,30 @@ class ReportEmailQueueService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self._subscription_service = None
+        self._stream_service = None
+        self._report_service = None
+
+    @property
+    def subscription_service(self):
+        if self._subscription_service is None:
+            from services.subscription_service import SubscriptionService
+            self._subscription_service = SubscriptionService(self.db)
+        return self._subscription_service
+
+    @property
+    def stream_service(self):
+        if self._stream_service is None:
+            from services.research_stream_service import ResearchStreamService
+            self._stream_service = ResearchStreamService(self.db)
+        return self._stream_service
+
+    @property
+    def report_service(self):
+        if self._report_service is None:
+            from services.report_service import ReportService
+            self._report_service = ReportService(self.db)
+        return self._report_service
 
     # ==================== Queue Management ====================
 
@@ -294,109 +315,26 @@ class ReportEmailQueueService:
 
     async def get_approved_reports(self, limit: int = 50) -> List[Report]:
         """Get approved reports for the dropdown."""
-        result = await self.db.execute(
-            select(Report)
-            .where(Report.approval_status == ApprovalStatus.APPROVED)
-            .order_by(Report.created_at.desc())
-            .limit(limit)
-        )
-        return list(result.scalars().all())
+        return await self.report_service.get_approved_reports(limit)
 
     async def get_stream_subscribers(self, report_id: int) -> List[User]:
         """
         Get all users subscribed to the stream of a given report.
-
-        Subscription rules:
-        - Global streams: Users in orgs subscribed to the stream, who haven't opted out
-        - Org streams: Users who have explicitly subscribed
-        - Personal streams: Only the owner
+        Delegates subscriber resolution to SubscriptionService.
         """
-        # Get the report and its stream
-        result = await self.db.execute(
-            select(Report, ResearchStream)
-            .join(ResearchStream, Report.research_stream_id == ResearchStream.stream_id)
-            .where(Report.report_id == report_id)
-        )
-        row = result.first()
-
-        if not row:
+        # Get the report via its owning service
+        report = await self.report_service.get_report_by_id_internal(report_id)
+        if not report or not report.research_stream_id:
             return []
 
-        report, stream = row
-
-        if stream.scope == StreamScope.PERSONAL:
-            # Personal stream: only the owner
-            if stream.user_id:
-                result = await self.db.execute(
-                    select(User)
-                    .options(selectinload(User.organization))
-                    .where(
-                        and_(User.user_id == stream.user_id, User.is_active == True)
-                    )
-                )
-                user = result.scalars().first()
-                return [user] if user else []
+        # Get the stream via its owning service
+        try:
+            stream = await self.stream_service.get_stream_by_id(report.research_stream_id)
+        except ValueError:
             return []
 
-        elif stream.scope == StreamScope.ORGANIZATION:
-            # Org stream: users who have explicitly subscribed
-            result = await self.db.execute(
-                select(User)
-                .options(selectinload(User.organization))
-                .join(UserStreamSubscription, User.user_id == UserStreamSubscription.user_id)
-                .where(
-                    and_(
-                        UserStreamSubscription.stream_id == stream.stream_id,
-                        UserStreamSubscription.is_subscribed == True,
-                        User.is_active == True,
-                    )
-                )
-            )
-            return list(result.scalars().all())
-
-        elif stream.scope == StreamScope.GLOBAL:
-            # Global stream: users in subscribed orgs who haven't opted out
-            # Step 1: Get all orgs subscribed to this stream
-            org_result = await self.db.execute(
-                select(OrgStreamSubscription.org_id).where(
-                    OrgStreamSubscription.stream_id == stream.stream_id
-                )
-            )
-            subscribed_org_ids = [r[0] for r in org_result.all()]
-
-            if not subscribed_org_ids:
-                return []
-
-            # Step 2: Get users who have opted out
-            opted_out_result = await self.db.execute(
-                select(UserStreamSubscription.user_id).where(
-                    and_(
-                        UserStreamSubscription.stream_id == stream.stream_id,
-                        UserStreamSubscription.is_subscribed == False,
-                    )
-                )
-            )
-            opted_out_user_ids = {r[0] for r in opted_out_result.all()}
-
-            # Step 3: Get all active users in subscribed orgs, excluding opted-out
-            user_query = (
-                select(User)
-                .options(selectinload(User.organization))
-                .where(
-                    and_(
-                        User.org_id.in_(subscribed_org_ids),
-                        User.is_active == True,
-                    )
-                )
-            )
-
-            if opted_out_user_ids:
-                user_query = user_query.where(User.user_id.notin_(opted_out_user_ids))
-
-            result = await self.db.execute(user_query)
-            return list(result.scalars().all())
-
-        return []
+        # Delegate subscriber resolution to SubscriptionService
+        return await self.subscription_service.get_subscribed_users_for_stream(stream)
 
     # ==================== Auto-Queue on Approval ====================
 
@@ -472,18 +410,19 @@ class ReportEmailQueueService:
 
         Returns the number of entries queued.
         """
-        # Load the report's stream
-        result = await self.db.execute(
-            select(Report, ResearchStream)
-            .join(ResearchStream, Report.research_stream_id == ResearchStream.stream_id)
-            .where(Report.report_id == report_id)
-        )
-        row = result.first()
-        if not row:
+        # Load the report via its owning service
+        report = await self.report_service.get_report_by_id_internal(report_id)
+        if not report or not report.research_stream_id:
             logger.warning(f"auto_queue: report {report_id} not found or has no stream")
             return 0
 
-        report, stream = row
+        # Load the stream via its owning service
+        try:
+            stream = await self.stream_service.get_stream_by_id(report.research_stream_id)
+        except ValueError:
+            logger.warning(f"auto_queue: stream {report.research_stream_id} not found")
+            return 0
+
         config = stream.schedule_config or {}
 
         # Only auto-queue if schedule has send_time configured

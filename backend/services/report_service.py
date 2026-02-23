@@ -825,6 +825,26 @@ class ReportService:
 
         return (report, user, stream)
 
+    async def get_report_by_id_internal(self, report_id: int) -> Optional[Report]:
+        """
+        Get a report by ID without access control.
+        For system-level operations (e.g. email queue processing).
+        """
+        result = await self.db.execute(
+            select(Report).where(Report.report_id == report_id)
+        )
+        return result.scalars().first()
+
+    async def get_approved_reports(self, limit: int = 50) -> List[Report]:
+        """Get approved reports (e.g. for email queue dropdown)."""
+        result = await self.db.execute(
+            select(Report)
+            .where(Report.approval_status == ApprovalStatus.APPROVED)
+            .order_by(Report.created_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
     async def get_reports_for_stream(
         self,
         user: User,

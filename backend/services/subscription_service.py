@@ -6,6 +6,7 @@ Handles org subscriptions to global streams and user subscriptions to org stream
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, select
+from sqlalchemy.orm import selectinload
 from typing import List, Optional, Set
 from datetime import datetime
 from fastapi import HTTPException, status, Depends
@@ -434,6 +435,90 @@ class SubscriptionService:
 
         logger.info(f"User {user.user_id} opted back into global stream {stream_id}")
         return True
+
+    # ==================== Subscriber Resolution ====================
+
+    async def get_subscribed_users_for_stream(self, stream: ResearchStream) -> List[User]:
+        """
+        Get all users who should receive emails for a given stream.
+
+        Handles all three scopes:
+        - PERSONAL: returns the stream owner
+        - ORGANIZATION: returns users with explicit subscriptions
+        - GLOBAL: returns active users in subscribed orgs, minus opted-out users
+
+        Eagerly loads User.organization for downstream use.
+        """
+        if stream.scope == StreamScope.PERSONAL:
+            if not stream.user_id:
+                return []
+            result = await self.db.execute(
+                select(User)
+                .options(selectinload(User.organization))
+                .where(
+                    and_(User.user_id == stream.user_id, User.is_active == True)
+                )
+            )
+            user = result.scalars().first()
+            return [user] if user else []
+
+        elif stream.scope == StreamScope.ORGANIZATION:
+            result = await self.db.execute(
+                select(User)
+                .options(selectinload(User.organization))
+                .join(UserStreamSubscription, User.user_id == UserStreamSubscription.user_id)
+                .where(
+                    and_(
+                        UserStreamSubscription.stream_id == stream.stream_id,
+                        UserStreamSubscription.is_subscribed == True,
+                        User.is_active == True,
+                    )
+                )
+            )
+            return list(result.scalars().all())
+
+        elif stream.scope == StreamScope.GLOBAL:
+            # Step 1: Get all orgs subscribed to this stream
+            org_result = await self.db.execute(
+                select(OrgStreamSubscription.org_id).where(
+                    OrgStreamSubscription.stream_id == stream.stream_id
+                )
+            )
+            subscribed_org_ids = [r[0] for r in org_result.all()]
+
+            if not subscribed_org_ids:
+                return []
+
+            # Step 2: Get users who have opted out
+            opted_out_result = await self.db.execute(
+                select(UserStreamSubscription.user_id).where(
+                    and_(
+                        UserStreamSubscription.stream_id == stream.stream_id,
+                        UserStreamSubscription.is_subscribed == False,
+                    )
+                )
+            )
+            opted_out_user_ids = {r[0] for r in opted_out_result.all()}
+
+            # Step 3: Get all active users in subscribed orgs, excluding opted-out
+            user_query = (
+                select(User)
+                .options(selectinload(User.organization))
+                .where(
+                    and_(
+                        User.org_id.in_(subscribed_org_ids),
+                        User.is_active == True,
+                    )
+                )
+            )
+
+            if opted_out_user_ids:
+                user_query = user_query.where(User.user_id.notin_(opted_out_user_ids))
+
+            result = await self.db.execute(user_query)
+            return list(result.scalars().all())
+
+        return []
 
 
 # Dependency injection provider for async subscription service
