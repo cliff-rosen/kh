@@ -15,6 +15,7 @@ class SourceType(str, Enum):
     CLINICAL_TRIALS = "clinical_trials"
     PATENT_DATABASE = "patent_database"
     REGULATORY_DATABASE = "regulatory_database"
+    WEB_MONITOR = "web_monitor"
 
 
 class InformationSource(BaseModel):
@@ -92,6 +93,14 @@ INFORMATION_SOURCES: List[InformationSource] = [
         description="U.S. Securities and Exchange Commission filings database",
         query_syntax="Natural Language",
         url="https://www.sec.gov/edgar"
+    ),
+    InformationSource(
+        source_id="web_monitor",
+        name="Web Monitor",
+        source_type=SourceType.WEB_MONITOR,
+        description="Monitor websites for new content via RSS/Atom feeds or HTML scraping",
+        query_syntax="URL + directive",
+        url=""
     ),
 ]
 

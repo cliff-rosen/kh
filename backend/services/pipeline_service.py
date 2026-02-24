@@ -14,7 +14,6 @@ All intermediate results are stored in wip_articles table for audit trail and de
 
 Retrieval Strategy:
 - Broad Search: 1-3 simple, wide-net queries optimized for weekly monitoring
-- Note: Concept-based retrieval is not supported
 """
 
 from typing import AsyncGenerator, Dict, List, Optional, Tuple, Any, Callable, Coroutine
@@ -42,7 +41,8 @@ from models import (
     RunType,
     PipelineExecution,
 )
-from schemas.research_stream import RetrievalConfig, PresentationConfig, BroadQuery, Category, EnrichmentConfig, ArticleAnalysisConfig
+from schemas.research_stream import RetrievalConfig, PresentationConfig, BroadQuery, Category, EnrichmentConfig, ArticleAnalysisConfig, WebSourceConfig
+from schemas.canonical_types import CanonicalResearchArticle
 from schemas.llm import StageConfig, PipelineLLMConfig, get_stage_config, ModelConfig
 from services.pubmed_service import PubMedService
 from services.ai_evaluation_service import get_ai_evaluation_service
@@ -55,6 +55,7 @@ from services.report_service import ReportService
 from services.report_article_association_service import ReportArticleAssociationService
 from services.article_service import ArticleService
 from services.execution_service import ExecutionService
+from services.web_monitor_service import WebMonitorService
 
 
 @dataclass
@@ -81,6 +82,7 @@ class PipelineContext:
     enrichment_config: Optional[EnrichmentConfig]
     llm_config: Optional[PipelineLLMConfig]
     article_analysis_config: Optional[ArticleAnalysisConfig]
+    web_sources: Optional[WebSourceConfig] = None
 
     # === Mutable (accumulated during execution) ===
     total_retrieved: int = 0
@@ -142,6 +144,7 @@ class PipelineService:
         self.article_service = ArticleService(db)
         self.execution_service = ExecutionService(db)
         self.pubmed_service = PubMedService()
+        self.web_monitor_service = WebMonitorService()
         self.eval_service = get_ai_evaluation_service()
         self.categorization_service = ArticleCategorizationService()
         self.summary_service = ReportSummaryService()
@@ -270,17 +273,17 @@ class PipelineService:
         # Parse retrieval config from execution snapshot
         retrieval_config = RetrievalConfig.model_validate(execution.retrieval_config)
 
-        # Validate retrieval strategy
-        if retrieval_config.concepts and len(retrieval_config.concepts) > 0:
-            raise ValueError(
-                "Concept-based retrieval is not supported in pipeline execution"
-            )
+        has_broad_search = (
+            retrieval_config.broad_search
+            and retrieval_config.broad_search.queries
+        )
+        has_web_sources = (
+            retrieval_config.web_sources
+            and retrieval_config.web_sources.sources
+        )
 
-        if (
-            not retrieval_config.broad_search
-            or not retrieval_config.broad_search.queries
-        ):
-            raise ValueError("No broad search queries configured")
+        if not has_broad_search and not has_web_sources:
+            raise ValueError("No broad search queries or web sources configured")
 
         # Parse presentation config
         presentation_config = PresentationConfig.model_validate(
@@ -317,12 +320,13 @@ class PipelineService:
             start_date=execution.start_date,
             end_date=execution.end_date,
             report_name=execution.report_name,
-            queries=retrieval_config.broad_search.queries,
+            queries=retrieval_config.broad_search.queries if retrieval_config.broad_search else [],
             categories=presentation_config.categories or [],
             presentation_config=presentation_config,
             enrichment_config=enrichment_config,
             llm_config=llm_config,
             article_analysis_config=article_analysis_config,
+            web_sources=retrieval_config.web_sources,
         )
 
     async def run_pipeline_direct(
@@ -486,15 +490,17 @@ class PipelineService:
         self, ctx: PipelineContext
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
-        Stage: Execute retrieval for each broad search query.
+        Stage: Execute retrieval for each broad search query and web source.
         Commits: WipArticle records for all retrieved articles.
         """
+        num_web_sources = len(ctx.web_sources.sources) if ctx.web_sources else 0
         yield PipelineStatus(
             "retrieval",
-            f"Starting retrieval for {len(ctx.queries)} queries",
-            {"num_queries": len(ctx.queries)},
+            f"Starting retrieval for {len(ctx.queries)} queries and {num_web_sources} web sources",
+            {"num_queries": len(ctx.queries), "num_web_sources": num_web_sources},
         )
 
+        # --- Broad search queries ---
         for query in ctx.queries:
             # Check limits
             if ctx.total_retrieved >= self.MAX_TOTAL_ARTICLES:
@@ -535,6 +541,47 @@ class PipelineService:
                     "total": ctx.total_retrieved,
                 },
             )
+
+        # --- Web sources ---
+        if ctx.web_sources:
+            for ws in ctx.web_sources.sources:
+                if not ws.enabled:
+                    continue
+
+                if ctx.total_retrieved >= self.MAX_TOTAL_ARTICLES:
+                    yield PipelineStatus(
+                        "retrieval",
+                        f"Hit MAX_TOTAL_ARTICLES limit ({self.MAX_TOTAL_ARTICLES})",
+                        {"limit_reached": True},
+                    )
+                    break
+
+                yield PipelineStatus(
+                    "retrieval",
+                    f"Fetching web source: {ws.url}",
+                    {"web_source_id": ws.source_id, "url": ws.url},
+                )
+
+                count = await self._fetch_web_source_articles(
+                    research_stream_id=ctx.research_stream_id,
+                    execution_id=ctx.execution_id,
+                    web_source=ws,
+                    start_date=ctx.start_date,
+                    max_items=ctx.web_sources.max_articles_per_source,
+                    ctx=ctx,
+                )
+
+                ctx.total_retrieved += count
+
+                yield PipelineStatus(
+                    "retrieval",
+                    f"Retrieved {count} articles from web source",
+                    {
+                        "web_source_id": ws.source_id,
+                        "count": count,
+                        "total": ctx.total_retrieved,
+                    },
+                )
 
         yield PipelineStatus(
             "retrieval",
@@ -601,6 +648,9 @@ class PipelineService:
                 f"Filtered: {passed} passed, {rejected} rejected",
                 {"query_id": query.query_id, "passed": passed, "rejected": rejected},
             )
+
+        # Web source articles are pre-approved (passed_semantic_filter=True at creation)
+        # so no semantic filter loop is needed for them.
 
         # Mark articles for inclusion (after filtering completes)
         ctx.included_count = await self._mark_articles_for_report(ctx.execution_id)
@@ -1216,6 +1266,151 @@ class PipelineService:
 
         logger.info(f"Stored {count} articles for execution_id={execution_id}")
         return count
+
+    async def _fetch_web_source_articles(
+        self,
+        research_stream_id: int,
+        execution_id: str,
+        web_source: Any,
+        start_date: Optional[str] = None,
+        max_items: int = 20,
+        ctx: Optional["PipelineContext"] = None,
+    ) -> int:
+        """
+        Fetch articles from a web source and store in wip_articles.
+
+        Routes by source_type:
+        - 'feed': Deterministic RSS/Atom parsing via fetch_feed()
+        - 'site': Agent-driven exploration via run_site_agent()
+
+        Feed and site articles are stored as pre-approved (passed_semantic_filter=True)
+        since relevance filtering is handled by the directive/agent, not a separate LLM filter.
+
+        Args:
+            research_stream_id: Stream ID
+            execution_id: UUID of this pipeline execution
+            web_source: WebSource configuration
+            start_date: Only items published after this date
+            max_items: Maximum items to fetch per source
+            ctx: Pipeline context (needed for site agent memo writeback)
+
+        Returns:
+            Number of articles retrieved and stored
+        """
+        source_type = getattr(web_source, "source_type", "site")
+        logger.info(
+            f"Fetching web source ({source_type}): url='{web_source.url}', "
+            f"source_id={web_source.source_id}, since={start_date}"
+        )
+
+        articles: List[CanonicalResearchArticle] = []
+        updated_site_memo: Optional[str] = None
+
+        try:
+            if source_type == "feed":
+                articles = await self.web_monitor_service.fetch_feed(
+                    source=web_source,
+                    since_date=start_date,
+                    max_items=max_items,
+                )
+            else:
+                # Site agent path
+                articles, updated_site_memo = await self.web_monitor_service.run_site_agent(
+                    source=web_source,
+                    since_date=start_date,
+                    max_items=max_items,
+                    db=self.db,
+                    user_id=ctx.user_id if ctx else 0,
+                )
+        except Exception as e:
+            logger.error(
+                f"Failed to fetch web source: url='{web_source.url}', "
+                f"source_id={web_source.source_id}, error={e}"
+            )
+            raise
+
+        logger.info(
+            f"Fetched {len(articles)} articles from web source '{web_source.url}' "
+            f"(type={source_type})"
+        )
+
+        # Write back site_memo if the agent produced one
+        if updated_site_memo and ctx:
+            await self._write_back_site_memo(
+                ctx=ctx,
+                web_source_id=web_source.source_id,
+                site_memo=updated_site_memo,
+            )
+
+        if not articles:
+            return 0
+
+        # Look up the Web Monitor source_id from information_sources table
+        db_source_id = await self._get_web_monitor_source_id()
+
+        # Store results in wip_articles (pre-approved — no separate semantic filter needed)
+        try:
+            count = await self.wip_article_service.create_wip_articles(
+                research_stream_id=research_stream_id,
+                execution_id=execution_id,
+                retrieval_group_id=web_source.source_id,
+                source_id=db_source_id,
+                articles=articles,
+                pre_approved=True,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to store web source articles: execution_id={execution_id}, "
+                f"web_source_id={web_source.source_id}, count={len(articles)}, error={e}"
+            )
+            raise
+
+        logger.info(f"Stored {count} web source articles for execution_id={execution_id}")
+        return count
+
+    async def _write_back_site_memo(
+        self,
+        ctx: "PipelineContext",
+        web_source_id: str,
+        site_memo: str,
+    ) -> None:
+        """Write site_memo back to the stream's retrieval_config."""
+        try:
+            stream = await self.research_stream_service.get_stream_by_id(ctx.research_stream_id)
+            retrieval_config = stream.retrieval_config
+            if isinstance(retrieval_config, dict) and retrieval_config.get("web_sources"):
+                for ws in retrieval_config["web_sources"].get("sources", []):
+                    if ws.get("source_id") == web_source_id:
+                        ws["site_memo"] = site_memo
+                        break
+                await self.research_stream_service.update_research_stream(
+                    ctx.research_stream_id, {"retrieval_config": retrieval_config}
+                )
+                logger.info(f"Wrote site_memo for web source {web_source_id}")
+        except Exception as e:
+            logger.warning(f"Failed to write site_memo for {web_source_id}: {e}")
+
+    _web_monitor_source_id_cache: Optional[int] = None
+
+    async def _get_web_monitor_source_id(self) -> int:
+        """Look up the Web Monitor source_id from the information_sources table."""
+        if self._web_monitor_source_id_cache is not None:
+            return self._web_monitor_source_id_cache
+
+        from models import InformationSource as InformationSourceModel
+        result = await self.db.execute(
+            select(InformationSourceModel.source_id).where(
+                InformationSourceModel.source_name == "Web Monitor"
+            )
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            raise ValueError(
+                "Web Monitor source not found in information_sources table. "
+                "Run migration 011_add_web_monitor_source.sql first."
+            )
+        self._web_monitor_source_id_cache = row
+        return row
 
     async def _apply_semantic_filter(
         self,

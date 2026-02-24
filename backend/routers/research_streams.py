@@ -22,7 +22,6 @@ from schemas.research_stream import (
     ReportFrequency,
     RetrievalConfig,
     PresentationConfig,
-    Concept,
     BroadQuery,
     BroadSearchStrategy,
     ScheduleConfig,
@@ -48,7 +47,6 @@ from services.report_service import (
     CompareReportResultData,
 )
 from services.retrieval_query_service import RetrievalQueryService
-from services.concept_proposal_service import ConceptProposalService
 from services.broad_search_service import BroadSearchService
 from services.user_tracking_service import track_endpoint
 from services.report_summary_service import DEFAULT_PROMPTS
@@ -61,6 +59,49 @@ from services.article_analysis_service import (
 from routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/research-streams", tags=["research-streams"])
+
+
+# ============================================================================
+# Web Source Validation Endpoint
+# ============================================================================
+
+class ValidateWebSourceRequest(BaseModel):
+    """Request to validate a web source URL"""
+    url: str = Field(..., description="URL to validate and classify")
+
+
+class ValidateWebSourceResponse(BaseModel):
+    """Response from web source validation"""
+    source_type: Optional[str] = Field(None, description="'feed' or 'site'")
+    title: Optional[str] = Field(None, description="Site/feed title")
+    entry_count: Optional[int] = Field(None, description="Number of feed entries (feed only)")
+    error: Optional[str] = Field(None, description="Error message if validation failed")
+
+
+@router.post("/web-sources/validate", response_model=ValidateWebSourceResponse)
+async def validate_web_source(
+    request: ValidateWebSourceRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Validate a URL and classify it as 'feed' (RSS/Atom) or 'site' (HTML page).
+
+    Used at config time when a user adds a web source to determine how it
+    will be monitored.
+    """
+    from services.web_monitor_service import WebMonitorService
+
+    logger.info(f"validate_web_source - user_id={current_user.user_id}, url={request.url}")
+
+    service = WebMonitorService()
+    try:
+        result = await service.validate_url(request.url)
+        return ValidateWebSourceResponse(**result)
+    except Exception as e:
+        logger.error(f"validate_web_source failed: {e}", exc_info=True)
+        return ValidateWebSourceResponse(error=f"Validation failed: {str(e)}")
+    finally:
+        await service.close()
 
 
 def _check_can_modify_stream(stream, current_user: User):
@@ -922,14 +963,6 @@ class QueryTestResponse(BaseModel):
     error_message: Optional[str] = Field(None, description="Error message if query failed")
 
 
-class ProposeConceptsResponse(BaseModel):
-    """Response from concept proposal based on semantic space analysis"""
-    proposed_concepts: List[Concept] = Field(..., description="Proposed concepts for retrieval")
-    analysis: Dict[str, Any] = Field(..., description="Phase 1 analysis (entities, relationships)")
-    reasoning: str = Field(..., description="Overall strategy explanation")
-    coverage_check: Dict[str, Any] = Field(..., description="Topic coverage validation")
-
-
 class ProposeBroadSearchResponse(BaseModel):
     """Response from broad search proposal"""
     queries: List[BroadQuery] = Field(..., description="Proposed broad search queries (usually 1-3)")
@@ -942,93 +975,16 @@ class GenerateBroadFilterRequest(BaseModel):
     broad_query: BroadQuery = Field(..., description="Broad query to generate filter for")
 
 
-class GenerateConceptQueryRequest(BaseModel):
-    """Request to generate a query for a specific concept"""
-    concept: Concept = Field(..., description="Concept to generate query for")
-    source_id: str = Field(..., description="Source to generate query for (e.g., 'pubmed')")
-
-
-class GenerateConceptQueryResponse(BaseModel):
-    """Response from concept query generation"""
-    query_expression: str = Field(..., description="Generated query expression")
-    reasoning: str = Field(..., description="Explanation of query design")
-
-
-class GenerateConceptFilterRequest(BaseModel):
-    """Request to generate semantic filter for a concept"""
-    concept: Concept = Field(..., description="Concept to generate filter for")
-
-
-class GenerateConceptFilterResponse(BaseModel):
+class GenerateFilterResponse(BaseModel):
     """Response from semantic filter generation"""
     criteria: str = Field(..., description="Filter criteria description")
     threshold: float = Field(..., ge=0.0, le=1.0, description="Relevance threshold (0-1)")
     reasoning: str = Field(..., description="Explanation of filter design")
 
 
-class ValidateConceptsRequest(BaseModel):
-    """Request to validate concepts configuration"""
-    concepts: List[Concept]
-
-
-class ValidateConceptsResponse(BaseModel):
-    """Response from concepts validation"""
-    is_complete: bool = Field(..., description="Whether all topics are covered")
-    coverage: Dict[str, Any] = Field(..., description="Topic coverage details")
-    configuration_status: Dict[str, Any] = Field(..., description="Configuration completeness")
-    warnings: List[str] = Field(..., description="Validation warnings")
-    ready_to_activate: bool = Field(..., description="Whether config is ready for production")
-
-
 # ============================================================================
-# Retrieval Concept Workflow (Concept-Based Architecture)
+# Retrieval Workflow (Broad Search)
 # ============================================================================
-
-@router.post("/{stream_id}/retrieval/propose-concepts", response_model=ProposeConceptsResponse)
-async def propose_retrieval_concepts(
-    stream_id: int,
-    db: AsyncSession = Depends(get_async_db),
-    stream_service: ResearchStreamService = Depends(get_research_stream_service),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Phase 1: Propose retrieval concepts based on semantic space analysis.
-
-    Analyzes the semantic space and generates concept proposals following the framework:
-    - Extracts entities and relationships
-    - Generates entity-relationship patterns (concepts)
-    - Many-to-many mapping to topics
-    - Volume-driven design (will be refined in later phases)
-    """
-    concept_service = ConceptProposalService(db, current_user.user_id)
-
-    try:
-        # Get stream (raises 404 if not found or not authorized)
-        # Returns model with semantic_space already parsed
-        stream = await stream_service.get_research_stream(current_user, stream_id)
-        if not stream:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
-
-        # Propose concepts using parsed semantic_space
-        result = await concept_service.propose_concepts(stream.semantic_space)
-
-        # Convert dataclass to schema at API boundary
-        return ProposeConceptsResponse(
-            proposed_concepts=result.proposed_concepts,
-            analysis=result.analysis,
-            reasoning=result.reasoning,
-            coverage_check=asdict(result.coverage_check)
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Concept proposal failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Concept proposal failed: {str(e)}"
-        )
-
 
 @router.post("/{stream_id}/retrieval/propose-broad-search", response_model=ProposeBroadSearchResponse)
 async def propose_broad_search(
@@ -1078,7 +1034,7 @@ async def propose_broad_search(
         )
 
 
-@router.post("/{stream_id}/retrieval/generate-broad-filter", response_model=GenerateConceptFilterResponse)
+@router.post("/{stream_id}/retrieval/generate-broad-filter", response_model=GenerateFilterResponse)
 async def generate_broad_filter(
     stream_id: int,
     request: GenerateBroadFilterRequest,
@@ -1106,7 +1062,7 @@ async def generate_broad_filter(
             semantic_space=stream.semantic_space
         )
 
-        return GenerateConceptFilterResponse(
+        return GenerateFilterResponse(
             criteria=criteria,
             threshold=threshold,
             reasoning=reasoning
@@ -1119,181 +1075,6 @@ async def generate_broad_filter(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Broad filter generation failed: {str(e)}"
-        )
-
-
-@router.post("/{stream_id}/retrieval/generate-concept-query", response_model=GenerateConceptQueryResponse)
-async def generate_concept_query(
-    stream_id: int,
-    request: GenerateConceptQueryRequest,
-    db: AsyncSession = Depends(get_async_db),
-    stream_service: ResearchStreamService = Depends(get_research_stream_service),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Generate a source-specific query for a concept.
-
-    Uses the concept's entity pattern, relationship pattern, and vocabulary terms
-    to generate an optimized query following framework principles:
-    - Single inclusion pattern
-    - Vocabulary expansion within entities
-    - Minimal exclusions
-    """
-    query_service = RetrievalQueryService(db)
-
-    try:
-        # Get stream (raises 404 if not found or not authorized)
-        # Returns model with semantic_space already parsed
-        stream = await stream_service.get_research_stream(current_user, stream_id)
-        if not stream:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
-
-        # Validate source
-        valid_sources = [src.source_id for src in INFORMATION_SOURCES]
-        if request.source_id not in valid_sources:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid source_id. Must be one of: {', '.join(valid_sources)}"
-            )
-
-        # Generate query using concept from request and parsed semantic_space
-        query_expression, reasoning = await query_service.generate_query_for_concept(
-            concept=request.concept,
-            source_id=request.source_id,
-            semantic_space=stream.semantic_space
-        )
-
-        return GenerateConceptQueryResponse(
-            query_expression=query_expression,
-            reasoning=reasoning
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Concept query generation failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Concept query generation failed: {str(e)}"
-        )
-
-
-@router.post("/{stream_id}/retrieval/generate-concept-filter", response_model=GenerateConceptFilterResponse)
-async def generate_concept_filter(
-    stream_id: int,
-    request: GenerateConceptFilterRequest,
-    db: AsyncSession = Depends(get_async_db),
-    stream_service: ResearchStreamService = Depends(get_research_stream_service),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Generate semantic filter criteria for a concept.
-
-    Uses LLM to create filter criteria based on the concept's covered topics,
-    entity pattern, and rationale.
-    """
-    query_service = RetrievalQueryService(db)
-
-    try:
-        # Get stream (raises 404 if not found or not authorized)
-        # Returns model with semantic_space already parsed
-        stream = await stream_service.get_research_stream(current_user, stream_id)
-        if not stream:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
-
-        # Generate filter using service with concept from request and parsed semantic_space
-        criteria, threshold, reasoning = await query_service.generate_filter_for_concept(
-            concept=request.concept,
-            semantic_space=stream.semantic_space
-        )
-
-        return GenerateConceptFilterResponse(
-            criteria=criteria,
-            threshold=threshold,
-            reasoning=reasoning
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Semantic filter generation failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Semantic filter generation failed: {str(e)}"
-        )
-
-
-@router.post("/{stream_id}/retrieval/validate-concepts", response_model=ValidateConceptsResponse)
-async def validate_concepts(
-    stream_id: int,
-    request: ValidateConceptsRequest,
-    stream_service: ResearchStreamService = Depends(get_research_stream_service),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Validate concepts configuration for completeness and readiness.
-
-    Checks coverage, configuration status, and whether the retrieval
-    config is ready to activate.
-    """
-    try:
-        # Get stream (raises 404 if not found or not authorized)
-        # Returns Pydantic schema with semantic_space already parsed
-        stream = await stream_service.get_research_stream(current_user, stream_id)
-        if not stream:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
-
-        concepts = request.concepts
-
-        # Check coverage using parsed semantic_space
-        from schemas.research_stream import RetrievalConfig
-        temp_config = RetrievalConfig(concepts=concepts)
-        coverage = temp_config.validate_coverage(stream.semantic_space)
-
-        # Check configuration status
-        config_status = {
-            "total_concepts": len(concepts),
-            "concepts_with_queries": sum(
-                1 for c in concepts if c.source_queries and len(c.source_queries) > 0
-            ),
-            "concepts_with_filters": sum(
-                1 for c in concepts if c.semantic_filter.enabled or c.semantic_filter.criteria
-            )
-        }
-
-        # Generate warnings
-        warnings = []
-        if not coverage["is_complete"]:
-            warnings.append(f"Incomplete coverage: {len(coverage['uncovered_topics'])} topics not covered")
-
-        if config_status["concepts_with_queries"] == 0:
-            warnings.append("No concepts have queries configured")
-
-        if config_status["concepts_with_queries"] < len(concepts):
-            warnings.append(f"Only {config_status['concepts_with_queries']}/{len(concepts)} concepts have queries")
-
-        # Determine if ready to activate
-        ready_to_activate = (
-            coverage["is_complete"] and
-            config_status["concepts_with_queries"] == len(concepts) and
-            len(concepts) > 0
-        )
-
-        return ValidateConceptsResponse(
-            is_complete=coverage["is_complete"],
-            coverage=coverage,
-            configuration_status=config_status,
-            warnings=warnings,
-            ready_to_activate=ready_to_activate
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Concept validation failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Concept validation failed: {str(e)}"
         )
 
 

@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
 import { RetrievalConfig, BroadQuery } from '../../types';
-import { SparklesIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { useResearchStream } from '../../context/ResearchStreamContext';
+import WebSourcesEditor from './WebSourcesEditor';
 
 interface RetrievalConfigFormProps {
     retrievalConfig: RetrievalConfig;
@@ -15,8 +15,6 @@ export default function RetrievalConfigForm({
     retrievalConfig,
     onChange
 }: RetrievalConfigFormProps) {
-    const navigate = useNavigate();
-    const { id } = useParams();
     const { availableSources, loadAvailableSources } = useResearchStream();
 
     // Load available sources on mount
@@ -31,7 +29,6 @@ export default function RetrievalConfigForm({
         if (!retrievalConfig.broad_search) {
             onChange({
                 ...retrievalConfig,
-                concepts: null,
                 broad_search: {
                     queries: [],
                     strategy_rationale: '',
@@ -61,7 +58,6 @@ export default function RetrievalConfigForm({
         };
         onChange({
             ...retrievalConfig,
-            concepts: null,
             broad_search: {
                 ...retrievalConfig.broad_search,
                 queries: [...queries, newQuery],
@@ -100,37 +96,26 @@ export default function RetrievalConfigForm({
 
     return (
         <div className="h-full flex flex-col">
-            {/* Header with Wizard button - fixed */}
+            {/* Header - fixed */}
             <div className="flex items-center justify-between flex-shrink-0 mb-4">
-                <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Search Queries
-                    </h3>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={addBroadQuery}
-                        className="flex items-center gap-1 px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
-                    >
-                        <PlusIcon className="h-4 w-4" />
-                        Add Query
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => navigate(`/streams/${id}/retrieval-wizard`)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors"
-                    >
-                        <SparklesIcon className="h-4 w-4" />
-                        Launch Wizard
-                    </button>
-                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Search Queries
+                </h3>
+                <button
+                    type="button"
+                    onClick={addBroadQuery}
+                    className="flex items-center gap-1 px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
+                >
+                    <PlusIcon className="h-4 w-4" />
+                    Add Query
+                </button>
             </div>
 
-            {/* Queries Section - fills all remaining space */}
+            {/* Scrollable content area */}
             <div className="flex-1 min-h-0 overflow-y-auto">
+                {/* Queries Section */}
                 {hasNoQueries ? (
-                    <div className="h-full flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                    <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
                         <p className="mb-4">No queries defined yet.</p>
                         <button
                             type="button"
@@ -140,16 +125,13 @@ export default function RetrievalConfigForm({
                             <PlusIcon className="h-4 w-4" />
                             Add Query
                         </button>
-                        <p className="text-sm mt-4">
-                            Or use the <span className="font-medium">Launch Wizard</span> button to generate queries automatically
-                        </p>
                     </div>
                 ) : (
-                    <div className="h-full flex flex-col gap-4">
+                    <div className="flex flex-col gap-4">
                         {queries.map((query, index) => (
                             <div
                                 key={query.query_id}
-                                className={`border border-gray-300 dark:border-gray-600 rounded-lg p-4 flex flex-col ${queries.length === 1 ? 'flex-1' : ''}`}
+                                className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 flex flex-col"
                             >
                                 <div className="flex items-center justify-between mb-3 flex-shrink-0">
                                     <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -195,8 +177,8 @@ export default function RetrievalConfigForm({
                                     />
                                 </div>
 
-                                {/* Semantic Filter - takes remaining space */}
-                                <div className="flex-1 min-h-0 flex flex-col border-t border-gray-200 dark:border-gray-700 pt-3">
+                                {/* Semantic Filter */}
+                                <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
                                     <div className="flex items-center justify-between mb-2 flex-shrink-0">
                                         <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                             Semantic Filter
@@ -216,10 +198,9 @@ export default function RetrievalConfigForm({
                                     </div>
 
                                     {query.semantic_filter.enabled && (
-                                        <div className="flex-1 min-h-0 flex flex-col">
-                                            {/* Filter Criteria - 4 parts, expands to fill */}
-                                            <div className="flex-1 min-h-0 flex flex-col mb-3">
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex-shrink-0">
+                                        <div>
+                                            <div className="mb-3">
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                                     Filter Criteria
                                                 </label>
                                                 <textarea
@@ -229,12 +210,11 @@ export default function RetrievalConfigForm({
                                                         ...query.semantic_filter,
                                                         criteria: e.target.value
                                                     })}
-                                                    className="flex-1 min-h-[120px] w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm resize-none"
+                                                    className="w-full min-h-[120px] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm resize-y"
                                                 />
                                             </div>
 
-                                            {/* Confidence Threshold - fixed height */}
-                                            <div className="flex-shrink-0">
+                                            <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                                     Confidence Threshold
                                                 </label>
@@ -263,6 +243,15 @@ export default function RetrievalConfigForm({
                         ))}
                     </div>
                 )}
+
+                {/* Separator */}
+                <div className="border-t border-gray-200 dark:border-gray-700 my-6" />
+
+                {/* Web Sources Section */}
+                <WebSourcesEditor
+                    config={retrievalConfig.web_sources}
+                    onChange={(updated) => onChange({ ...retrievalConfig, web_sources: updated })}
+                />
             </div>
         </div>
     );

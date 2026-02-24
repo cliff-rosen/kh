@@ -9,7 +9,6 @@ import {
     Topic,
     Entity,
     RetrievalConfig,
-    Concept,
     ResearchStream,
     ScheduleConfig,
     BroadQuery,
@@ -239,7 +238,6 @@ export default function EditStreamPage() {
 
         // === LAYER 2: RETRIEVAL CONFIG ===
         retrieval_config: {
-            concepts: [] as Concept[],
             article_limit_per_week: 10
         } as RetrievalConfig,
 
@@ -359,7 +357,7 @@ export default function EditStreamPage() {
             is_active: form.is_active,
             // Layer 1: Semantic space (ground truth)
             semantic_space: form.semantic_space,
-            // Layer 2: Retrieval config (edited via wizard)
+            // Layer 2: Retrieval config
             retrieval_config: form.retrieval_config,
             // Layer 3: Presentation config
             presentation_config: {
@@ -579,18 +577,6 @@ export default function EditStreamPage() {
                         ...newConfig.broad_search,
                         queries: updatedQueries
                     };
-                } else if (newConfig.concepts) {
-                    const updatedConcepts = newConfig.concepts.map((c: Concept) => {
-                        const filterUpdate = proposalData.filters!.find((f: RetrievalProposalFilter) => f.target_id === c.concept_id);
-                        if (filterUpdate) {
-                            return {
-                                ...c,
-                                semantic_filter: filterUpdate.semantic_filter
-                            };
-                        }
-                        return c;
-                    });
-                    newConfig.concepts = updatedConcepts;
                 }
             }
 

@@ -279,67 +279,6 @@ def extract_evidence_spec_data(result, *args, **kwargs) -> dict:
     return data
 
 
-def extract_concepts_data(result, *args, **kwargs) -> dict:
-    """Extract data from concept extraction result"""
-    # kwargs['request'] = ConceptExtractionRequest (Pydantic model)
-    # result = ConceptExtractionResponse (Pydantic response model)
-
-    concept_request = kwargs.get('request')  # ConceptExtractionRequest
-    data = {
-        'evidence_spec': 'unknown',
-        'concepts_count': 0,
-        'concepts': []
-    }
-
-    # Extract from request (ConceptExtractionRequest)
-    if concept_request and hasattr(concept_request, 'evidence_specification'):
-        spec = concept_request.evidence_specification
-        data['evidence_spec'] = spec[:100] + "..." if len(spec) > 100 else spec
-
-    # Extract from result (ConceptExtractionResponse)
-    if result:
-        if hasattr(result, 'concepts'):
-            data['concepts_count'] = len(result.concepts)
-            data['concepts'] = result.concepts  # Store the actual concepts list
-        if hasattr(result, 'evidence_specification'):
-            # Also capture the evidence_specification from result if available
-            spec = result.evidence_specification
-            data['result_evidence_spec'] = spec[:100] + "..." if len(spec) > 100 else spec
-
-    return data
-
-
-def extract_concept_expansion_data(result, *args, **kwargs) -> dict:
-    """Extract data from concept expansion result"""
-    # kwargs['request'] = ConceptExpansionRequest (Pydantic model)
-    expansion_request = kwargs.get('request')
-    data = {
-        'concepts_count': 0,
-        'source': 'unknown',
-        'expansions_count': 0,
-        'input_concepts': [],
-        'expansions': []
-    }
-
-    # Extract from request (ConceptExpansionRequest)
-    if expansion_request:
-        if hasattr(expansion_request, 'concepts'):
-            data['concepts_count'] = len(expansion_request.concepts)
-            data['input_concepts'] = expansion_request.concepts  # Store actual concepts
-        if hasattr(expansion_request, 'source'):
-            data['source'] = expansion_request.source
-
-    # Extract from result (ConceptExpansionResponse)
-    if result:
-        if hasattr(result, 'expansions'):
-            data['expansions_count'] = len(result.expansions)
-            data['expansions'] = result.expansions  # Store actual expansions
-        if hasattr(result, 'source'):
-            data['result_source'] = result.source  # Capture source from result too
-
-    return data
-
-
 def extract_keyword_test_data(result, *args, **kwargs) -> dict:
     """Extract data from keyword combination test result"""
     # kwargs['request'] = KeywordCombinationRequest (Pydantic model)

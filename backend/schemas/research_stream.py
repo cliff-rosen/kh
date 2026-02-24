@@ -62,13 +62,6 @@ class RunType(str, Enum):
     MANUAL = "manual"
 
 
-class VolumeStatus(str, Enum):
-    """Volume assessment for a concept"""
-    TOO_BROAD = "too_broad"
-    APPROPRIATE = "appropriate"
-    TOO_NARROW = "too_narrow"
-    UNKNOWN = "unknown"
-
 
 # ============================================================================
 # SCHEDULING
@@ -98,55 +91,11 @@ class ScheduleConfig(BaseModel):
 # LAYER 2: RETRIEVAL CONFIG
 # ============================================================================
 
-class SourceQuery(BaseModel):
-    """Query expression for a specific source"""
-    query_expression: str = Field(description="Source-specific query expression")
-    enabled: bool = Field(default=True, description="Whether this source is active")
-
-
 class SemanticFilter(BaseModel):
     """Semantic filtering configuration"""
     enabled: bool = Field(default=False, description="Whether semantic filtering is enabled")
     criteria: str = Field(default="", description="Text description of what should pass/fail")
     threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Confidence threshold (0.0 to 1.0)")
-
-
-class ConceptEntity(BaseModel):
-    """An entity defined during concept generation (Phase 1 analysis)"""
-    entity_id: str = Field(description="Unique identifier (e.g., 'c_e1', 'c_e2')")
-    name: str = Field(description="Entity name")
-    entity_type: str = Field(description="Type: methodology, biomarker, disease, treatment, outcome, population, etc.")
-    canonical_forms: List[str] = Field(description="Search terms for this entity (synonyms, abbreviations)")
-    rationale: str = Field(description="Why this entity is needed for topic coverage")
-    semantic_space_ref: Optional[str] = Field(None, description="Reference to semantic space entity_id if this maps to one")
-
-
-class RelationshipEdge(BaseModel):
-    """A directed edge in the concept's entity relationship graph"""
-    from_entity_id: str = Field(description="Source entity_id from entity_pattern")
-    to_entity_id: str = Field(description="Target entity_id from entity_pattern")
-    relation_type: str = Field(description="Type of relationship (e.g., 'causes', 'measures', 'detects', 'treats', 'induces')")
-
-
-class Concept(BaseModel):
-    """A searchable entity-relationship pattern that covers one or more topics."""
-    concept_id: str = Field(description="Unique identifier for this concept")
-    name: str = Field(description="Descriptive name for this concept")
-    entity_pattern: List[str] = Field(description="List of entity_ids from phase1_analysis that form this pattern (1-3 entities)", min_length=1, max_length=3, default_factory=list)
-    relationship_edges: List[RelationshipEdge] = Field(description="Directed edges defining how entities connect in the graph", default_factory=list)
-    relationship_description: str = Field(default="", description="Natural language description of entity relationships")
-    relationship_pattern: Optional[str] = Field(None, description="DEPRECATED: Use relationship_edges and relationship_description instead")
-    covered_topics: List[str] = Field(description="List of topic_ids from semantic space this concept covers")
-    vocabulary_terms: Dict[str, List[str]] = Field(default_factory=dict, description="Map: entity_id -> list of synonym terms")
-    expected_volume: Optional[int] = Field(None, description="Estimated weekly article count")
-    volume_status: VolumeStatus = Field(default=VolumeStatus.UNKNOWN, description="Assessment of query volume")
-    last_volume_check: Optional[datetime] = Field(None, description="When volume was last checked")
-    source_queries: Dict[str, SourceQuery] = Field(default_factory=dict, description="Map: source_id -> SourceQuery configuration")
-    semantic_filter: SemanticFilter = Field(default_factory=lambda: SemanticFilter(), description="Semantic filtering for this concept")
-    exclusions: List[str] = Field(default_factory=list, description="Terms to exclude (last resort only)")
-    exclusion_rationale: Optional[str] = Field(None, description="Why exclusions are necessary and safe")
-    rationale: str = Field(description="Why this concept pattern covers these topics")
-    human_edited: bool = Field(default=False, description="Whether human has modified LLM-generated concept")
 
 
 class BroadQuery(BaseModel):
@@ -168,34 +117,28 @@ class BroadSearchStrategy(BaseModel):
     coverage_analysis: Dict[str, Any] = Field(default_factory=dict, description="Analysis of how queries cover topics")
 
 
+class WebSource(BaseModel):
+    """A website to monitor for new content (RSS/Atom feed or agent-driven site exploration)"""
+    source_id: str = Field(description="Unique identifier for this web source (e.g., 'ws_1', 'ws_2')")
+    url: str = Field(description="Website URL to monitor (e.g., 'https://openai.com/blog')")
+    source_type: str = Field(default="site", description="Source type: 'feed' (RSS/Atom) or 'site' (agent-driven). Set at config-time validation.")
+    directive: str = Field(description="What content to look for (e.g., 'New product announcements and research papers')")
+    title: Optional[str] = Field(None, description="Site/feed title from validation")
+    site_memo: Optional[str] = Field(None, description="Agent-learned navigation context (site type only)")
+    enabled: bool = Field(default=True, description="Whether this source is active")
+
+
+class WebSourceConfig(BaseModel):
+    """Configuration for web source monitoring"""
+    sources: List[WebSource] = Field(default_factory=list, description="List of websites to monitor")
+    max_articles_per_source: int = Field(default=20, description="Max items to retrieve per source per run")
+
+
 class RetrievalConfig(BaseModel):
     """Layer 2: Configuration for content retrieval and filtering"""
-    concepts: Optional[List[Concept]] = Field(None, description="Concept-based retrieval (mutually exclusive with broad_search)")
-    broad_search: Optional[BroadSearchStrategy] = Field(None, description="Broad search retrieval (mutually exclusive with concepts)")
+    broad_search: Optional[BroadSearchStrategy] = Field(None, description="Broad search retrieval strategy")
+    web_sources: Optional[WebSourceConfig] = Field(None, description="Web source monitoring (RSS feeds and HTML scraping)")
     article_limit_per_week: Optional[int] = Field(None, description="Maximum articles per week")
-
-    def get_concepts_for_topic(self, topic_id: str) -> List[Concept]:
-        """Get all concepts that cover a specific topic"""
-        if not self.concepts:
-            return []
-        return [c for c in self.concepts if topic_id in c.covered_topics]
-
-    def validate_coverage(self, semantic_space: SemanticSpace) -> Dict[str, Any]:
-        """Check if all topics are covered by at least one concept"""
-        covered = set()
-        if self.concepts:
-            for concept in self.concepts:
-                covered.update(concept.covered_topics)
-
-        all_topics = {t.topic_id for t in semantic_space.topics}
-        uncovered = all_topics - covered
-
-        return {
-            "is_complete": len(uncovered) == 0,
-            "covered_topics": list(covered),
-            "uncovered_topics": list(uncovered),
-            "coverage_percentage": len(covered) / len(all_topics) * 100 if all_topics else 100
-        }
 
 
 # ============================================================================

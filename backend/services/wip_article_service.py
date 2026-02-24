@@ -194,8 +194,14 @@ class WipArticleService:
         retrieval_group_id: str,
         source_id: int,
         articles: List[CanonicalResearchArticle],
+        pre_approved: bool = False,
     ) -> int:
         """Create WipArticle records from canonical articles and commit.
+
+        Args:
+            pre_approved: If True, sets passed_semantic_filter=True immediately
+                (used for web source articles where the agent/feed already
+                handles relevance filtering).
 
         Returns the number of articles created.
         """
@@ -223,7 +229,7 @@ class WipArticleService:
                 pub_day=article.pub_day,
                 source_specific_id=article.id,
                 is_duplicate=False,
-                passed_semantic_filter=None,
+                passed_semantic_filter=True if pre_approved else None,
                 included_in_report=False,
             )
             self.db.add(wip_article)
@@ -231,6 +237,7 @@ class WipArticleService:
         await self.db.commit()
         logger.info(
             f"Created {len(articles)} WipArticles for execution_id={execution_id}"
+            f"{' (pre-approved)' if pre_approved else ''}"
         )
         return len(articles)
 

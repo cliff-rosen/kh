@@ -11,17 +11,6 @@ interface BroadQueryConfig {
     };
 }
 
-interface ConceptConfig {
-    concept_id: string;
-    name: string;
-    source_queries?: Record<string, { query_expression: string; enabled: boolean }>;
-    semantic_filter?: {
-        enabled: boolean;
-        criteria: string;
-        threshold?: number;
-    };
-}
-
 /** Article with curation notes for display */
 export interface ArticleCurationNote {
     article_id: number;
@@ -99,39 +88,18 @@ export default function RetrievalConfigModal({
         }
     };
 
-    // Extract from broad_search (one retrieval method)
+    // Extract from broad_search
     const broadSearch = config.broad_search as { queries: BroadQueryConfig[] } | undefined;
     const broadQueries = broadSearch?.queries || [];
 
-    // Extract from concepts (alternative retrieval method)
-    const concepts = config.concepts as ConceptConfig[] | undefined;
-
     // Get query expressions from broad_search
-    let pubmedQuery = broadQueries.map(q => q.query_expression).filter(Boolean).join('\n\nOR\n\n');
-
-    // If no broad_search, try to get queries from concepts
-    if (!pubmedQuery && concepts && concepts.length > 0) {
-        const conceptQueries = concepts
-            .filter(c => c.source_queries?.pubmed?.enabled && c.source_queries?.pubmed?.query_expression)
-            .map(c => `# ${c.name}\n${c.source_queries!.pubmed.query_expression}`)
-            .filter(Boolean);
-        pubmedQuery = conceptQueries.join('\n\n---\n\n');
-    }
+    const pubmedQuery = broadQueries.map(q => q.query_expression).filter(Boolean).join('\n\nOR\n\n');
 
     // Get semantic filters from broad_search
-    let semanticFilter = broadQueries
+    const semanticFilter = broadQueries
         .filter(q => q.semantic_filter?.enabled && q.semantic_filter?.criteria)
         .map(q => q.semantic_filter!.criteria)
         .join('\n\n---\n\n');
-
-    // If no broad_search filters, try to get filters from concepts
-    if (!semanticFilter && concepts && concepts.length > 0) {
-        const conceptFilters = concepts
-            .filter(c => c.semantic_filter?.enabled && c.semantic_filter?.criteria)
-            .map(c => `# ${c.name}\n${c.semantic_filter!.criteria}`)
-            .filter(Boolean);
-        semanticFilter = conceptFilters.join('\n\n---\n\n');
-    }
 
     const hasDateRange = startDate || endDate;
 

@@ -28,7 +28,7 @@ import NewStreamPage from './pages/NewStreamPage';
 import DashboardPage from './pages/DashboardPage';
 import StreamsPage from './pages/StreamsPage';
 import EditStreamPage from './pages/EditStreamPage';
-import RetrievalWizardPage from './pages/RetrievalWizardPage';
+
 import ReportsPage from './pages/ReportsPage';
 import ToolsPage from './pages/ToolsPage';
 import AdminPage from './pages/AdminPage';
@@ -63,7 +63,7 @@ function AppContent() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/streams" element={<StreamsPage />} />
             <Route path="/streams/:streamId/edit" element={<EditStreamPage />} />
-            <Route path="/streams/:streamId/configure-retrieval" element={<RetrievalWizardPage />} />
+
             <Route path="/new-stream" element={<NewStreamPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/tools" element={<ToolsPage />} />

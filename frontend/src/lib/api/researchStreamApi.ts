@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, InformationSource, Concept, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery, ScheduleConfig, PipelineLLMConfig, EnrichmentConfig, PromptTemplate, ArticleAnalysisConfig } from '../../types';
+import { ResearchStream, InformationSource, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery, ScheduleConfig, PipelineLLMConfig, EnrichmentConfig, PromptTemplate, ArticleAnalysisConfig } from '../../types';
 
 // ============================================================================
 // Enrichment & Categorization Config Response Types (API-specific)
@@ -122,11 +122,11 @@ export const researchStreamApi = {
     },
 
     // ========================================================================
-    // Retrieval Concept Workflow (Layer 2: Concept-Based Configuration)
+    // Retrieval Workflow (Broad Search)
     // ========================================================================
 
     /**
-     * Propose broad search strategy (alternative to concepts)
+     * Propose broad search strategy
      *
      * Generates 1-3 broad, simple search queries that cast a wide net
      * to capture all relevant literature. Optimized for weekly monitoring
@@ -154,67 +154,6 @@ export const researchStreamApi = {
         const response = await api.post(
             `/api/research-streams/${streamId}/retrieval/generate-broad-filter`,
             { broad_query: broadQuery }
-        );
-        return response.data;
-    },
-
-    /**
-     * Propose retrieval concepts based on semantic space analysis
-     */
-    async proposeRetrievalConcepts(streamId: number): Promise<{
-        proposed_concepts: Concept[];
-        analysis: any;
-        reasoning: string;
-        coverage_check: any;
-    }> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/retrieval/propose-concepts`
-        );
-        return response.data;
-    },
-
-    /**
-     * Generate query for a concept
-     */
-    async generateConceptQuery(streamId: number, concept: Concept, sourceId: string): Promise<{
-        query_expression: string;
-        reasoning: string;
-    }> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/retrieval/generate-concept-query`,
-            { concept, source_id: sourceId }
-        );
-        return response.data;
-    },
-
-    /**
-     * Generate semantic filter for a concept
-     */
-    async generateConceptFilter(streamId: number, concept: Concept): Promise<{
-        criteria: string;
-        threshold: number;
-        reasoning: string;
-    }> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/retrieval/generate-concept-filter`,
-            { concept }
-        );
-        return response.data;
-    },
-
-    /**
-     * Validate concepts configuration
-     */
-    async validateConcepts(streamId: number, concepts: Concept[]): Promise<{
-        is_complete: boolean;
-        coverage: any;
-        configuration_status: any;
-        warnings: string[];
-        ready_to_activate: boolean;
-    }> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/retrieval/validate-concepts`,
-            { concepts }
         );
         return response.data;
     },

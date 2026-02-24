@@ -42,12 +42,6 @@ export type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 export type RunType = 'scheduled' | 'manual' | 'test';
 
-export enum VolumeStatus {
-    TOO_BROAD = 'too_broad',      // > 1000 results/week
-    APPROPRIATE = 'appropriate',  // 10-1000 results/week
-    TOO_NARROW = 'too_narrow',    // < 10 results/week
-    UNKNOWN = 'unknown'           // Not yet tested
-}
 
 // ============================================================================
 // SCHEDULING
@@ -67,50 +61,10 @@ export interface ScheduleConfig {
 // LAYER 2: RETRIEVAL CONFIG
 // ============================================================================
 
-export interface SourceQuery {
-    query_expression: string;
-    enabled: boolean;
-}
-
 export interface SemanticFilter {
     enabled: boolean;
     criteria: string;
     threshold: number;  // 0.0 to 1.0
-}
-
-export interface ConceptEntity {
-    entity_id: string;
-    name: string;
-    entity_type: string;
-    canonical_forms: string[];
-    rationale: string;
-    semantic_space_ref: string | null;
-}
-
-export interface RelationshipEdge {
-    from_entity_id: string;
-    to_entity_id: string;
-    relation_type: string;
-}
-
-export interface Concept {
-    concept_id: string;
-    name: string;
-    entity_pattern: string[];
-    relationship_edges: RelationshipEdge[];
-    relationship_description: string;
-    relationship_pattern?: string | null;  // DEPRECATED
-    covered_topics: string[];
-    vocabulary_terms: Record<string, string[]>;
-    expected_volume: number | null;
-    volume_status: VolumeStatus;
-    last_volume_check: string | null;
-    source_queries: Record<string, SourceQuery>;
-    semantic_filter: SemanticFilter;
-    exclusions: string[];
-    exclusion_rationale: string | null;
-    rationale: string;
-    human_edited: boolean;
 }
 
 export interface BroadQuery {
@@ -130,9 +84,24 @@ export interface BroadSearchStrategy {
     coverage_analysis: Record<string, any>;
 }
 
+export interface WebSource {
+    source_id: string;
+    url: string;
+    source_type: 'feed' | 'site';
+    directive: string;
+    title?: string | null;
+    site_memo?: string | null;
+    enabled: boolean;
+}
+
+export interface WebSourceConfig {
+    sources: WebSource[];
+    max_articles_per_source: number;
+}
+
 export interface RetrievalConfig {
-    concepts?: Concept[] | null;
     broad_search?: BroadSearchStrategy | null;
+    web_sources?: WebSourceConfig | null;
     article_limit_per_week?: number;
 }
 
@@ -369,7 +338,8 @@ export enum SourceType {
     PREPRINT_SERVER = 'preprint_server',
     CLINICAL_TRIALS = 'clinical_trials',
     PATENT_DATABASE = 'patent_database',
-    REGULATORY_DATABASE = 'regulatory_database'
+    REGULATORY_DATABASE = 'regulatory_database',
+    WEB_MONITOR = 'web_monitor'
 }
 
 export interface InformationSource {
