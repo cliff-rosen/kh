@@ -6,31 +6,27 @@ import settings from '../config/settings';
 const features = [
   {
     number: '1',
-    title: 'Automated Literature Surveillance',
+    title: 'Literature Surveillance',
     description:
-      'Expert-level PubMed monitoring runs continuously across asbestos, talc, and genetic predisposition research. New publications are captured the week they appear \u2014 no manual searching required. Every article is verified against PubMed IDs, ensuring citation integrity that holds up in expert reports and Daubert motions.',
-    quote: '\u201CNever manually search PubMed again. The essential literature arrives in your inbox every week.\u201D',
+      'New asbestos, talc, and genetic predisposition publications captured the week they appear \u2014 no manual searching, every citation verified against PubMed.',
   },
   {
     number: '2',
-    title: 'Stance Analysis: Favorable vs. Adverse',
+    title: 'Stance Analysis',
     description:
-      'Every study is analyzed for its litigation implications \u2014 whether it supports or challenges defense positions \u2014 so attorneys can immediately sort the literature and understand what each article means for their case without reading every abstract.',
-    quote: '\u201CWhich articles this week strengthen our alternative causation argument?\u201D',
+      'Every study analyzed for litigation implications \u2014 favorable or adverse \u2014 so you know what it means for your case without reading every abstract.',
   },
   {
     number: '3',
-    title: 'Plain-Language Scientific Translation',
+    title: 'Scientific Translation',
     description:
-      'Studies relating to epidemiology, toxicology, genetics, fiber science, pathology, or other technical areas are summarized in accessible language \u2014 methodology, findings, and litigation relevance \u2014 without a call to your expert for every article. Technical terms are defined, so associates and paralegals can engage with the science directly.',
-    quote: '\u201CWhat is this study actually saying, and how would a plaintiff use it?\u201D',
+      'Technical findings summarized in plain language so associates and paralegals can engage with the science directly.',
   },
   {
     number: '4',
-    title: 'AI Synthesis Across the Entire Report',
+    title: 'AI Synthesis',
     description:
-      'Rather than reading 40 abstracts, Knowledge Horizon provides a synthesis across the full week\u2019s report \u2014 spotting contradictions, surfacing methodological strengths and weaknesses, and finding patterns a human analyst would spend hours identifying.',
-    quote: '',
+      'Cross-report analysis that spots contradictions, surfaces methodological issues, and finds patterns across the full week\u2019s literature.',
   },
 ];
 
@@ -107,7 +103,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section className="bg-gray-50 dark:bg-gray-800/50 py-20 px-6">
+      <section className="flex-1 bg-gray-50 dark:bg-gray-800/50 py-20 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {features.map((f) => (
@@ -124,11 +120,6 @@ export default function LandingPage() {
                 <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
                   {f.description}
                 </p>
-                {f.quote && (
-                  <p className="mt-4 text-sm italic text-gray-500 dark:text-gray-500">
-                    {f.quote}
-                  </p>
-                )}
               </div>
             ))}
           </div>
