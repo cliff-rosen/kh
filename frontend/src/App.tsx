@@ -21,6 +21,7 @@ import TrialScoutRoutes from './components/trialscout/TrialScoutRoutes';
 
 // pages
 import LoginPage from './pages/LoginPage';
+import LandingPage from './pages/LandingPage';
 import Profile from './pages/Profile';
 import TokenLogin from './pages/TokenLogin';
 
@@ -88,7 +89,8 @@ function AppContent() {
             <Route path="/auth/token-login" element={<TokenLogin />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/register" element={<LoginPage />} />
-            <Route path="*" element={<LoginPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="*" element={<LandingPage />} />
           </Routes>
         ) : (
           <ResearchStreamProvider>
