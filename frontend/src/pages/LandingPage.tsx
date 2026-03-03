@@ -65,49 +65,44 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="px-6 pt-20 pb-16">
-        <div className="max-w-3xl mx-auto text-center">
+      <section className="px-6 pt-24 pb-20">
+        <div className="max-w-4xl mx-auto text-center">
           <p className="text-xs font-semibold tracking-[0.25em] text-blue-600 dark:text-blue-400 uppercase mb-6">
             AI-Powered Litigation Intelligence
           </p>
           <h1 className="text-4xl sm:text-5xl font-bold leading-tight">
-            Scientific Intelligence for Asbestos &amp; Talc Defense
+            Comprehensive Scientific Awareness for Asbestos &amp; Talc Defense
           </h1>
-          <p className="mt-6 text-xl text-gray-600 dark:text-gray-400 leading-relaxed">
-            Delivered weekly. Built for litigators.
-          </p>
-        </div>
-      </section>
 
-      {/* Two pillars */}
-      <section className="px-6 pb-16">
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-8 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-semibold mb-4">Curated Weekly Reports</h2>
-            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-              Continuous monitoring of the worldwide scientific literature relevant to talc and asbestos litigation, delivered as a curated weekly report.
-            </p>
+          <div className="mt-14 grid grid-cols-1 md:grid-cols-2 gap-12 text-left max-w-3xl mx-auto">
+            <div>
+              <h2 className="text-lg font-semibold mb-2">Curated Weekly Reports</h2>
+              <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                Continuous monitoring of the worldwide scientific literature relevant to talc and asbestos litigation, delivered as a curated weekly report.
+              </p>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold mb-2">AI Chat &amp; Analysis</h2>
+              <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                Interact with the science using our AI-powered analysis tool to tease out critical insights and connections.
+              </p>
+            </div>
           </div>
-          <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-8 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-semibold mb-4">AI Chat &amp; Analysis</h2>
-            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-              Interact with the science using our AI-powered analysis tool to tease out critical insights and connections.
-            </p>
+
+          <div className="mt-12 flex flex-wrap gap-4 justify-center">
+            <Link
+              to="/login"
+              className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
+            >
+              Sign In
+            </Link>
+            <a
+              href="mailto:cliff@ironcliff.ai?subject=Knowledge%20Horizon%20%E2%80%93%20Access%20Request"
+              className="px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-600 font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              Request Access
+            </a>
           </div>
-        </div>
-        <div className="max-w-5xl mx-auto mt-8 flex flex-wrap gap-4 justify-center">
-          <Link
-            to="/login"
-            className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
-          >
-            Sign In
-          </Link>
-          <a
-            href="mailto:cliff@ironcliff.ai?subject=Knowledge%20Horizon%20%E2%80%93%20Access%20Request"
-            className="px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-600 font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          >
-            Request Access
-          </a>
         </div>
       </section>
 
