@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 import os
+import subprocess
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 
@@ -9,6 +10,28 @@ from dotenv import load_dotenv, find_dotenv
 _backend_dir = Path(__file__).resolve().parent.parent
 _is_production = os.environ.get("ENVIRONMENT") == "production"
 
+
+def _resolve_version() -> str:
+    """Read version from BUILD_VERSION file, git tag, or fall back to 'dev'."""
+    # 1. BUILD_VERSION file (written by deploy script)
+    build_file = _backend_dir / "BUILD_VERSION"
+    if build_file.exists():
+        version = build_file.read_text().strip()
+        if version:
+            return version
+    # 2. Latest git tag
+    try:
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--match", "v*", "--abbrev=0"],
+            capture_output=True, text=True, cwd=str(_backend_dir), timeout=5
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    # 3. Default
+    return "dev"
+
 if _is_production:
     load_dotenv(_backend_dir / ".env.production", override=True)
 else:
@@ -17,7 +40,7 @@ else:
 
 class Settings(BaseSettings):
     APP_NAME: str = "KH"
-    SETTING_VERSION: str = "0.0.1"
+    SETTING_VERSION: str = _resolve_version()
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")  # Dev default
 
     # Database settings
@@ -147,11 +170,4 @@ settings = Settings()
 
 # Debug print to verify API keys are loaded
 if __name__ == "__main__":
-    print(f"OpenAI API Key loaded: {bool(settings.OPENAI_API_KEY)}")
-    print(f"Google API Key loaded: {bool(settings.GOOGLE_SEARCH_API_KEY)}")
-    print(f"Google CSE ID loaded: {bool(settings.GOOGLE_SEARCH_ENGINE_ID)}")
-    print(f"Google OAuth2 Client ID loaded: {bool(settings.GOOGLE_CLIENT_ID)}")
-    print(
-        f"First few chars of OpenAI key: {settings.OPENAI_API_KEY[:10] if settings.OPENAI_API_KEY else 'No key found'}")
-    print(
-        f"First few chars of Google key: {settings.GOOGLE_SEARCH_API_KEY[:10] if settings.GOOGLE_SEARCH_API_KEY else 'No key found'}")
+    print(f"Version: {_resolve_version()}")

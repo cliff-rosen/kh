@@ -15,6 +15,7 @@ import { setStreamSessionExpiredHandler } from './lib/api/streamUtils';
 // components
 import TopBar from './components/layout/TopBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import VersionBanner from './components/VersionBanner';
 import PubMedRoutes from './components/pubmed/PubMedRoutes';
 import TrialScoutRoutes from './components/trialscout/TrialScoutRoutes';
 
@@ -111,6 +112,7 @@ function App() {
         v7_relativeSplatPath: true
       }}
     >
+      <VersionBanner />
       <Routes>
         {/* PubMed Tablizer standalone app - has its own auth context */}
         <Route path="/pubmed/*" element={

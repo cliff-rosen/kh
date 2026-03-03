@@ -1,52 +1,45 @@
-# deploy.ps1 — Tag, deploy, and log in one move.
+# deploy.ps1 — Semantic-versioned deploy to production.
 #
 # Usage:
-#   .\deploy.ps1 staging              # deploy backend + frontend to staging
-#   .\deploy.ps1 production           # deploy backend + frontend to production
-#   .\deploy.ps1 staging -backend     # backend only
-#   .\deploy.ps1 staging -frontend    # frontend only
+#   .\deploy.ps1              # Deploy everything (frontend + backend)
+#   .\deploy.ps1 -Frontend    # Frontend only
+#   .\deploy.ps1 -Backend     # Backend only
+#   .\deploy.ps1 -SkipTag     # Deploy without creating a new version tag
 #
 # What it does:
-#   1. Refuses to deploy if working tree is dirty
-#   2. Creates a git tag: staging/2026-02-19-143052-a1b2c3d
-#   3. Deploys backend to EB and/or frontend to S3
-#   4. Appends to DEPLOY_LOG.md
-#   5. Pushes the tag to origin
+#   1. Preflight: checks repo root, checks for uncommitted changes
+#   2. Version tag: reads latest v* tag, auto-increments patch, confirms, creates annotated tag, pushes
+#   3. Frontend: writes VITE_APP_VERSION to .env.production, builds, syncs to S3
+#   4. Backend: writes version to BUILD_VERSION, deploys to EB
+#   5. Prints verification URLs
 
 param(
-    [Parameter(Mandatory=$true, Position=0)]
-    [ValidateSet("staging", "production")]
-    [string]$Environment,
-
-    [switch]$backend,
-    [switch]$frontend
+    [switch]$Backend,
+    [switch]$Frontend,
+    [switch]$SkipTag
 )
 
 $ErrorActionPreference = "Stop"
 
 # If neither flag specified, deploy both
-if (-not $backend -and -not $frontend) {
-    $backend = $true
-    $frontend = $true
+if (-not $Backend -and -not $Frontend) {
+    $Backend = $true
+    $Frontend = $true
 }
 
-# --- Environment config ---
-$config = @{
-    staging = @{
-        eb_env    = "knowledgehorizon-staging"
-        s3_bucket = "TBD"  # TODO: set staging S3 bucket
-        vite_mode = "staging"
-    }
-    production = @{
-        eb_env    = "knowledgehorizon-env"
-        s3_bucket = "www.knowledgehorizon.ai"
-        vite_mode = "production"
-    }
-}
-
-$env_config = $config[$Environment]
+# --- Config ---
+$EB_ENV    = "knowledgehorizon-env"
+$S3_BUCKET = "www.knowledgehorizon.ai"
 
 # --- Preflight checks ---
+
+# Must be at repo root
+if (-not (Test-Path ".git")) {
+    Write-Host "ERROR: Must run from the repository root." -ForegroundColor Red
+    exit 1
+}
+
+# Must have clean working tree
 $dirty = git status --porcelain
 if ($dirty) {
     Write-Host "ERROR: Working tree is dirty. Commit or stash changes before deploying." -ForegroundColor Red
@@ -54,45 +47,108 @@ if ($dirty) {
     exit 1
 }
 
-$commit_hash = git rev-parse --short HEAD
-$commit_full = git rev-parse HEAD
-$timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
-$tag_name = "$Environment/$timestamp-$commit_hash"
+# --- Version tagging ---
+if (-not $SkipTag) {
+    # Find latest v* tag
+    $latestTag = git describe --tags --match "v*" --abbrev=0 2>$null
+    if ($latestTag) {
+        # Parse version: v1.0.3 -> (1, 0, 3)
+        $parts = $latestTag.TrimStart("v").Split(".")
+        $major = [int]$parts[0]
+        $minor = [int]$parts[1]
+        $patch = [int]$parts[2]
+        $nextVersion = "v$major.$minor.$($patch + 1)"
+    } else {
+        $nextVersion = "v1.0.0"
+    }
 
-Write-Host ""
-Write-Host "=== Deploy to $Environment ===" -ForegroundColor Cyan
-Write-Host "  Commit:    $commit_hash" -ForegroundColor Gray
-Write-Host "  Tag:       $tag_name" -ForegroundColor Gray
-Write-Host "  Backend:   $($backend)" -ForegroundColor Gray
-Write-Host "  Frontend:  $($frontend)" -ForegroundColor Gray
-Write-Host "  EB env:    $($env_config.eb_env)" -ForegroundColor Gray
-if ($frontend) {
-    Write-Host "  S3 bucket: $($env_config.s3_bucket)" -ForegroundColor Gray
-}
-Write-Host ""
+    Write-Host ""
+    Write-Host "=== Deploy to Production ===" -ForegroundColor Cyan
+    Write-Host "  Current tag: $($latestTag ?? 'none')" -ForegroundColor Gray
+    Write-Host "  Next tag:    $nextVersion" -ForegroundColor Gray
+    Write-Host "  Backend:     $Backend" -ForegroundColor Gray
+    Write-Host "  Frontend:    $Frontend" -ForegroundColor Gray
+    Write-Host ""
 
-# Confirm production deploys
-if ($Environment -eq "production") {
-    $confirm = Read-Host "Deploy to PRODUCTION? Type 'yes' to confirm"
+    $confirm = Read-Host "Deploy $nextVersion to PRODUCTION? Type 'yes' to confirm"
+    if ($confirm -ne "yes") {
+        Write-Host "Aborted." -ForegroundColor Yellow
+        exit 0
+    }
+
+    # Create annotated tag
+    Write-Host "Creating tag $nextVersion..." -ForegroundColor Yellow
+    git tag -a $nextVersion -m "Release $nextVersion"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Failed to create tag" -ForegroundColor Red
+        exit 1
+    }
+
+    # Push tag
+    Write-Host "Pushing tag to origin..." -ForegroundColor Yellow
+    git push origin $nextVersion
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Warning: failed to push tag (deploy will continue, tag is local only)" -ForegroundColor Yellow
+    }
+
+    $version = $nextVersion
+} else {
+    # SkipTag: use the latest existing tag
+    $version = git describe --tags --match "v*" --abbrev=0 2>$null
+    if (-not $version) {
+        Write-Host "ERROR: No existing v* tag found. Run without -SkipTag first." -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host ""
+    Write-Host "=== Deploy to Production (SkipTag) ===" -ForegroundColor Cyan
+    Write-Host "  Version:   $version" -ForegroundColor Gray
+    Write-Host "  Backend:   $Backend" -ForegroundColor Gray
+    Write-Host "  Frontend:  $Frontend" -ForegroundColor Gray
+    Write-Host ""
+
+    $confirm = Read-Host "Deploy $version to PRODUCTION? Type 'yes' to confirm"
     if ($confirm -ne "yes") {
         Write-Host "Aborted." -ForegroundColor Yellow
         exit 0
     }
 }
 
-# --- Create git tag ---
-Write-Host "Tagging $tag_name..." -ForegroundColor Yellow
-git tag $tag_name
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Failed to create tag" -ForegroundColor Red
-    exit 1
+# --- Deploy frontend ---
+if ($Frontend) {
+    Write-Host "Building frontend ($version)..." -ForegroundColor Yellow
+
+    # Write version to .env.production
+    "VITE_APP_VERSION=$version" | Out-File -FilePath "frontend/.env.production" -Encoding utf8 -NoNewline
+
+    Push-Location frontend
+    npm run build
+    if ($LASTEXITCODE -ne 0) {
+        Pop-Location
+        Write-Host "Frontend build failed!" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "Syncing to s3://$S3_BUCKET..." -ForegroundColor Yellow
+    aws s3 sync dist/ "s3://$S3_BUCKET" --delete
+    if ($LASTEXITCODE -ne 0) {
+        Pop-Location
+        Write-Host "Frontend deploy failed!" -ForegroundColor Red
+        exit 1
+    }
+    Pop-Location
+    Write-Host "Frontend deployed." -ForegroundColor Green
 }
 
 # --- Deploy backend ---
-if ($backend) {
-    Write-Host "Deploying backend to $($env_config.eb_env)..." -ForegroundColor Yellow
+if ($Backend) {
+    Write-Host "Deploying backend ($version) to $EB_ENV..." -ForegroundColor Yellow
+
+    # Write version to BUILD_VERSION file
+    $version | Out-File -FilePath "backend/BUILD_VERSION" -Encoding utf8 -NoNewline
+
     Push-Location backend
-    eb deploy $env_config.eb_env --label "$commit_hash-$timestamp"
+    eb deploy $EB_ENV --label "$version"
     if ($LASTEXITCODE -ne 0) {
         Pop-Location
         Write-Host "Backend deploy failed!" -ForegroundColor Red
@@ -100,57 +156,21 @@ if ($backend) {
     }
     Pop-Location
     Write-Host "Backend deployed." -ForegroundColor Green
+
+    # Clean up BUILD_VERSION (it's not committed)
+    Remove-Item "backend/BUILD_VERSION" -ErrorAction SilentlyContinue
 }
 
-# --- Deploy frontend ---
-if ($frontend) {
-    if ($env_config.s3_bucket -eq "TBD") {
-        Write-Host "SKIPPING frontend — S3 bucket not configured for $Environment" -ForegroundColor Yellow
-    } else {
-        Write-Host "Building frontend (mode=$($env_config.vite_mode))..." -ForegroundColor Yellow
-        Push-Location frontend
-        npx vite build --mode $env_config.vite_mode
-        if ($LASTEXITCODE -ne 0) {
-            Pop-Location
-            Write-Host "Frontend build failed!" -ForegroundColor Red
-            exit 1
-        }
-
-        Write-Host "Syncing to s3://$($env_config.s3_bucket)..." -ForegroundColor Yellow
-        aws s3 sync dist/ "s3://$($env_config.s3_bucket)" --delete
-        if ($LASTEXITCODE -ne 0) {
-            Pop-Location
-            Write-Host "Frontend deploy failed!" -ForegroundColor Red
-            exit 1
-        }
-        Pop-Location
-        Write-Host "Frontend deployed." -ForegroundColor Green
-    }
-}
-
-# --- Push tag ---
-Write-Host "Pushing tag to origin..." -ForegroundColor Yellow
-git push origin $tag_name
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Warning: failed to push tag (deploy succeeded, tag is local only)" -ForegroundColor Yellow
-}
-
-# --- Log ---
-$what = @()
-if ($backend) { $what += "backend" }
-if ($frontend -and $env_config.s3_bucket -ne "TBD") { $what += "frontend" }
-$what_str = $what -join "+"
-
-$log_line = "| $($timestamp.Substring(0,10)) $($timestamp.Substring(11).Replace('-',':').Insert(2,':').Insert(5,':').Substring(0,8)) | $Environment | $commit_hash | $what_str |"
-
-$log_path = Join-Path $PSScriptRoot "DEPLOY_LOG.md"
-if (-not (Test-Path $log_path)) {
-    "# Deploy Log`n`n| When | Environment | Commit | What |`n|------|-------------|--------|------|" | Out-File $log_path -Encoding utf8
-}
-Add-Content $log_path $log_line
-
+# --- Done ---
 Write-Host ""
-Write-Host "=== Done ===" -ForegroundColor Green
-Write-Host "  Tag:    $tag_name" -ForegroundColor Gray
-Write-Host "  Log:    DEPLOY_LOG.md" -ForegroundColor Gray
+Write-Host "=== Deploy Complete ===" -ForegroundColor Green
+Write-Host "  Version:  $version" -ForegroundColor Gray
+Write-Host ""
+Write-Host "Verify:" -ForegroundColor Cyan
+if ($Backend) {
+    Write-Host "  curl https://api.knowledgehorizon.ai/api/health" -ForegroundColor Gray
+}
+if ($Frontend) {
+    Write-Host "  https://www.knowledgehorizon.ai" -ForegroundColor Gray
+}
 Write-Host ""

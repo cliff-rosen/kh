@@ -2,12 +2,13 @@
 
 ## 1. Environments
 
-| Component | Production | Staging (TBD) | Local Dev |
-|-----------|-----------|---------------|-----------|
-| **Backend** | EB: `knowledgehorizon-env` | EB: `knowledgehorizon-staging` | `localhost:8000` |
-| **Frontend** | S3: `www.knowledgehorizon.ai` | S3: TBD | `localhost:5173` |
-| **Database** | MariaDB: `kh2` | MariaDB: `khdev` | MariaDB: `khdev` |
-| **API URL** | `https://api.knowledgehorizon.ai` | TBD | `http://localhost:8000` |
+| Component | Production | Local Dev |
+|-----------|-----------|-----------|
+| **Backend** | EB: `knowledgehorizon-env` | `localhost:8000` |
+| **Frontend** | S3: `www.knowledgehorizon.ai` | `localhost:5173` |
+| **Database** | MariaDB: `kh2` (RDS `us-east-2`) | MariaDB: `khdev` |
+| **API URL** | `https://api.knowledgehorizon.ai` | `http://localhost:8000` |
+| **Frontend URL** | `https://www.knowledgehorizon.ai` | `http://localhost:5173` |
 
 EB application: `knowledgehorizon-app` | Region: `us-east-1` | Platform: Python 3.11 on Amazon Linux 2023
 
@@ -21,13 +22,20 @@ EB application: `knowledgehorizon-app` | Region: `us-east-1` | Platform: Python 
 
 | `ENVIRONMENT` | Loads | Database | Safe? |
 |---------------|-------|----------|-------|
-| _(not set)_ | `.env` | `khdev` | Default -- safe |
-| `staging` | `.env.staging` | `khdev` | |
+| _(not set)_ | `.env` | `khdev` | Default — safe |
 | `production` | `.env.production` | `kh2` | Must be explicit |
 
 On EB, `ENVIRONMENT` is set once via `eb setenv` and persists across all deploys. Locally it's never set, so you always get `khdev`.
 
-`.env` is excluded from EB deploys (via `.ebignore`). `.env.production` and `.env.staging` are deployed.
+### Version tracking
+
+The backend version is resolved at startup:
+
+1. **`BUILD_VERSION` file** — written by `deploy.ps1`, deployed to EB, not committed to git
+2. **Latest `v*` git tag** — fallback for local dev with tags
+3. **`"dev"`** — default when neither exists
+
+The `/api/health` endpoint returns `{ "status": "healthy", "version": "<version>" }`.
 
 ### Frontend
 
@@ -36,8 +44,9 @@ On EB, `ENVIRONMENT` is set once via `eb setenv` and persists across all deploys
 | Build mode | API URL | Set by |
 |------------|---------|--------|
 | `development` | `localhost:8000` | `npm run dev` |
-| `staging` | TBD | `vite build --mode staging` |
-| `production` | `api.knowledgehorizon.ai` | `vite build` / `npm run build` |
+| `production` | `api.knowledgehorizon.ai` | `npm run build` |
+
+The deploy script writes `VITE_APP_VERSION=v1.0.X` to `frontend/.env.production` before building. The frontend polls `/api/health` every 60 seconds and shows a blue banner when a newer version is detected.
 
 ### Config files
 
@@ -45,7 +54,7 @@ On EB, `ENVIRONMENT` is set once via `eb setenv` and persists across all deploys
 |------|---------|-----------------|---------|
 | `backend/.env` | Dev config | No | No |
 | `backend/.env.production` | Prod config | Yes | No |
-| `backend/.env.staging` | Staging config | Yes | No |
+| `backend/BUILD_VERSION` | Deploy version | Yes | No |
 | `backend/.ebignore` | EB deploy exclusions | N/A | Yes |
 
 ---
@@ -62,64 +71,45 @@ cd backend && venv/Scripts/python.exe -m uvicorn main:app --reload
 cd frontend && npm run dev
 ```
 
-### Staging and Production
+### Production
 
-All deployments go through `deploy.ps1` at the repo root. One command tags the commit, deploys, and logs.
+All deployments go through `deploy.ps1` at the repo root. Uses semantic versioning (`v1.0.0`, `v1.0.1`, etc.).
 
 ```powershell
-# Deploy everything to staging
-.\deploy.ps1 staging
-
-# Deploy everything to production (prompts for confirmation)
-.\deploy.ps1 production
-
-# Deploy only backend or frontend
-.\deploy.ps1 staging -backend
-.\deploy.ps1 production -frontend
+.\deploy.ps1              # Deploy everything (frontend + backend)
+.\deploy.ps1 -Frontend    # Frontend only
+.\deploy.ps1 -Backend     # Backend only
+.\deploy.ps1 -SkipTag     # Deploy without creating a new version tag
 ```
 
 What `deploy.ps1` does:
-1. **Refuses to deploy** if the working tree is dirty (uncommitted changes)
-2. **Tags the commit** with `<environment>/<timestamp>-<commit>` (e.g., `production/2026-02-19-143052-a1b2c3d`)
-3. **Deploys backend** to EB (`eb deploy <env> --label <commit-timestamp>`)
-4. **Deploys frontend** — builds with `vite build --mode <env>`, syncs to the environment's S3 bucket
-5. **Pushes the tag** to origin
-6. **Appends to `DEPLOY_LOG.md`** — a running record of every deployment
+1. **Preflight** — refuses to deploy if working tree is dirty or not at repo root
+2. **Version tag** — reads latest `v*` tag, auto-increments patch, confirms with user, creates annotated tag, pushes to origin
+3. **Frontend** — writes `VITE_APP_VERSION` to `.env.production`, builds, syncs to S3
+4. **Backend** — writes version to `BUILD_VERSION`, deploys to EB via `eb deploy`
+5. **Cleanup** — removes `BUILD_VERSION` (not committed), prints verification URLs
 
-For production, it requires you to type "yes" before proceeding.
+### Deployment policy
 
-### Deploy log
+Backend uses **immutable deployments** (configured in `.ebextensions/deployment.config`). This ensures:
+- Zero-downtime deploys
+- Automatic rollback if the new version fails health checks
+- New instances are launched alongside old ones, traffic only switches after health check passes
 
-`DEPLOY_LOG.md` is auto-maintained by `deploy.ps1`:
+### Verifying a deploy
 
-```
-| When                | Environment | Commit  | What             |
-|---------------------|-------------|---------|------------------|
-| 2026-02-19 14:30:52 | staging     | a1b2c3d | backend+frontend |
-| 2026-02-19 15:00:00 | production  | a1b2c3d | backend          |
-```
-
-To see what's deployed, check the log or look up the git tag:
 ```bash
-git tag -l "production/*"     # all production deploys
-git tag -l "staging/*"        # all staging deploys
-git log --oneline a1b2c3d     # what's in a specific deploy
+# Backend version
+curl https://api.knowledgehorizon.ai/api/health
+
+# Frontend — check the browser; if a new version is available, a blue banner appears
 ```
-
-### Staging setup (one-time, not yet done)
-
-1. `eb create knowledgehorizon-staging --single` (single instance to save cost)
-2. `eb setenv ENVIRONMENT=staging -e knowledgehorizon-staging`
-3. Create `backend/.env.staging` (copy `.env.production`, change `DB_NAME=khdev` and `FRONTEND_URL`)
-4. Create staging S3 bucket, CloudFront distribution, and DNS entries
-5. Add `stagingSettings` to `frontend/src/config/settings.ts`
-6. Update S3 bucket name in `deploy.ps1` staging config
 
 ---
 
 ## 4. Database Schema Changes
 
-Schema changes happen ad-hoc during development against `khdev`. There is no formal migration system. Before deploying to production, those changes must be applied to `kh2`.
+Schema changes happen ad-hoc during development against `khdev`. Before deploying to production, those changes must be applied to `kh2`.
 
 ### Before a production deploy
 
@@ -157,7 +147,7 @@ Or connect to `kh2` directly via MySQL Workbench.
 
 Any script that imports from `database.py` connects to whatever `ENVIRONMENT` resolves to:
 
-- `ENVIRONMENT` not set -> `khdev`
-- `ENVIRONMENT=production` -> `kh2`
+- `ENVIRONMENT` not set → `khdev`
+- `ENVIRONMENT=production` → `kh2`
 
 Always unset `ENVIRONMENT` when done.
