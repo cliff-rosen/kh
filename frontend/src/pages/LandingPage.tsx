@@ -39,7 +39,8 @@ export default function LandingPage() {
       <nav className="flex-shrink-0 sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={settings.logoUrl} alt="Logo" className="h-8 w-auto" />
+            <img src="/logos/KH Icon black.png" alt="Logo" className="h-8 w-auto dark:hidden" />
+            <img src="/logos/KH Icon white.png" alt="Logo" className="h-8 w-auto hidden dark:block" />
             <span className="text-lg font-semibold">Knowledge Horizon</span>
           </div>
           <div className="flex items-center gap-4">
@@ -63,6 +64,8 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="px-6 pt-24 pb-20">
         <div className="max-w-4xl mx-auto text-center">
+          <img src="/logos/KH logo black.png" alt="Knowledge Horizon" className="h-24 sm:h-32 w-auto mx-auto mb-8 dark:hidden" />
+          <img src="/logos/KH logo white.png" alt="Knowledge Horizon" className="h-24 sm:h-32 w-auto mx-auto mb-8 hidden dark:block" />
           <p className="text-xs font-semibold tracking-[0.25em] text-blue-600 dark:text-blue-400 uppercase mb-6">
             AI-Powered Litigation Intelligence
           </p>
