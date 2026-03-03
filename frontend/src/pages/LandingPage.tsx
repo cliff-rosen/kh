@@ -3,12 +3,18 @@ import { useTheme } from '../context/ThemeContext';
 import { MoonIcon, SunIcon, MagnifyingGlassIcon, ScaleIcon, LanguageIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import settings from '../config/settings';
 
-const aiCapabilities = [
+const features = [
+  {
+    icon: MagnifyingGlassIcon,
+    title: 'Literature Surveillance',
+    description:
+      'New asbestos, talc, and genetic predisposition publications captured the week they appear \u2014 no manual searching, every citation verified against PubMed.',
+  },
   {
     icon: SparklesIcon,
     title: 'AI-Powered Conversation',
     description:
-      'Don\u2019t just read the science \u2014 interrogate it. Query the week\u2019s literature the way you\u2019d question a witness: targeted, strategic, and on your terms.',
+      'Don\u2019t just read the science \u2014 interrogate it. Our AI chat lets you query the week\u2019s literature the way you\u2019d question a witness: targeted, strategic, and on your terms.',
   },
   {
     icon: ScaleIcon,
@@ -20,7 +26,7 @@ const aiCapabilities = [
     icon: LanguageIcon,
     title: 'Scientific Translation',
     description:
-      'Technical findings summarized in plain language so associates and paralegals can engage with the science directly.',
+      'Technical findings translated into plain language \u2014 so litigators can assess the science, evaluate expert positions, and make strategic decisions without a call to your expert for every article.',
   },
 ];
 
@@ -99,40 +105,26 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Features — two buckets */}
-      <section className="flex-1 bg-gray-50 dark:bg-gray-800/50 py-16 px-6">
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-          {/* Bucket 1: The Data */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400">
-                <MagnifyingGlassIcon className="h-5 w-5" />
-              </span>
-              <h2 className="text-xl font-semibold">Literature Surveillance</h2>
-            </div>
-            <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
-              New asbestos, talc, and genetic predisposition publications captured the week they appear &mdash; no manual searching, every citation verified against PubMed.
-            </p>
-          </div>
-
-          {/* Bucket 2: The Intelligence */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-semibold mb-6">Your AI Analyst</h2>
-            <div className="space-y-5">
-              {aiCapabilities.map((c) => (
-                <div key={c.title} className="flex gap-3">
-                  <span className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 mt-0.5">
-                    <c.icon className="h-4 w-4" />
+      {/* Features */}
+      <section className="flex-1 bg-gray-50 dark:bg-gray-800/50 py-20 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {features.map((f) => (
+              <div
+                key={f.title}
+                className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400">
+                    <f.icon className="h-5 w-5" />
                   </span>
-                  <div>
-                    <h3 className="text-sm font-semibold">{c.title}</h3>
-                    <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mt-1">
-                      {c.description}
-                    </p>
-                  </div>
+                  <h3 className="text-lg font-semibold">{f.title}</h3>
                 </div>
-              ))}
-            </div>
+                <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
+                  {f.description}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
