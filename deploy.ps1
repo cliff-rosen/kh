@@ -64,7 +64,7 @@ if (-not $SkipTag) {
 
     Write-Host ""
     Write-Host "=== Deploy to Production ===" -ForegroundColor Cyan
-    Write-Host "  Current tag: $($latestTag ?? 'none')" -ForegroundColor Gray
+    Write-Host "  Current tag: $(if ($latestTag) { $latestTag } else { 'none' })" -ForegroundColor Gray
     Write-Host "  Next tag:    $nextVersion" -ForegroundColor Gray
     Write-Host "  Backend:     $Backend" -ForegroundColor Gray
     Write-Host "  Frontend:    $Frontend" -ForegroundColor Gray
