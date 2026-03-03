@@ -50,7 +50,8 @@ if ($dirty) {
 # --- Version tagging ---
 if (-not $SkipTag) {
     # Find latest v* tag
-    $latestTag = git describe --tags --match "v*" --abbrev=0 2>$null
+    $latestTag = $null
+    try { $latestTag = git describe --tags --match "v*" --abbrev=0 2>$null } catch {}
     if ($latestTag) {
         # Parse version: v1.0.3 -> (1, 0, 3)
         $parts = $latestTag.TrimStart("v").Split(".")
@@ -94,7 +95,8 @@ if (-not $SkipTag) {
     $version = $nextVersion
 } else {
     # SkipTag: use the latest existing tag
-    $version = git describe --tags --match "v*" --abbrev=0 2>$null
+    $version = $null
+    try { $version = git describe --tags --match "v*" --abbrev=0 2>$null } catch {}
     if (-not $version) {
         Write-Host "ERROR: No existing v* tag found. Run without -SkipTag first." -ForegroundColor Red
         exit 1
