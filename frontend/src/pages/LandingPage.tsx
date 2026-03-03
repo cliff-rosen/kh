@@ -71,8 +71,11 @@ export default function LandingPage() {
             AI-Powered Litigation Intelligence
           </p>
           <h1 className="text-4xl sm:text-5xl font-bold leading-tight">
-            Comprehensive scientific awareness for asbestos and talc defense &mdash; delivered weekly, built for litigators.
+            Scientific Intelligence for Asbestos &amp; Talc Defense
           </h1>
+          <p className="mt-6 text-xl text-gray-600 dark:text-gray-400 leading-relaxed">
+            Delivered weekly. Built for litigators.
+          </p>
         </div>
       </section>
 
@@ -82,16 +85,13 @@ export default function LandingPage() {
           <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-8 border border-gray-200 dark:border-gray-700">
             <h2 className="text-xl font-semibold mb-4">Curated Weekly Reports</h2>
             <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-              Knowledge Horizon continuously monitors the worldwide scientific literature relevant to
-              talc and asbestos litigation and delivers a curated weekly report that defense teams can
-              review in under 15 minutes.
+              Continuous monitoring of the worldwide scientific literature relevant to talc and asbestos litigation, delivered as a curated weekly report.
             </p>
           </div>
           <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-8 border border-gray-200 dark:border-gray-700">
             <h2 className="text-xl font-semibold mb-4">AI Chat &amp; Analysis</h2>
             <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-              Get the information the way you want it, understand it the way you need to, and arrive at
-              the insights that matter for your case &mdash; just ask in plain language.
+              Interact with the science using our AI-powered analysis tool to tease out critical insights and connections.
             </p>
           </div>
         </div>
