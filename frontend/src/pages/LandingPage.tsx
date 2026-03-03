@@ -11,6 +11,12 @@ const features = [
       'New asbestos, talc, and genetic predisposition publications captured the week they appear \u2014 no manual searching, every citation verified against PubMed.',
   },
   {
+    icon: SparklesIcon,
+    title: 'AI-Powered Conversation',
+    description:
+      'Don\u2019t just read the science \u2014 interrogate it. Our AI chat lets you query the week\u2019s literature the way you\u2019d question a witness: targeted, strategic, and on your terms.',
+  },
+  {
     icon: ScaleIcon,
     title: 'Stance Analysis',
     description:
@@ -21,12 +27,6 @@ const features = [
     title: 'Scientific Translation',
     description:
       'Technical findings summarized in plain language so associates and paralegals can engage with the science directly.',
-  },
-  {
-    icon: SparklesIcon,
-    title: 'AI Synthesis',
-    description:
-      'Cross-report analysis that spots contradictions, surfaces methodological issues, and finds patterns across the full week\u2019s literature.',
   },
 ];
 
