@@ -5,32 +5,32 @@ import settings from '../config/settings';
 
 const features = [
   {
-    number: '01',
-    title: 'Litigation Research Streams',
+    number: '1',
+    title: 'Automated Literature Surveillance',
     description:
-      'Create targeted research streams that continuously monitor scientific literature, regulatory filings, and expert publications relevant to your cases.',
-    quote: '"What used to take our team weeks of manual searching now surfaces automatically."',
+      'Expert-level PubMed monitoring runs continuously across asbestos, talc, and genetic predisposition research. New publications are captured the week they appear \u2014 no manual searching required. Every article is verified against PubMed IDs, ensuring citation integrity that holds up in expert reports and Daubert motions.',
+    quote: '\u201CNever manually search PubMed again. The essential literature arrives in your inbox every week.\u201D',
   },
   {
-    number: '02',
-    title: 'AI-Powered Analysis',
+    number: '2',
+    title: 'Stance Analysis: Favorable vs. Adverse',
     description:
-      'Automatically extract key findings, identify favorable evidence, and flag potential risks across thousands of documents with expert-level precision.',
-    quote: '"The AI catches nuances in study methodologies that even experienced reviewers miss."',
+      'Every study is analyzed for its litigation implications \u2014 whether it supports or challenges defense positions \u2014 so attorneys can immediately sort the literature and understand what each article means for their case without reading every abstract.',
+    quote: '\u201CWhich articles this week strengthen our alternative causation argument?\u201D',
   },
   {
-    number: '03',
-    title: 'Expert & Publication Tracking',
+    number: '3',
+    title: 'Plain-Language Scientific Translation',
     description:
-      'Monitor opposing experts\u2019 publication history, track emerging research trends, and identify contradictions in testimony versus published work.',
-    quote: '"We identified a critical contradiction in the plaintiff\'s expert testimony within minutes."',
+      'Studies relating to epidemiology, toxicology, genetics, fiber science, pathology, or other technical areas are summarized in accessible language \u2014 methodology, findings, and litigation relevance \u2014 without a call to your expert for every article. Technical terms are defined, so associates and paralegals can engage with the science directly.',
+    quote: '\u201CWhat is this study actually saying, and how would a plaintiff use it?\u201D',
   },
   {
-    number: '04',
-    title: 'Defense-Ready Reports',
+    number: '4',
+    title: 'AI Synthesis Across the Entire Report',
     description:
-      'Generate comprehensive, citation-rich reports structured for depositions, Daubert challenges, and trial preparation — ready for attorney review.',
-    quote: '"Reports that used to take days to compile are now generated in hours, with better citations."',
+      'Rather than reading 40 abstracts, Knowledge Horizon provides a synthesis across the full week\u2019s report \u2014 spotting contradictions, surfacing methodological strengths and weaknesses, and finding patterns a human analyst would spend hours identifying.',
+    quote: '',
   },
 ];
 
@@ -41,10 +41,10 @@ export default function LandingPage() {
     <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       {/* Navbar */}
       <nav className="flex-shrink-0 sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={settings.logoUrl} alt="Logo" className="h-8 w-auto" />
-            <span className="text-lg font-semibold">{settings.appName}</span>
+            <span className="text-lg font-semibold">Knowledge Horizon</span>
           </div>
           <div className="flex items-center gap-4">
             <button
@@ -65,20 +65,37 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="flex-1 flex flex-col items-center justify-center px-6 py-20 text-center">
-        <p className="text-xs font-semibold tracking-widest text-blue-600 dark:text-blue-400 uppercase mb-4">
-          AI-Powered Litigation Intelligence
-        </p>
-        <h1 className="text-4xl sm:text-5xl font-bold leading-tight max-w-3xl">
-          Scientific Intelligence for{' '}
-          <span className="text-blue-600 dark:text-blue-400">Asbestos &amp; Talc Defense</span>
-        </h1>
-        <p className="mt-6 text-lg text-gray-600 dark:text-gray-400 max-w-2xl leading-relaxed">
-          Knowledge Horizon continuously monitors the scientific landscape, analyzes expert
-          publications, and generates defense-ready reports — so your team can focus on winning cases
-          instead of searching for evidence.
-        </p>
-        <div className="mt-10 flex flex-wrap gap-4 justify-center">
+      <section className="px-6 pt-20 pb-16">
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="text-xs font-semibold tracking-[0.25em] text-blue-600 dark:text-blue-400 uppercase mb-6">
+            AI-Powered Litigation Intelligence
+          </p>
+          <h1 className="text-4xl sm:text-5xl font-bold leading-tight">
+            Comprehensive scientific awareness for asbestos and talc defense &mdash; delivered weekly, built for litigators.
+          </h1>
+        </div>
+      </section>
+
+      {/* Two pillars */}
+      <section className="px-6 pb-16">
+        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-8 border border-gray-200 dark:border-gray-700">
+            <h2 className="text-xl font-semibold mb-4">Curated Weekly Reports</h2>
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              Knowledge Horizon continuously monitors the worldwide scientific literature relevant to
+              talc and asbestos litigation and delivers a curated weekly report that defense teams can
+              review in under 15 minutes.
+            </p>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-8 border border-gray-200 dark:border-gray-700">
+            <h2 className="text-xl font-semibold mb-4">AI Chat &amp; Analysis</h2>
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              Get the information the way you want it, understand it the way you need to, and arrive at
+              the insights that matter for your case &mdash; just ask in plain language.
+            </p>
+          </div>
+        </div>
+        <div className="max-w-5xl mx-auto mt-8 flex flex-wrap gap-4 justify-center">
           <Link
             to="/login"
             className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
@@ -87,7 +104,7 @@ export default function LandingPage() {
           </Link>
           <a
             href="mailto:cliff@ironcliff.ai?subject=Knowledge%20Horizon%20%E2%80%93%20Access%20Request"
-            className="px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-600 font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            className="px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-600 font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
             Request Access
           </a>
@@ -96,24 +113,27 @@ export default function LandingPage() {
 
       {/* Features */}
       <section className="bg-gray-50 dark:bg-gray-800/50 py-20 px-6">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-12">How It Works</h2>
+        <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {features.map((f) => (
               <div
                 key={f.number}
                 className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
               >
-                <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
-                  {f.number}
-                </span>
-                <h3 className="mt-2 text-lg font-semibold">{f.title}</h3>
-                <p className="mt-2 text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-sm font-bold">
+                    {f.number}
+                  </span>
+                  <h3 className="text-lg font-semibold">{f.title}</h3>
+                </div>
+                <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
                   {f.description}
                 </p>
-                <p className="mt-4 text-sm italic text-gray-500 dark:text-gray-500">
-                  {f.quote}
-                </p>
+                {f.quote && (
+                  <p className="mt-4 text-sm italic text-gray-500 dark:text-gray-500">
+                    {f.quote}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -122,8 +142,8 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 py-8 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500 dark:text-gray-400">
-          <span>&copy; {new Date().getFullYear()} {settings.appName}. All rights reserved.</span>
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500 dark:text-gray-400">
+          <span>&copy; {new Date().getFullYear()} Knowledge Horizon. All rights reserved.</span>
           <Link
             to="/login"
             className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
