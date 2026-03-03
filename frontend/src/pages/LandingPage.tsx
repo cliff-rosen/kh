@@ -1,29 +1,29 @@
 import { Link } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
-import { MoonIcon, SunIcon } from '@heroicons/react/24/outline';
+import { MoonIcon, SunIcon, MagnifyingGlassIcon, ScaleIcon, LanguageIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import settings from '../config/settings';
 
 const features = [
   {
-    number: '1',
+    icon: MagnifyingGlassIcon,
     title: 'Literature Surveillance',
     description:
       'New asbestos, talc, and genetic predisposition publications captured the week they appear \u2014 no manual searching, every citation verified against PubMed.',
   },
   {
-    number: '2',
+    icon: ScaleIcon,
     title: 'Stance Analysis',
     description:
       'Every study analyzed for litigation implications \u2014 favorable or adverse \u2014 so you know what it means for your case without reading every abstract.',
   },
   {
-    number: '3',
+    icon: LanguageIcon,
     title: 'Scientific Translation',
     description:
       'Technical findings summarized in plain language so associates and paralegals can engage with the science directly.',
   },
   {
-    number: '4',
+    icon: SparklesIcon,
     title: 'AI Synthesis',
     description:
       'Cross-report analysis that spots contradictions, surfaces methodological issues, and finds patterns across the full week\u2019s literature.',
@@ -62,18 +62,18 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="px-6 pt-24 pb-20">
+      <section className="px-6 pt-12 pb-14">
         <div className="max-w-4xl mx-auto text-center">
-          <img src="/logos/KH logo black.png" alt="Knowledge Horizon" className="h-24 sm:h-32 w-auto mx-auto mb-8 dark:hidden" />
-          <img src="/logos/KH logo white.png" alt="Knowledge Horizon" className="h-24 sm:h-32 w-auto mx-auto mb-8 hidden dark:block" />
-          <p className="text-xs font-semibold tracking-[0.25em] text-blue-600 dark:text-blue-400 uppercase mb-6">
+          <img src="/logos/KH logo black.png" alt="Knowledge Horizon" className="h-16 sm:h-20 w-auto mx-auto mb-5 dark:hidden" />
+          <img src="/logos/KH logo white.png" alt="Knowledge Horizon" className="h-16 sm:h-20 w-auto mx-auto mb-5 hidden dark:block" />
+          <p className="text-xs font-semibold tracking-[0.25em] text-blue-600 dark:text-blue-400 uppercase mb-4">
             AI-Powered Litigation Intelligence
           </p>
-          <h1 className="text-4xl sm:text-5xl font-bold leading-tight">
+          <h1 className="text-3xl sm:text-4xl font-bold leading-tight">
             Comprehensive Scientific Awareness for Asbestos &amp; Talc Defense
           </h1>
 
-          <div className="mt-14 grid grid-cols-1 md:grid-cols-2 gap-12 text-left max-w-3xl mx-auto">
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 text-left max-w-3xl mx-auto">
             <div>
               <h2 className="text-lg font-semibold mb-2">Curated Weekly Reports</h2>
               <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
@@ -88,7 +88,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="mt-12 flex flex-wrap gap-4 justify-center">
+          <div className="mt-8 flex flex-wrap gap-4 justify-center">
             <Link
               to="/login"
               className="px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
@@ -111,12 +111,12 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {features.map((f) => (
               <div
-                key={f.number}
+                key={f.title}
                 className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
               >
                 <div className="flex items-center gap-3 mb-3">
-                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-sm font-bold">
-                    {f.number}
+                  <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400">
+                    <f.icon className="h-5 w-5" />
                   </span>
                   <h3 className="text-lg font-semibold">{f.title}</h3>
                 </div>
