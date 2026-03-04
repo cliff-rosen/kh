@@ -26,7 +26,7 @@ const features = [
     icon: LanguageIcon,
     title: 'Scientific Translation',
     description:
-      'Technical findings translated into plain language \u2014 so litigators can assess the science, evaluate expert positions, and make strategic decisions without a call to your expert for every article.',
+      'Technical findings translated into plain language \u2014 so litigators can assess the science, evaluate expert positions, and make strategic decisions quickly and efficiently.',
   },
 ];
 
@@ -83,7 +83,7 @@ export default function LandingPage() {
             <div>
               <h2 className="text-lg font-semibold mb-2">AI Chat &amp; Analysis</h2>
               <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                Interact with the science using our AI-powered analysis tool to tease out critical insights and connections.
+                Interact with the scientific literature using our AI-powered tool to rapidly develop critical insights, test arguments, and identify relevant science beyond the weekly report.
               </p>
             </div>
           </div>
