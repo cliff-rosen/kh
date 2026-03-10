@@ -58,9 +58,11 @@ Outputs:
 
 ---
 
-## 2.1 Full Text Retrieval
+## 2.1 Full Text & External Links
 
 More robust functionality for retrieving and working with full article text.
+
+- [ ] **Segment LinkOut links by category** — The PubMed ELink API (`cmd=llinks`) returns links categorized as "Full Text Sources", "Research Materials", "Miscellaneous", etc. Currently we display them all in a flat list labeled as "free text links." Update the UI to group links by their actual PubMed category and rename the section to better reflect that it includes more than just full text (e.g., "External Resources" or "LinkOut Resources").
 
 ---
 

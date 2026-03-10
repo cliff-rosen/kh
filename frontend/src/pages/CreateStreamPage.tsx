@@ -12,10 +12,15 @@ import {
     ScheduleConfig
 } from '../types';
 import { useNavigate } from 'react-router-dom';
+import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import SemanticSpaceForm from '../components/stream/SemanticSpaceForm';
 import PresentationForm from '../components/stream/PresentationForm';
 import RetrievalConfigForm from '../components/stream/RetrievalConfigForm';
+import ChatTray from '../components/chat/ChatTray';
 import { showErrorToast } from '../lib/errorToast';
+import SemanticSpaceProposalCard, { SemanticSpaceProposalData } from '../components/chat/SemanticSpaceProposalCard';
+import RetrievalConfigProposalCard, { RetrievalConfigProposalData } from '../components/chat/RetrievalConfigProposalCard';
+import PresentationConfigProposalCard, { PresentationConfigProposalData } from '../components/chat/PresentationConfigProposalCard';
 
 // Stream scope type
 type StreamScope = 'personal' | 'organization' | 'global';
@@ -31,6 +36,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
     const { user, isPlatformAdmin, isOrgAdmin } = useAuth();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<TabType>('semantic');
+    const [isChatOpen, setIsChatOpen] = useState(false);
 
     // Determine available scopes based on user role
     const availableScopes: { value: StreamScope; label: string; description: string }[] = [
@@ -176,7 +182,100 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
     };
 
     return (
-        <div className="h-[calc(100vh-4rem)] flex flex-col overflow-hidden">
+        <div className="h-[calc(100vh-4rem)] flex">
+            {/* Chat Tray - inline on left side */}
+            <ChatTray
+                initialContext={{
+                    current_page: "new_stream",
+                    active_tab: activeTab,
+                    current_form: {
+                        stream_name: form.stream_name,
+                        semantic_space: form.semantic_space,
+                        retrieval_config: form.retrieval_config,
+                        presentation_config: form.presentation_config
+                    }
+                }}
+                payloadHandlers={{
+                    semantic_space_proposal: {
+                        render: (payload: SemanticSpaceProposalData, callbacks: { onAccept?: (data: SemanticSpaceProposalData) => void; onReject?: () => void }) => (
+                            <SemanticSpaceProposalCard data={payload} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
+                        ),
+                        onAccept: (data: SemanticSpaceProposalData) => {
+                            setForm(prev => ({
+                                ...prev,
+                                semantic_space: {
+                                    ...prev.semantic_space,
+                                    ...data.semantic_space as SemanticSpace
+                                }
+                            }));
+                        },
+                        renderOptions: {
+                            panelWidth: '650px',
+                            headerTitle: 'Semantic Space Proposal',
+                            headerIcon: '🧠'
+                        }
+                    },
+                    retrieval_config_proposal: {
+                        render: (payload: RetrievalConfigProposalData, callbacks: { onAccept?: (data: RetrievalConfigProposalData) => void; onReject?: () => void }) => (
+                            <RetrievalConfigProposalCard data={payload} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
+                        ),
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        onAccept: (data: RetrievalConfigProposalData) => {
+                            setForm(prev => ({
+                                ...prev,
+                                retrieval_config: {
+                                    ...prev.retrieval_config,
+                                    broad_search: {
+                                        queries: data.queries as any,
+                                        strategy_rationale: data.strategy_rationale,
+                                        coverage_analysis: data.coverage_analysis
+                                    }
+                                }
+                            }));
+                        },
+                        renderOptions: {
+                            panelWidth: '650px',
+                            headerTitle: 'Retrieval Config Proposal',
+                            headerIcon: '🔍'
+                        }
+                    },
+                    presentation_config_proposal: {
+                        render: (payload: PresentationConfigProposalData, callbacks: { onAccept?: (data: PresentationConfigProposalData) => void; onReject?: () => void }) => (
+                            <PresentationConfigProposalCard data={payload} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
+                        ),
+                        onAccept: (data: PresentationConfigProposalData) => {
+                            setForm(prev => ({
+                                ...prev,
+                                presentation_config: {
+                                    ...prev.presentation_config,
+                                    categories: data.categories
+                                }
+                            }));
+                        },
+                        renderOptions: {
+                            panelWidth: '600px',
+                            headerTitle: 'Categories Proposal',
+                            headerIcon: '📊'
+                        }
+                    }
+                }}
+                isOpen={isChatOpen}
+                onOpenChange={setIsChatOpen}
+            />
+
+            {/* Main Content - takes remaining space */}
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+                {/* Chat toggle button - fixed to lower left */}
+                {!isChatOpen && (
+                    <button
+                        onClick={() => setIsChatOpen(true)}
+                        className="fixed bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
+                        title="Open chat"
+                    >
+                        <ChatBubbleLeftRightIcon className="h-6 w-6" />
+                    </button>
+                )}
+
             <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col overflow-hidden">
                 {/* Header - Fixed */}
                 <div className="p-6 pb-0">
@@ -384,6 +483,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                 </div>
             </div>
             </div>
+            </div>{/* end main content */}
         </div>
     );
 }

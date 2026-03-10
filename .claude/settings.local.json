@@ -45,7 +45,11 @@
       "Bash(C:\\\\code\\\\kh\\\\backend\\\\venv\\\\Scripts\\\\python.exe:*)",
       "Bash(cmd /c:*)",
       "Bash(cmd.exe /c \"cd /d C:\\\\code\\\\kh\\\\backend & venv\\\\Scripts\\\\python.exe -c \"\"print\\(''hello''\\)\"\"\")",
-      "Bash(eb status:*)"
+      "Bash(eb status:*)",
+      "Bash(cd:*)",
+      "Read(//c/code/tt/_demo/**)",
+      "Read(//c/code/**)",
+      "Bash(cd C:/code/kh && backend/venv/Scripts/python.exe -c \"import ast; ast.parse\\(open\\('backend/models.py'\\).read\\(\\)\\); print\\('models.py syntax OK'\\)\")"
     ],
     "deny": [],
     "ask": [],

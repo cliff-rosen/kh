@@ -66,6 +66,9 @@ import PromptSuggestionsCard from '../components/chat/PromptSuggestionsCard';
 import RetrievalProposalCard from '../components/chat/RetrievalProposalCard';
 import QuerySuggestionCard from '../components/chat/QuerySuggestionCard';
 import FilterSuggestionCard from '../components/chat/FilterSuggestionCard';
+import SemanticSpaceProposalCard, { SemanticSpaceProposalData } from '../components/chat/SemanticSpaceProposalCard';
+import RetrievalConfigProposalCard, { RetrievalConfigProposalData } from '../components/chat/RetrievalConfigProposalCard';
+import PresentationConfigProposalCard, { PresentationConfigProposalData } from '../components/chat/PresentationConfigProposalCard';
 
 type TabType = 'semantic' | 'retrieval' | 'presentation' | 'enrichment' | 'article-analysis' | 'execute';
 type PresentationSubTab = 'categories' | 'categorization-prompt';
@@ -593,6 +596,64 @@ export default function EditStreamPage() {
         console.log('Retrieval proposal rejected');
     };
 
+    // Refresh stream data after auto-save (re-fetch and re-initialize form)
+    const refreshStream = async () => {
+        if (!streamId) return;
+        formInitializedRef.current = false;
+        await loadResearchStream(Number(streamId));
+        // loadResearchStream updates researchStreams, which triggers the useEffect
+        // that re-initializes the form (since formInitializedRef is now false)
+    };
+
+    // === Generation proposal handlers (auto-save on Edit page) ===
+
+    const handleSemanticSpaceProposalAccept = async (data: SemanticSpaceProposalData) => {
+        if (!streamId) return;
+        try {
+            await researchStreamApi.updateResearchStream(Number(streamId), {
+                semantic_space: data.semantic_space as SemanticSpace
+            });
+            showSuccessToast('Semantic space updated');
+            await refreshStream();
+        } catch (err) {
+            showErrorToast(err, 'Failed to update semantic space');
+        }
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleRetrievalConfigProposalAccept = async (data: RetrievalConfigProposalData) => {
+        if (!streamId) return;
+        try {
+            await researchStreamApi.updateResearchStream(Number(streamId), {
+                retrieval_config: {
+                    ...form.retrieval_config,
+                    broad_search: {
+                        queries: data.queries as any,
+                        strategy_rationale: data.strategy_rationale,
+                        coverage_analysis: data.coverage_analysis
+                    }
+                }
+            });
+            showSuccessToast('Retrieval config updated');
+            await refreshStream();
+        } catch (err) {
+            showErrorToast(err, 'Failed to update retrieval config');
+        }
+    };
+
+    const handlePresentationConfigProposalAccept = async (data: PresentationConfigProposalData) => {
+        if (!streamId) return;
+        try {
+            await researchStreamApi.updateResearchStream(Number(streamId), {
+                presentation_config: { categories: data.categories as Category[] }
+            });
+            showSuccessToast('Presentation categories updated');
+            await refreshStream();
+        } catch (err) {
+            showErrorToast(err, 'Failed to update presentation categories');
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="max-w-7xl mx-auto p-6">
@@ -787,6 +848,51 @@ export default function EditStreamPage() {
                             panelWidth: '500px',
                             headerTitle: 'Filter Suggestion',
                             headerIcon: '🎯'
+                        }
+                    },
+                    semantic_space_proposal: {
+                        render: (payload: SemanticSpaceProposalData, callbacks) => (
+                            <SemanticSpaceProposalCard
+                                data={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handleSemanticSpaceProposalAccept,
+                        renderOptions: {
+                            panelWidth: '650px',
+                            headerTitle: 'Semantic Space Proposal',
+                            headerIcon: '🧠'
+                        }
+                    },
+                    retrieval_config_proposal: {
+                        render: (payload: RetrievalConfigProposalData, callbacks) => (
+                            <RetrievalConfigProposalCard
+                                data={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handleRetrievalConfigProposalAccept,
+                        renderOptions: {
+                            panelWidth: '650px',
+                            headerTitle: 'Retrieval Config Proposal',
+                            headerIcon: '🔍'
+                        }
+                    },
+                    presentation_config_proposal: {
+                        render: (payload: PresentationConfigProposalData, callbacks) => (
+                            <PresentationConfigProposalCard
+                                data={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handlePresentationConfigProposalAccept,
+                        renderOptions: {
+                            panelWidth: '600px',
+                            headerTitle: 'Categories Proposal',
+                            headerIcon: '📊'
                         }
                     }
                 }}

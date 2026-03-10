@@ -94,6 +94,41 @@ registerPayloadHandler('artifact_details', {
 });
 
 // ============================================================================
+// Stream Generation Proposal Handlers
+// ============================================================================
+
+import SemanticSpaceProposalCard, { SemanticSpaceProposalData } from '../../components/chat/SemanticSpaceProposalCard';
+import RetrievalConfigProposalCard, { RetrievalConfigProposalData } from '../../components/chat/RetrievalConfigProposalCard';
+import PresentationConfigProposalCard, { PresentationConfigProposalData } from '../../components/chat/PresentationConfigProposalCard';
+
+registerPayloadHandler('semantic_space_proposal', {
+    render: (data: SemanticSpaceProposalData, callbacks) => React.createElement(SemanticSpaceProposalCard, { data, ...callbacks }),
+    renderOptions: {
+        panelWidth: '650px',
+        headerTitle: 'Semantic Space Proposal',
+        headerIcon: '🧠'
+    }
+});
+
+registerPayloadHandler('retrieval_config_proposal', {
+    render: (data: RetrievalConfigProposalData, callbacks) => React.createElement(RetrievalConfigProposalCard, { data, ...callbacks }),
+    renderOptions: {
+        panelWidth: '650px',
+        headerTitle: 'Retrieval Config Proposal',
+        headerIcon: '🔍'
+    }
+});
+
+registerPayloadHandler('presentation_config_proposal', {
+    render: (data: PresentationConfigProposalData, callbacks) => React.createElement(PresentationConfigProposalCard, { data, ...callbacks }),
+    renderOptions: {
+        panelWidth: '600px',
+        headerTitle: 'Categories Proposal',
+        headerIcon: '📊'
+    }
+});
+
+// ============================================================================
 // Additional payload types can be registered here as needed.
 //
 // The pattern is:
