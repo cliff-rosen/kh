@@ -1095,6 +1095,102 @@ Use this when:
 
 
 # =============================================================================
+# Stream Generation Payloads (tool-based)
+# =============================================================================
+
+def _summarize_semantic_space_proposal(data: Dict[str, Any]) -> str:
+    ss = data.get("semantic_space", {})
+    topic_count = len(ss.get("topics", []))
+    domain_name = ss.get("domain", {}).get("name", "Unknown")
+    return f"Proposed semantic space '{domain_name}' with {topic_count} topics"
+
+
+def _summarize_retrieval_config_proposal(data: Dict[str, Any]) -> str:
+    query_count = len(data.get("queries", []))
+    return f"Proposed {query_count} search queries"
+
+
+def _summarize_presentation_config_proposal(data: Dict[str, Any]) -> str:
+    cat_count = len(data.get("categories", []))
+    return f"Proposed {cat_count} categories"
+
+
+register_payload_type(PayloadType(
+    name="semantic_space_proposal",
+    description="Proposed semantic space for a research stream",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_semantic_space_proposal,
+    schema={
+        "type": "object",
+        "properties": {
+            "semantic_space": {
+                "type": "object",
+                "description": "Complete semantic space object"
+            },
+            "reasoning": {
+                "type": "string",
+                "description": "Explanation of how the semantic space was generated"
+            }
+        }
+    }
+))
+
+register_payload_type(PayloadType(
+    name="retrieval_config_proposal",
+    description="Proposed retrieval queries for a research stream",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_retrieval_config_proposal,
+    schema={
+        "type": "object",
+        "properties": {
+            "queries": {
+                "type": "array",
+                "description": "Array of broad search query objects",
+                "items": {"type": "object"}
+            },
+            "strategy_rationale": {
+                "type": "string",
+                "description": "Overall explanation of the search strategy"
+            },
+            "coverage_analysis": {
+                "type": "object",
+                "description": "Analysis of topic coverage"
+            }
+        }
+    }
+))
+
+register_payload_type(PayloadType(
+    name="presentation_config_proposal",
+    description="Proposed presentation categories for a research stream",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_presentation_config_proposal,
+    schema={
+        "type": "object",
+        "properties": {
+            "categories": {
+                "type": "array",
+                "description": "Array of category objects",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "name": {"type": "string"},
+                        "description": {"type": "string"},
+                        "topics": {"type": "array", "items": {"type": "string"}},
+                        "specific_inclusions": {"type": "array", "items": {"type": "string"}}
+                    }
+                }
+            }
+        }
+    }
+))
+
+
+# =============================================================================
 # Tablizer / TrialScout Payloads
 # =============================================================================
 

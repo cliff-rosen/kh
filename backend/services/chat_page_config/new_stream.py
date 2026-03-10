@@ -101,6 +101,7 @@ questions when needed to provide better recommendations.
 register_page(
     page="new_stream",
     context_builder=build_context,
-    payloads=["stream_template", "topic_suggestions", "validation_feedback"]
+    payloads=["stream_template", "topic_suggestions", "validation_feedback",
+              "semantic_space_proposal", "retrieval_config_proposal", "presentation_config_proposal"]
     # Note: Global actions (close_chat) are automatically included
 )

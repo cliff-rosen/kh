@@ -119,10 +119,13 @@ register_page(
     context_builder=build_context,
     tabs={
         "semantic": TabConfig(
-            payloads=["schema_proposal", "validation_results"],
+            payloads=["schema_proposal", "validation_results", "semantic_space_proposal"],
         ),
         "retrieval": TabConfig(
-            payloads=["retrieval_proposal"],
+            payloads=["retrieval_proposal", "retrieval_config_proposal"],
+        ),
+        "presentation": TabConfig(
+            payloads=["presentation_config_proposal"],
         ),
         "execute": TabConfig(
             # No tab-wide payloads - they're subtab-specific
