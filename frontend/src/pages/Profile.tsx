@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserIcon, BuildingOfficeIcon, KeyIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { UserIcon, BuildingOfficeIcon, KeyIcon, EyeIcon, EyeSlashIcon, TagIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import { userApi, type UserUpdateRequest, type PasswordChangeRequest } from '../lib/api/userApi';
 import { handleApiError } from '../lib/api';
@@ -10,8 +10,9 @@ import { OrgDetailsForm } from '../components/org/OrgDetailsForm';
 import { MemberList } from '../components/org/MemberList';
 import { GlobalStreamSubscriptions } from '../components/org/GlobalStreamSubscriptions';
 import { OrganizationProvider } from '../context/OrganizationContext';
+import TagManager from '../components/tags/TagManager';
 
-type ProfileTab = 'user' | 'organization';
+type ProfileTab = 'user' | 'tags' | 'organization';
 
 export default function Profile() {
     const { user: authUser, isOrgAdmin, isPlatformAdmin } = useAuth();
@@ -20,6 +21,8 @@ export default function Profile() {
     // Only show Organization tab for org admins who actually belong to an org
     // Platform admins don't have an org_id, so they shouldn't see this tab
     const showOrgTab = isOrgAdmin && !isPlatformAdmin && authUser?.org_id;
+    // Show org tags to anyone who can manage them (org admins OR platform admins with an org)
+    const canManageOrgTags = (isOrgAdmin || isPlatformAdmin) && authUser?.org_id;
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -132,6 +135,7 @@ export default function Profile() {
 
     const tabs = [
         { id: 'user' as const, name: 'Profile', icon: UserIcon },
+        { id: 'tags' as const, name: 'Tags', icon: TagIcon },
         ...(showOrgTab ? [{ id: 'organization' as const, name: 'Organization', icon: BuildingOfficeIcon }] : [])
     ];
 
@@ -150,7 +154,7 @@ export default function Profile() {
                     Settings
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 mt-2">
-                    Manage your profile{showOrgTab ? ' and organization' : ''}
+                    Manage your profile, tags{showOrgTab ? ', and organization' : ''}
                 </p>
             </div>
 
@@ -373,6 +377,38 @@ export default function Profile() {
                             </div>
                         </form>
                     </div>
+
+                </div>
+            )}
+
+            {/* Tags Tab */}
+            {activeTab === 'tags' && (
+                <div className="space-y-6">
+                    {/* Personal Tags */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                            My Tags
+                        </h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                            Personal tags are private — only you can see and use them.
+                            Create tags here, then assign them to articles from the article viewer.
+                        </p>
+                        <TagManager scope="personal" />
+                    </div>
+
+                    {/* Organization Tags */}
+                    {canManageOrgTags && (
+                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                                Organization Tags
+                            </h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                Organization tags are shared — all org members can see and assign them.
+                                Org tags show a <BuildingOfficeIcon className="inline h-3.5 w-3.5 mx-0.5" /> icon to distinguish them from personal tags.
+                            </p>
+                            <TagManager scope="organization" />
+                        </div>
+                    )}
                 </div>
             )}
 

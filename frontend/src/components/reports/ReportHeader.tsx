@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { ReportWithArticles } from '../../types';
 import ExportMenu from '../ui/ExportMenu';
+import TagFilterBar from '../tags/TagFilterBar';
 
 export type ReportView = 'all' | 'by-category' | 'tablizer';
 export type CardFormat = 'compact' | 'abstract' | 'ai_summary';
@@ -24,6 +25,8 @@ export interface ReportHeaderProps {
     showAdminControls?: boolean;
     showTablizer?: boolean;
     showDelete?: boolean;
+    selectedTagIds?: number[];
+    onTagSelectionChange?: (tagIds: number[]) => void;
     onViewChange: (view: ReportView) => void;
     onCardFormatChange: (format: CardFormat) => void;
     onShowExecutionConfig: () => void;
@@ -41,6 +44,8 @@ export default function ReportHeader({
     showAdminControls = false,
     showTablizer = false,
     showDelete = false,
+    selectedTagIds,
+    onTagSelectionChange,
     onViewChange,
     onCardFormatChange,
     onShowExecutionConfig,
@@ -217,6 +222,16 @@ export default function ReportHeader({
                     </div>
                 </div>
             </div>
+            {/* Third line: Tag filter */}
+            {report.articles && report.articles.length > 0 && onTagSelectionChange && (
+                <div className="mt-3">
+                    <TagFilterBar
+                        selectedTagIds={selectedTagIds || []}
+                        onSelectionChange={onTagSelectionChange}
+                        reportId={report.report_id}
+                    />
+                </div>
+            )}
         </div>
     );
 }

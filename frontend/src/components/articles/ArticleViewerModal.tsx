@@ -26,6 +26,8 @@ import StanceAnalysisDisplay, { getStanceInfo } from '../ui/StanceAnalysisDispla
 import ArticleNotes from './ArticleNotes';
 import StarButton from './StarButton';
 import CitationMenu from './CitationMenu';
+import TagPicker from '../tags/TagPicker';
+import AddToCollectionButton from './AddToCollectionButton';
 import { formatArticleDate, getYearString } from '../../utils/dateUtils';
 
 type WorkspaceTab = 'analysis' | 'notes' | 'links';
@@ -352,9 +354,11 @@ export default function ArticleViewerModal({
         }
     };
 
-    const formatAuthors = (authors: string[]) => {
-        if (!authors || authors.length === 0) return 'Unknown authors';
-        return authors.join(', ');
+    const formatAuthors = (authors: any) => {
+        if (!authors) return 'Unknown authors';
+        if (typeof authors === 'string') return authors;
+        if (Array.isArray(authors) && authors.length > 0) return authors.join(', ');
+        return 'Unknown authors';
     };
 
     const truncateTitle = (title: string, maxLength: number = 80) => {
@@ -579,6 +583,14 @@ export default function ArticleViewerModal({
                                     </a>
                                 )}
                             </div>
+
+                            {/* Tags and Collection actions */}
+                            {isDbBacked && articleId && (
+                                <div className="mt-2 flex items-center gap-3">
+                                    <TagPicker articleId={articleId} />
+                                    <AddToCollectionButton articleId={articleId} />
+                                </div>
+                            )}
 
                             {/* Collapsible details: Why This Article, AI Summary, Abstract */}
                             {(article.relevance_rationale || article.ai_summary || article.abstract) && (

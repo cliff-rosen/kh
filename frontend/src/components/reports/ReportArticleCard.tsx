@@ -3,6 +3,20 @@ import { ReportArticle } from '../../types';
 import { CardFormat } from './ReportHeader';
 import { formatArticleDate } from '../../utils/dateUtils';
 import StarButton from '../articles/StarButton';
+import TagBadge from '../tags/TagBadge';
+import { ArticleTag } from '../../types/tag';
+import { getStanceInfo } from '../ui/StanceAnalysisDisplay';
+
+// authors can come back as string, array, or null from backend JSON columns
+function formatAuthors(authors: any): string {
+    if (!authors) return '';
+    if (typeof authors === 'string') return authors;
+    if (Array.isArray(authors) && authors.length > 0) {
+        const display = authors.slice(0, 3).join(', ');
+        return authors.length > 3 ? display + ' et al.' : display;
+    }
+    return '';
+}
 
 export interface ReportArticleCardProps {
     article: ReportArticle;
@@ -10,6 +24,9 @@ export interface ReportArticleCardProps {
     onClick?: () => void;
     isStarred?: boolean;
     onToggleStar?: () => void;
+    tags?: ArticleTag[];
+    /** Show the source report name as a badge (used in favorites view) */
+    showReportBadge?: boolean;
 }
 
 export default function ReportArticleCard({
@@ -17,7 +34,9 @@ export default function ReportArticleCard({
     cardFormat = 'compact',
     onClick,
     isStarred = false,
-    onToggleStar
+    onToggleStar,
+    tags,
+    showReportBadge = false,
 }: ReportArticleCardProps) {
     return (
         <div
@@ -33,10 +52,9 @@ export default function ReportArticleCard({
                     <h4 className="font-medium text-blue-600 dark:text-blue-400 mb-1 group-hover:underline">
                         {article.title}
                     </h4>
-                    {article.authors && article.authors.length > 0 && (
+                    {article.authors && (
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                            {article.authors.slice(0, 3).join(', ')}
-                            {article.authors.length > 3 && ` et al.`}
+                            {formatAuthors(article.authors)}
                         </p>
                     )}
                     <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-500">
@@ -46,6 +64,33 @@ export default function ReportArticleCard({
                         )}
                         {article.pmid && <span>• PMID: {article.pmid}</span>}
                     </div>
+                    {tags && tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                            {tags.map(tag => (
+                                <TagBadge key={tag.tag_id} name={tag.name} color={tag.color} scope={tag.scope} />
+                            ))}
+                        </div>
+                    )}
+                    {/* Report badge + stance (favorites context) */}
+                    {(showReportBadge || article.ai_enrichments?.stance_analysis) && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            {showReportBadge && article.report_name && (
+                                <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">
+                                    {article.report_name}
+                                </span>
+                            )}
+                            {article.ai_enrichments?.stance_analysis && (() => {
+                                const stanceInfo = getStanceInfo(article.ai_enrichments!.stance_analysis!.stance);
+                                const StanceIcon = stanceInfo.icon;
+                                return (
+                                    <span className={`text-xs px-2 py-0.5 rounded flex items-center gap-1 ${stanceInfo.bgColor} ${stanceInfo.color}`}>
+                                        <StanceIcon className="h-3 w-3" />
+                                        {stanceInfo.label}
+                                    </span>
+                                );
+                            })()}
+                        </div>
+                    )}
                     {cardFormat === 'ai_summary' && article.ai_summary && (
                         <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-md border-l-2 border-purple-400 dark:border-purple-600">
                             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">

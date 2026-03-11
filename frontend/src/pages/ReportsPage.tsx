@@ -35,7 +35,7 @@ import {
     ReportView,
     CardFormat
 } from '../components/reports';
-import { getStanceInfo } from '../components/ui/StanceAnalysisDisplay';
+import { tagApi } from '../lib/api/tagApi';
 
 export default function ReportsPage() {
     const [searchParams] = useSearchParams();
@@ -113,6 +113,34 @@ export default function ReportsPage() {
     const [streamFavoritesCount, setStreamFavoritesCount] = useState(0);
     const [loadingFavorites, setLoadingFavorites] = useState(false);
   
+    // Tag state
+    const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+    const [tagFilteredArticleIds, setTagFilteredArticleIds] = useState<Set<number> | null>(null);
+    const [articleTagsMap, setArticleTagsMap] = useState<Record<number, { tag_id: number; name: string; color?: string; scope: string }[]>>({});
+
+    // Fetch tags for all articles in the current report
+    useEffect(() => {
+        if (!selectedReport?.articles?.length) {
+            setArticleTagsMap({});
+            return;
+        }
+        const articleIds = selectedReport.articles.map(a => a.article_id);
+        tagApi.getTagsForArticles(articleIds).then(setArticleTagsMap).catch(console.error);
+    }, [selectedReport?.report_id, selectedReport?.articles?.length]);
+
+    // When tag selection changes, fetch matching article IDs
+    useEffect(() => {
+        if (selectedTagIds.length === 0) {
+            setTagFilteredArticleIds(null);
+            return;
+        }
+        const reportId = selectedReport?.report_id;
+        if (!reportId) return;
+        tagApi.searchByTags(selectedTagIds, undefined, reportId).then(result => {
+            setTagFilteredArticleIds(new Set(result.articles.map((a: any) => a.article_id)));
+        }).catch(console.error);
+    }, [selectedTagIds, selectedReport?.report_id]);
+
     const hasStreams = researchStreams.length > 0;
     const hasPipelineData = selectedReport?.pipeline_execution_id != null;
 
@@ -122,7 +150,12 @@ export default function ReportsPage() {
         try {
             const response = await starringApi.getStarredForStream(streamId);
             setStreamFavorites(response.articles);
-            setStreamFavoritesCount(response.articles.length); // Update count
+            setStreamFavoritesCount(response.articles.length);
+            // Fetch tags for favorites articles
+            if (response.articles.length > 0) {
+                const ids = response.articles.map((a: any) => a.article_id);
+                tagApi.getTagsForArticles(ids).then(setArticleTagsMap).catch(console.error);
+            }
         } catch (err) {
             console.error('Failed to load favorites:', err);
             setStreamFavorites([]);
@@ -435,7 +468,12 @@ export default function ReportsPage() {
             articles: []
         };
 
-        selectedReport.articles?.forEach(article => {
+        // Apply tag filter if active
+        const articlesToGroup = tagFilteredArticleIds
+            ? selectedReport.articles?.filter(a => tagFilteredArticleIds.has(a.article_id))
+            : selectedReport.articles;
+
+        articlesToGroup?.forEach(article => {
             if (!article.presentation_categories || article.presentation_categories.length === 0) {
                 categoryMap['uncategorized'].articles.push(article);
             } else {
@@ -553,6 +591,11 @@ export default function ReportsPage() {
             return null;
         }
 
+        // Apply tag filter if active
+        const displayArticles = tagFilteredArticleIds
+            ? selectedReport.articles.filter(a => tagFilteredArticleIds.has(a.article_id))
+            : selectedReport.articles;
+
         if (reportView === 'by-category') {
             return (
                 <div>
@@ -628,6 +671,7 @@ export default function ReportsPage() {
                                                             onClick={() => openArticleViewer(selectedReport.articles, fullIndex)}
                                                             isStarred={article.is_starred ?? false}
                                                             onToggleStar={() => handleToggleStar(article.article_id)}
+                                                            tags={articleTagsMap[article.article_id]}
                                                         />
                                                     );
                                                 })}
@@ -646,19 +690,23 @@ export default function ReportsPage() {
         return (
             <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                    Articles ({selectedReport.articles.length})
+                    Articles ({displayArticles.length}{tagFilteredArticleIds ? ` of ${selectedReport.articles.length}` : ''})
                 </h3>
                 <div className="space-y-3">
-                    {selectedReport.articles.map((article, idx) => (
-                        <ReportArticleCard
-                            key={article.article_id}
-                            article={article}
-                            cardFormat={cardFormat}
-                            onClick={() => openArticleViewer(selectedReport.articles, idx)}
-                            isStarred={article.is_starred ?? false}
-                            onToggleStar={() => handleToggleStar(article.article_id)}
-                        />
-                    ))}
+                    {displayArticles.map((article) => {
+                        const fullIndex = selectedReport.articles.findIndex(a => a.article_id === article.article_id);
+                        return (
+                            <ReportArticleCard
+                                key={article.article_id}
+                                article={article}
+                                cardFormat={cardFormat}
+                                onClick={() => openArticleViewer(selectedReport.articles, fullIndex)}
+                                isStarred={article.is_starred ?? false}
+                                onToggleStar={() => handleToggleStar(article.article_id)}
+                                tags={articleTagsMap[article.article_id]}
+                            />
+                        );
+                    })}
                 </div>
             </div>
         );
@@ -767,70 +815,21 @@ export default function ReportsPage() {
                                         ) : (
                                             <div className="space-y-3">
                                                 {streamFavorites.map((article, idx) => (
-                                                    <div
+                                                    <ReportArticleCard
                                                         key={`${article.report_id}-${article.article_id}`}
-                                                        className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 cursor-pointer hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all"
+                                                        article={article}
+                                                        cardFormat="compact"
                                                         onClick={() => {
-                                                            // FavoriteArticle is a superset of ReportArticle, use directly
                                                             setArticleViewerArticles(streamFavorites);
                                                             setArticleViewerInitialIndex(idx);
                                                             setArticleViewerIsFiltered(false);
                                                             setArticleViewerOpen(true);
                                                         }}
-                                                    >
-                                                        <div className="flex items-start gap-4">
-                                                            <div className="flex-1 min-w-0">
-                                                                <h4 className="font-medium text-blue-600 dark:text-blue-400 mb-1">
-                                                                    {article.title}
-                                                                </h4>
-                                                                {article.authors && article.authors.length > 0 && (
-                                                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                                                                        {article.authors.slice(0, 3).join(', ')}
-                                                                        {article.authors.length > 3 && ` et al.`}
-                                                                    </p>
-                                                                )}
-                                                                <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-500">
-                                                                    {article.journal && <span>{article.journal}</span>}
-                                                                    {article.pub_year && <span>• {article.pub_year}</span>}
-                                                                    {article.pmid && <span>• PMID: {article.pmid}</span>}
-                                                                </div>
-                                                                {/* Show AI summary preview if available */}
-                                                                {article.ai_summary && (
-                                                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
-                                                                        {article.ai_summary}
-                                                                    </p>
-                                                                )}
-                                                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                                                    <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">
-                                                                        {article.report_name}
-                                                                    </span>
-                                                                    {/* Show stance badge if available */}
-                                                                    {article.ai_enrichments?.stance_analysis && (() => {
-                                                                        const stanceInfo = getStanceInfo(article.ai_enrichments.stance_analysis.stance);
-                                                                        const StanceIcon = stanceInfo.icon;
-                                                                        return (
-                                                                            <span className={`text-xs px-2 py-0.5 rounded flex items-center gap-1 ${stanceInfo.bgColor} ${stanceInfo.color}`}>
-                                                                                <StanceIcon className="h-3 w-3" />
-                                                                                {stanceInfo.label}
-                                                                            </span>
-                                                                        );
-                                                                    })()}
-                                                                </div>
-                                                            </div>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleToggleStar(article.article_id, article.report_id);
-                                                                }}
-                                                                className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-                                                                title="Remove from favorites"
-                                                            >
-                                                                <svg className="h-5 w-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 24 24">
-                                                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-                                                    </div>
+                                                        isStarred={true}
+                                                        onToggleStar={() => handleToggleStar(article.article_id, article.report_id)}
+                                                        tags={articleTagsMap[article.article_id]}
+                                                        showReportBadge
+                                                    />
                                                 ))}
                                             </div>
                                         )}
@@ -852,6 +851,8 @@ export default function ReportsPage() {
                                         showAdminControls={isPlatformAdmin}
                                         showTablizer={isAdmin}
                                         showDelete={isAdmin}
+                                        selectedTagIds={selectedTagIds}
+                                        onTagSelectionChange={setSelectedTagIds}
                                         onViewChange={handleViewChange}
                                         onCardFormatChange={handleCardFormatChange}
                                         onShowExecutionConfig={() => {

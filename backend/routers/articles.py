@@ -57,6 +57,67 @@ class FullTextContentResponse(BaseModel):
     error: str | None = None
 
 
+def _article_to_dict(a) -> dict:
+    """Convert an Article ORM model to a simple dict for API responses."""
+    return {
+        "article_id": a.article_id,
+        "title": a.title,
+        "authors": a.authors or [],
+        "journal": a.journal,
+        "pmid": a.pmid,
+        "doi": a.doi,
+        "abstract": a.abstract,
+        "url": a.url,
+        "pub_year": a.pub_year,
+        "pub_month": a.pub_month,
+        "pub_day": a.pub_day,
+    }
+
+
+@router.get("/db-search")
+async def search_articles_db(
+    q: str = "",
+    pmid: str = "",
+    limit: int = 20,
+    service: ArticleService = Depends(get_article_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Search articles by keyword or PMID.
+
+    For PMID lookups: checks local DB first, then fetches from PubMed if not found
+    and creates the article in our DB so it can be added to collections.
+
+    For keyword searches: searches local DB by title.
+    """
+    query = pmid or q
+    if not query.strip():
+        return {"articles": []}
+
+    try:
+        # PMID lookup: try DB first, then PubMed
+        if pmid:
+            pmid_clean = pmid.strip()
+            article = await service.find_by_pmid(pmid_clean)
+
+            if not article:
+                # Not in our DB — fetch from PubMed and create it
+                article = await service.find_or_create_from_pubmed(pmid_clean)
+
+            if article:
+                return _article_to_dict(article)
+            else:
+                return {"error": "Article not found in PubMed"}
+
+        # Keyword search: local DB only
+        articles = await service.search(query.strip(), limit=limit)
+        return {"articles": [_article_to_dict(a) for a in articles]}
+
+    except Exception as e:
+        logger.error(f"Error searching articles: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
 @router.get("/{pmid}", response_model=CanonicalResearchArticle)
 async def get_article_by_pmid(
     pmid: str,

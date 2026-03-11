@@ -1,6 +1,6 @@
 import { useTheme } from '../../context/ThemeContext';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MoonIcon, SunIcon, UserCircleIcon, HomeIcon, DocumentTextIcon, BeakerIcon, WrenchScrewdriverIcon, ShieldCheckIcon, Cog8ToothIcon } from '@heroicons/react/24/outline';
+import { MoonIcon, SunIcon, UserCircleIcon, HomeIcon, DocumentTextIcon, BeakerIcon, WrenchScrewdriverIcon, ShieldCheckIcon, Cog8ToothIcon, FolderIcon } from '@heroicons/react/24/outline';
 import settings from '../../config/settings';
 import { HelpGuide } from '@/components/help';
 import { useAuth } from '../../context/AuthContext';
@@ -44,6 +44,10 @@ export default function TopBar() {
                     <NavLink to="/reports" className={getLinkClass('/reports')} onClick={() => trackEvent('nav_click', { destination: 'reports' })}>
                         <DocumentTextIcon className="h-5 w-5 mr-2" />
                         Reports
+                    </NavLink>
+                    <NavLink to="/collections" className={getLinkClass('/collections')} onClick={() => trackEvent('nav_click', { destination: 'collections' })}>
+                        <FolderIcon className="h-5 w-5 mr-2" />
+                        Collections
                     </NavLink>
                     {(isPlatformAdmin || isOrgAdmin) && (
                         <NavLink to="/tools" className={getLinkClass('/tools')} onClick={() => trackEvent('nav_click', { destination: 'tools' })}>

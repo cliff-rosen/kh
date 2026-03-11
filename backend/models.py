@@ -48,6 +48,15 @@ class ToolTraceStatus(str, PyEnum):
     FAILED = "failed"
     CANCELLED = "cancelled"
 
+class CollectionScope(str, PyEnum):
+    PERSONAL = "personal"
+    ORGANIZATION = "organization"
+    STREAM = "stream"
+
+class TagScope(str, PyEnum):
+    PERSONAL = "personal"
+    ORGANIZATION = "organization"
+
 class ReportFrequency(str, PyEnum):
     """Frequency of report generation"""
     DAILY = "daily"
@@ -947,6 +956,82 @@ class Artifact(Base):
         return self.updater.full_name or self.updater.email if self.updater else None
 
 
+# === COLLECTIONS & TAGS ===
+
+class Collection(Base):
+    """Custom groupings of articles, independent from reports"""
+    __tablename__ = "collections"
+
+    collection_id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    scope = Column(Enum(CollectionScope, values_callable=lambda x: [e.value for e in x], name='collectionscope'), default=CollectionScope.PERSONAL, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.org_id"), nullable=True, index=True)
+    stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), nullable=True, index=True)
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    owner = relationship("User", foreign_keys=[user_id])
+    creator = relationship("User", foreign_keys=[created_by])
+    organization = relationship("Organization")
+    stream = relationship("ResearchStream")
+    article_associations = relationship("CollectionArticle", back_populates="collection", cascade="all, delete-orphan")
+
+
+class CollectionArticle(Base):
+    """Association between collections and articles"""
+    __tablename__ = "collection_articles"
+
+    collection_id = Column(Integer, ForeignKey("collections.collection_id", ondelete="CASCADE"), primary_key=True)
+    article_id = Column(Integer, ForeignKey("articles.article_id"), primary_key=True)
+    added_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    added_at = Column(DateTime, default=datetime.utcnow)
+    notes = Column(Text, nullable=True)
+
+    # Relationships
+    collection = relationship("Collection", back_populates="article_associations")
+    article = relationship("Article")
+    adder = relationship("User")
+
+
+class Tag(Base):
+    """Arbitrary text labels on articles"""
+    __tablename__ = "tags"
+
+    tag_id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    color = Column(String(20), nullable=True)
+    scope = Column(Enum(TagScope, values_callable=lambda x: [e.value for e in x], name='tagscope'), default=TagScope.PERSONAL, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.org_id"), nullable=True, index=True)
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    owner = relationship("User", foreign_keys=[user_id])
+    creator = relationship("User", foreign_keys=[created_by])
+    organization = relationship("Organization")
+    article_associations = relationship("ArticleTag", back_populates="tag", cascade="all, delete-orphan")
+
+
+class ArticleTag(Base):
+    """Association between tags and articles"""
+    __tablename__ = "article_tags"
+
+    tag_id = Column(Integer, ForeignKey("tags.tag_id", ondelete="CASCADE"), primary_key=True)
+    article_id = Column(Integer, ForeignKey("articles.article_id"), primary_key=True)
+    tagged_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    tagged_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    tag = relationship("Tag", back_populates="article_associations")
+    article = relationship("Article")
+    tagger = relationship("User")
+
+
 # Add relationships to User model
 User.research_streams = relationship("ResearchStream", back_populates="user", foreign_keys="ResearchStream.user_id")
 User.created_streams = relationship("ResearchStream", foreign_keys="ResearchStream.created_by")
@@ -959,3 +1044,7 @@ User.conversations = relationship("Conversation", back_populates="user", cascade
 User.events = relationship("UserEvent", back_populates="user", cascade="all, delete-orphan")
 User.tool_traces = relationship("ToolTrace", back_populates="user", cascade="all, delete-orphan")
 User.article_stars = relationship("UserArticleStar", back_populates="user", cascade="all, delete-orphan")
+User.collections = relationship("Collection", foreign_keys="Collection.user_id")
+User.tags = relationship("Tag", foreign_keys="Tag.user_id")
+Article.collection_associations = relationship("CollectionArticle", back_populates="article", viewonly=True)
+Article.tag_associations = relationship("ArticleTag", back_populates="article", viewonly=True)

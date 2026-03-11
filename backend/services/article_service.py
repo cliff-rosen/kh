@@ -8,9 +8,9 @@ This service owns:
 """
 
 import logging
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from fastapi import Depends
 
 from models import Article, WipArticle
@@ -92,9 +92,92 @@ class ArticleService:
         )
         return result.scalars().first()
 
+    async def search(self, query: str, limit: int = 20) -> List[Article]:
+        """Search articles by PMID or title keyword."""
+        query = query.strip()
+        if not query:
+            return []
+
+        # If query looks like a PMID (all digits), search by PMID first
+        if query.isdigit():
+            article = await self.find_by_pmid(query)
+            if article:
+                return [article]
+
+        # Keyword search on title
+        result = await self.db.execute(
+            select(Article)
+            .where(
+                or_(
+                    Article.title.ilike(f"%{query}%"),
+                    Article.pmid == query,
+                )
+            )
+            .order_by(Article.first_seen.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
     # =========================================================================
     # Writers (async, stages DB writes - caller must commit)
     # =========================================================================
+
+    async def find_or_create_from_pubmed(self, pmid: str) -> Optional[Article]:
+        """
+        Fetch an article from PubMed by PMID and create it in our DB.
+
+        Returns the Article ORM model, or None if PubMed doesn't have it.
+        """
+        from services.pubmed_service import PubMedService
+
+        # Check DB first (in case of race condition)
+        article = await self.find_by_pmid(pmid)
+        if article:
+            return article
+
+        # Fetch from PubMed
+        pubmed = PubMedService()
+        pubmed_articles = await pubmed.get_articles_from_ids([pmid])
+        if not pubmed_articles:
+            logger.info(f"PMID {pmid} not found in PubMed")
+            return None
+
+        pa = pubmed_articles[0]
+
+        # Parse pub_year/pub_month/pub_day from PubMedArticle.comp_date (YYYY-MM-DD or partial)
+        pub_year, pub_month, pub_day = None, None, None
+        if pa.comp_date:
+            parts = pa.comp_date.split("-")
+            if len(parts) >= 1 and parts[0].isdigit():
+                pub_year = int(parts[0])
+            if len(parts) >= 2 and parts[1].isdigit():
+                pub_month = int(parts[1])
+            if len(parts) >= 3 and parts[2].isdigit():
+                pub_day = int(parts[2])
+
+        article = Article(
+            title=pa.title,
+            url=f"https://pubmed.ncbi.nlm.nih.gov/{pa.PMID}/",
+            authors=pa.authors,
+            abstract=pa.abstract,
+            pmid=pa.PMID,
+            doi=pa.doi or None,
+            journal=pa.journal,
+            volume=pa.volume or None,
+            issue=pa.issue or None,
+            pages=pa.pages or None,
+            medium=pa.medium or None,
+            pub_year=pub_year,
+            pub_month=pub_month,
+            pub_day=pub_day,
+            fetch_count=1,
+        )
+        self.db.add(article)
+        await self.db.flush()
+        await self.db.commit()
+        await self.db.refresh(article)
+        logger.info(f"Created Article from PubMed: PMID={pmid}, article_id={article.article_id}")
+        return article
 
     async def find_or_create_from_wip(self, wip_article: WipArticle) -> Article:
         """

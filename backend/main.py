@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 # from routers import search, auth, workflow, tools, files, bot, asset
 # Import only Knowledge Horizon compatible routers (legacy routers removed)
-from routers import auth, llm, search, web_retrieval, pubmed, extraction, unified_search, lab, research_streams, reports, chat_stream, tools, retrieval_testing, prompt_testing, document_analysis, articles, tablizer
+from routers import auth, llm, search, web_retrieval, pubmed, extraction, unified_search, lab, research_streams, reports, chat_stream, tools, retrieval_testing, prompt_testing, document_analysis, articles, tablizer, collections, tags
 # User and multi-tenancy routers
 from routers import user, organization, subscriptions, admin, notes, operations, curation, help, starring
 # Tracking and chat persistence routers
@@ -107,6 +107,8 @@ app.include_router(notes.router)
 app.include_router(operations.router)
 app.include_router(curation.router)
 app.include_router(starring.router)
+app.include_router(collections.router)
+app.include_router(tags.router)
 
 # Tracking and chat persistence routers
 app.include_router(tracking.router)
