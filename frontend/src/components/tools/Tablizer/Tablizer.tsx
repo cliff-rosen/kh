@@ -127,6 +127,12 @@ export interface TablizerProps<T extends object = Record<string, any>> {
 
     // Optional: Custom cell renderer for special columns
     renderCell?: (row: TableRow, column: TableColumn) => React.ReactNode | null;
+
+    // Optional: Row selection support
+    // When provided, a checkbox column is rendered at the start of each row
+    selectedIds?: Set<string>;
+    onToggleSelect?: (id: string) => void;
+    onToggleSelectAll?: () => void;
 }
 
 export interface TablizerRef {
@@ -169,7 +175,10 @@ function TablizerInner<T extends object>(
         onColumnVisibilityChange,
         RowViewer,
         onRowClick,
-        renderCell
+        renderCell,
+        selectedIds,
+        onToggleSelect,
+        onToggleSelectAll,
     } = props;
 
     // ==========================================================================
@@ -850,6 +859,16 @@ function TablizerInner<T extends object>(
                 <table className="w-full">
                     <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
                         <tr>
+                            {selectedIds && onToggleSelectAll && (
+                                <th className="w-10 px-3 py-3 border-b border-gray-200 dark:border-gray-700">
+                                    <input
+                                        type="checkbox"
+                                        checked={filteredItems.length > 0 && filteredItems.every(item => selectedIds.has(getItemId(item, idField)))}
+                                        onChange={onToggleSelectAll}
+                                        className="rounded border-gray-300 dark:border-gray-600 text-blue-600"
+                                    />
+                                </th>
+                            )}
                             {visibleColumns.map(column => (
                                 <th
                                     key={column.id}
@@ -903,7 +922,7 @@ function TablizerInner<T extends object>(
                             return (
                             <tr
                                 key={itemId || itemIdx}
-                                className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 ${(RowViewer || onRowClick) ? 'cursor-pointer' : ''}`}
+                                className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 ${(RowViewer || onRowClick) ? 'cursor-pointer' : ''} ${selectedIds?.has(itemId) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
                                 onClick={() => {
                                     trackEvent('tablizer_row_click', { id: itemId, filtered: hasActiveFilters });
 
@@ -919,6 +938,16 @@ function TablizerInner<T extends object>(
                                     }
                                 }}
                             >
+                                {selectedIds && onToggleSelect && (
+                                    <td className="w-10 px-3 py-3" onClick={e => e.stopPropagation()}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(itemId)}
+                                            onChange={() => onToggleSelect(itemId)}
+                                            className="rounded border-gray-300 dark:border-gray-600 text-blue-600"
+                                        />
+                                    </td>
+                                )}
                                 {visibleColumns.map(column => {
                                     const cellValue = getCellValue(item, column);
 

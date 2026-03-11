@@ -1,8 +1,11 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import {
     MagnifyingGlassIcon,
     FolderIcon,
     PlusIcon,
+    ListBulletIcon,
+    TableCellsIcon,
+    XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { explorerApi } from '../lib/api/explorerApi';
@@ -10,11 +13,58 @@ import type { PubMedPagination } from '../lib/api/explorerApi';
 import type { ExplorerArticle } from '../types/explorer';
 import { collectionApi } from '../lib/api/collectionApi';
 import { Collection } from '../types/collection';
+import { formatArticleDate } from '../utils/dateUtils';
 import ArticleViewerModal from '../components/articles/ArticleViewerModal';
 import AddToCollectionModal from '../components/explorer/AddToCollectionModal';
 import CreateCollectionModal from '../components/explorer/CreateCollectionModal';
+import { Tablizer, type TableColumn, type RowViewerProps } from '../components/tools/Tablizer';
 
 const PUBMED_PAGE_SIZE = 20;
+
+type ViewMode = 'list' | 'table';
+
+// Column definitions for Tablizer view
+const EXPLORER_COLUMNS: TableColumn[] = [
+    { id: 'title', label: 'Title', accessor: 'title', type: 'text', visible: true },
+    { id: 'authors', label: 'Authors', accessor: 'authors', type: 'text', visible: false },
+    { id: 'journal', label: 'Journal', accessor: 'journal', type: 'text', visible: true },
+    { id: 'pub_date', label: 'Date', accessor: 'pub_date', type: 'date', visible: true },
+    { id: 'pmid', label: 'PMID', accessor: 'pmid', type: 'text', visible: true },
+    { id: 'abstract', label: 'Abstract', accessor: 'abstract', type: 'text', visible: false },
+    { id: 'source_labels', label: 'Sources', accessor: 'source_labels', type: 'text', visible: true },
+];
+
+// Display type with computed fields for Tablizer
+interface DisplayExplorerArticle extends ExplorerArticle {
+    _key: string;
+    pub_date: string;
+    source_labels: string;
+}
+
+// RowViewer adapter: maps ExplorerArticle[] to what ArticleViewerModal expects
+function ExplorerRowViewer({ data, initialIndex, onClose }: RowViewerProps<DisplayExplorerArticle>) {
+    const viewerArticles = data.map(a => ({
+        article_id: a.article_id || 0,
+        title: a.title,
+        authors: a.authors,
+        journal: a.journal,
+        pmid: a.pmid,
+        doi: a.doi,
+        abstract: a.abstract,
+        url: a.url,
+        pub_year: a.pub_year,
+        pub_month: a.pub_month,
+        pub_day: a.pub_day,
+    }));
+    return (
+        <ArticleViewerModal
+            articles={viewerArticles}
+            initialIndex={initialIndex}
+            onClose={onClose}
+        />
+    );
+}
+
 
 export default function ExplorerPage() {
     const { researchStreams } = useResearchStream();
@@ -36,6 +86,10 @@ export default function ExplorerPage() {
     const [pubmedPagination, setPubmedPagination] = useState<PubMedPagination | null>(null);
     const totalPubmedLoaded = useRef(0);
     const totalPubmedOverlaps = useRef(0);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+
+    // View mode
+    const [viewMode, setViewMode] = useState<ViewMode>('list');
 
     // Selection state
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -49,6 +103,19 @@ export default function ExplorerPage() {
 
     const articleKey = (a: ExplorerArticle) =>
         a.article_id ? `id:${a.article_id}` : `pmid:${a.pmid}`;
+
+    // Tablizer display data with computed fields
+    const displayResults: DisplayExplorerArticle[] = useMemo(() =>
+        results.map(a => ({
+            ...a,
+            _key: a.article_id ? `id:${a.article_id}` : `pmid:${a.pmid}`,
+            pub_date: formatArticleDate(a.pub_year, a.pub_month, a.pub_day),
+            source_labels: a.sources.map(s =>
+                s.report_name ? `${s.name} · ${s.report_name}` : s.name
+            ).join(', '),
+        })),
+        [results]
+    );
 
     const buildSearchParams = useCallback((pubmedOffset = 0) => ({
         q: query.trim(),
@@ -162,6 +229,7 @@ export default function ExplorerPage() {
     };
 
     const pubmedTotal = pubmedPagination?.total ?? 0;
+    const hasResults = hasSearched && !loading && results.length > 0;
 
     return (
         <div className="h-full flex flex-col">
@@ -177,13 +245,23 @@ export default function ExplorerPage() {
                     <div className="relative flex-1">
                         <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <input
+                            ref={searchInputRef}
                             type="text"
                             value={query}
                             onChange={e => setQuery(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSearch()}
                             placeholder="Search articles by title, abstract, keywords..."
-                            className="w-full pl-10 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full pl-10 pr-8 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
+                        {query && (
+                            <button
+                                onClick={() => { setQuery(''); setResults([]); setSelectedIds(new Set()); searchInputRef.current?.focus(); }}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                title="Clear search"
+                            >
+                                <XMarkIcon className="h-4 w-4" />
+                            </button>
+                        )}
                     </div>
                     <button
                         onClick={handleSearch}
@@ -194,148 +272,207 @@ export default function ExplorerPage() {
                     </button>
                 </div>
 
-                {/* Source toggles */}
-                <div className="flex flex-wrap items-center gap-4">
-                    <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">Sources:</span>
+                {/* Source toggles + view toggle */}
+                <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center gap-4">
+                        <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">Sources:</span>
 
-                    <label className="inline-flex items-center gap-2 text-sm">
-                        <input
-                            type="checkbox"
-                            checked={searchStreams}
-                            onChange={e => setSearchStreams(e.target.checked)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-gray-700 dark:text-gray-300">Streams</span>
-                    </label>
-                    {searchStreams && researchStreams.length > 0 && (
-                        <select
-                            value={selectedStreamIds.length === 0 ? '' : selectedStreamIds[0]}
-                            onChange={e => setSelectedStreamIds(e.target.value ? [Number(e.target.value)] : [])}
-                            className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                        >
-                            <option value="">All streams</option>
-                            {researchStreams.map(s => (
-                                <option key={s.stream_id} value={s.stream_id}>{s.stream_name}</option>
-                            ))}
-                        </select>
+                        <label className="inline-flex items-center gap-2 text-sm">
+                            <input
+                                type="checkbox"
+                                checked={searchStreams}
+                                onChange={e => setSearchStreams(e.target.checked)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-gray-700 dark:text-gray-300">Streams</span>
+                        </label>
+                        {searchStreams && researchStreams.length > 0 && (
+                            <select
+                                value={selectedStreamIds.length === 0 ? '' : selectedStreamIds[0]}
+                                onChange={e => setSelectedStreamIds(e.target.value ? [Number(e.target.value)] : [])}
+                                className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            >
+                                <option value="">All streams</option>
+                                {researchStreams.map(s => (
+                                    <option key={s.stream_id} value={s.stream_id}>{s.stream_name}</option>
+                                ))}
+                            </select>
+                        )}
+
+                        <label className="inline-flex items-center gap-2 text-sm">
+                            <input
+                                type="checkbox"
+                                checked={searchCollections}
+                                onChange={e => setSearchCollections(e.target.checked)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-gray-700 dark:text-gray-300">Collections</span>
+                        </label>
+
+                        <label className="inline-flex items-center gap-2 text-sm">
+                            <input
+                                type="checkbox"
+                                checked={searchPubmed}
+                                onChange={e => setSearchPubmed(e.target.checked)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-gray-700 dark:text-gray-300">PubMed</span>
+                        </label>
+                    </div>
+
+                    {/* View toggle */}
+                    {hasResults && (
+                        <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-md overflow-hidden">
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={`p-1.5 ${viewMode === 'list'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                }`}
+                                title="List view"
+                            >
+                                <ListBulletIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                                onClick={() => setViewMode('table')}
+                                className={`p-1.5 ${viewMode === 'table'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                }`}
+                                title="Table view"
+                            >
+                                <TableCellsIcon className="h-4 w-4" />
+                            </button>
+                        </div>
                     )}
-
-                    <label className="inline-flex items-center gap-2 text-sm">
-                        <input
-                            type="checkbox"
-                            checked={searchCollections}
-                            onChange={e => setSearchCollections(e.target.checked)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-gray-700 dark:text-gray-300">Collections</span>
-                    </label>
-
-                    <label className="inline-flex items-center gap-2 text-sm">
-                        <input
-                            type="checkbox"
-                            checked={searchPubmed}
-                            onChange={e => setSearchPubmed(e.target.checked)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-gray-700 dark:text-gray-300">PubMed</span>
-                    </label>
                 </div>
             </div>
 
             {/* Results */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 flex flex-col">
                 {!hasSearched ? (
-                    <div className="flex items-center justify-center h-full">
+                    <div className="flex items-center justify-center flex-1">
                         <div className="text-center">
                             <MagnifyingGlassIcon className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
                             <p className="text-gray-500 dark:text-gray-400">Search across your streams, collections, and PubMed</p>
                         </div>
                     </div>
                 ) : loading ? (
-                    <div className="flex items-center justify-center h-full">
+                    <div className="flex items-center justify-center flex-1">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
                 ) : results.length === 0 ? (
-                    <div className="flex items-center justify-center h-full">
+                    <div className="flex items-center justify-center flex-1">
                         <p className="text-gray-500 dark:text-gray-400">No results found</p>
                     </div>
-                ) : (
-                    <div className="p-4">
-                        {/* Status panel */}
-                        <div className="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
-                            <div className="flex items-center justify-between">
-                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                                    {/* Local source counts */}
-                                    {localCount > 0 && (
-                                        <span className="text-gray-700 dark:text-gray-300">
-                                            <span className="font-semibold">{localCount}</span>
-                                            {' from '}
-                                            {sourcesSearched.filter(s => s !== 'pubmed').join(' & ') || 'local'}
-                                        </span>
-                                    )}
-
-                                    {/* PubMed status */}
-                                    {searchPubmed && pubmedPagination && (
-                                        <span className="text-gray-700 dark:text-gray-300">
-                                            <span className="font-semibold">{pubmedTotal.toLocaleString()}</span>
-                                            {' found on PubMed'}
-                                            {pubmedTotal > 0 && (
-                                                <span className="text-gray-500 dark:text-gray-400">
-                                                    {' '}(showing {totalPubmedLoaded.current + totalPubmedOverlaps.current} of {pubmedTotal.toLocaleString()}
-                                                    {totalPubmedOverlaps.current > 0 && (
-                                                        <>, {totalPubmedOverlaps.current} already in your local results</>
-                                                    )}
-                                                    )
-                                                </span>
-                                            )}
-                                        </span>
-                                    )}
-                                </div>
-                                <button
-                                    onClick={toggleSelectAll}
-                                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex-shrink-0 ml-4"
-                                >
-                                    {selectedIds.size === results.length ? 'Deselect All' : 'Select All'}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Unified article list */}
-                        <div className="space-y-2">
-                            {results.map(article => (
-                                <ArticleCard
-                                    key={articleKey(article)}
-                                    article={article}
-                                    isSelected={selectedIds.has(articleKey(article))}
-                                    onToggleSelect={() => toggleSelect(articleKey(article))}
-                                    onOpen={() => openViewer(article)}
-                                    formatAuthors={formatAuthors}
-                                />
-                            ))}
-                        </div>
-
-                        {/* Load More for PubMed */}
+                ) : viewMode === 'table' ? (
+                    /* ===== TABLE VIEW ===== */
+                    <div className="flex-1 min-h-0 flex flex-col">
+                        {/* PubMed notice if more are available */}
                         {searchPubmed && pubmedPagination?.has_more && (
-                            <div className="mt-4 flex flex-col items-center gap-2">
+                            <div className="flex-shrink-0 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-400 flex items-center justify-between">
+                                <span>
+                                    Table shows {results.length} articles. {pubmedTotal.toLocaleString()} PubMed matches available — load more in list view before switching to table.
+                                </span>
                                 <button
-                                    onClick={handleLoadMorePubMed}
-                                    disabled={loadingMore}
-                                    className="px-5 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50"
+                                    onClick={() => setViewMode('list')}
+                                    className="text-amber-800 dark:text-amber-300 underline hover:no-underline ml-4 flex-shrink-0"
                                 >
-                                    {loadingMore ? (
-                                        <span className="inline-flex items-center gap-2">
-                                            <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></span>
-                                            Loading...
-                                        </span>
-                                    ) : (
-                                        'Load More PubMed Results'
-                                    )}
+                                    Switch to list
                                 </button>
-                                <p className="text-xs text-gray-400 dark:text-gray-500">
-                                    Showing {totalPubmedLoaded.current + totalPubmedOverlaps.current} of {pubmedTotal.toLocaleString()} PubMed matches
-                                </p>
                             </div>
                         )}
+                        <div className="flex-1 min-h-0">
+                            <Tablizer<DisplayExplorerArticle>
+                                data={displayResults}
+                                idField="_key"
+                                columns={EXPLORER_COLUMNS}
+                                rowLabel="articles"
+                                itemType="article"
+                                RowViewer={ExplorerRowViewer}
+                                selectedIds={selectedIds}
+                                onToggleSelect={toggleSelect}
+                                onToggleSelectAll={toggleSelectAll}
+                            />
+                        </div>
+                    </div>
+                ) : (
+                    /* ===== LIST VIEW ===== */
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                        <div className="p-4">
+                            {/* Status panel */}
+                            <div className="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                                        {localCount > 0 && (
+                                            <span className="text-gray-700 dark:text-gray-300">
+                                                <span className="font-semibold">{localCount}</span>
+                                                {' from '}
+                                                {sourcesSearched.filter(s => s !== 'pubmed').join(' & ') || 'local'}
+                                            </span>
+                                        )}
+                                        {searchPubmed && pubmedPagination && (
+                                            <span className="text-gray-700 dark:text-gray-300">
+                                                <span className="font-semibold">{pubmedTotal.toLocaleString()}</span>
+                                                {' found on PubMed'}
+                                                {pubmedTotal > 0 && (
+                                                    <span className="text-gray-500 dark:text-gray-400">
+                                                        {' '}(showing {totalPubmedLoaded.current + totalPubmedOverlaps.current} of {pubmedTotal.toLocaleString()}
+                                                        {totalPubmedOverlaps.current > 0 && (
+                                                            <>, {totalPubmedOverlaps.current} already in your local results</>
+                                                        )}
+                                                        )
+                                                    </span>
+                                                )}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={toggleSelectAll}
+                                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex-shrink-0 ml-4"
+                                    >
+                                        {selectedIds.size === results.length ? 'Deselect All' : 'Select All'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Unified article list */}
+                            <div className="space-y-2">
+                                {results.map(article => (
+                                    <ArticleCard
+                                        key={articleKey(article)}
+                                        article={article}
+                                        isSelected={selectedIds.has(articleKey(article))}
+                                        onToggleSelect={() => toggleSelect(articleKey(article))}
+                                        onOpen={() => openViewer(article)}
+                                        formatAuthors={formatAuthors}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Load More for PubMed */}
+                            {searchPubmed && pubmedPagination?.has_more && (
+                                <div className="mt-4 flex flex-col items-center gap-2">
+                                    <button
+                                        onClick={handleLoadMorePubMed}
+                                        disabled={loadingMore}
+                                        className="px-5 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50"
+                                    >
+                                        {loadingMore ? (
+                                            <span className="inline-flex items-center gap-2">
+                                                <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></span>
+                                                Loading...
+                                            </span>
+                                        ) : (
+                                            'Load More PubMed Results'
+                                        )}
+                                    </button>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                                        Showing {totalPubmedLoaded.current + totalPubmedOverlaps.current} of {pubmedTotal.toLocaleString()} PubMed matches
+                                    </p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
@@ -405,7 +542,7 @@ export default function ExplorerPage() {
 }
 
 
-/** Reusable article card */
+/** Reusable article card for list view */
 function ArticleCard({ article, isSelected, onToggleSelect, onOpen, formatAuthors }: {
     article: ExplorerArticle;
     isSelected: boolean;
