@@ -50,7 +50,8 @@
       "Read(//c/code/tt/_demo/**)",
       "Read(//c/code/**)",
       "Bash(cd C:/code/kh && backend/venv/Scripts/python.exe -c \"import ast; ast.parse\\(open\\('backend/models.py'\\).read\\(\\)\\); print\\('models.py syntax OK'\\)\")",
-      "Bash(backend/venv/Scripts/python.exe -c \"\nimport py_compile\npy_compile.compile\\('backend/services/tag_service.py', doraise=True\\)\npy_compile.compile\\('backend/routers/tags.py', doraise=True\\)\nprint\\('Python OK'\\)\n\")"
+      "Bash(backend/venv/Scripts/python.exe -c \"\nimport py_compile\npy_compile.compile\\('backend/services/tag_service.py', doraise=True\\)\npy_compile.compile\\('backend/routers/tags.py', doraise=True\\)\nprint\\('Python OK'\\)\n\")",
+      "Bash(pip show:*)"
     ],
     "deny": [],
     "ask": [],
