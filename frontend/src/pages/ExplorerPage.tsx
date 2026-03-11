@@ -5,7 +5,9 @@ import {
     PlusIcon,
 } from '@heroicons/react/24/outline';
 import { useResearchStream } from '../context/ResearchStreamContext';
-import { explorerApi, type ExplorerArticle, type PubMedPagination } from '../lib/api/explorerApi';
+import { explorerApi } from '../lib/api/explorerApi';
+import type { PubMedPagination } from '../lib/api/explorerApi';
+import type { ExplorerArticle } from '../types/explorer';
 import { collectionApi } from '../lib/api/collectionApi';
 import { Collection } from '../types/collection';
 import ArticleViewerModal from '../components/articles/ArticleViewerModal';

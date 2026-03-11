@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { XMarkIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { collectionApi } from '../../lib/api/collectionApi';
-import type { ExplorerArticle } from '../../lib/api/explorerApi';
+import type { ExplorerArticle } from '../../types/explorer';
 
 interface CreateCollectionModalProps {
     selectedArticles: ExplorerArticle[];

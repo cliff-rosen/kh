@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { XMarkIcon, FolderIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { Collection } from '../../types/collection';
-import { explorerApi, type ExplorerArticle, type OverlapCheckResponse } from '../../lib/api/explorerApi';
+import { explorerApi } from '../../lib/api/explorerApi';
+import type { OverlapCheckResponse } from '../../lib/api/explorerApi';
+import type { ExplorerArticle } from '../../types/explorer';
 import { collectionApi } from '../../lib/api/collectionApi';
 
 interface AddToCollectionModalProps {
