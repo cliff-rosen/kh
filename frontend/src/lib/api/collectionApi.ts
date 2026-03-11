@@ -30,8 +30,8 @@ export const collectionApi = {
         await api.delete(`/api/collections/${collectionId}`);
     },
 
-    async addArticle(collectionId: number, articleId: number, notes?: string): Promise<void> {
-        await api.post(`/api/collections/${collectionId}/articles`, { article_id: articleId, notes });
+    async addArticle(collectionId: number, articleId: number): Promise<void> {
+        await api.post(`/api/collections/${collectionId}/articles`, { article_id: articleId });
     },
 
     async removeArticle(collectionId: number, articleId: number): Promise<void> {
@@ -40,6 +40,11 @@ export const collectionApi = {
 
     async getArticles(collectionId: number): Promise<{ articles: CollectionArticle[] }> {
         const response = await api.get(`/api/collections/${collectionId}/articles`);
+        return response.data;
+    },
+
+    async getCollectionsForArticle(articleId: number): Promise<{ collection_id: number; name: string; scope: string; added_at?: string }[]> {
+        const response = await api.get(`/api/collections/for-article/${articleId}`);
         return response.data;
     },
 };

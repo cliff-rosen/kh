@@ -989,7 +989,6 @@ class CollectionArticle(Base):
     article_id = Column(Integer, ForeignKey("articles.article_id"), primary_key=True)
     added_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     added_at = Column(DateTime, default=datetime.utcnow)
-    notes = Column(Text, nullable=True)
 
     # Relationships
     collection = relationship("Collection", back_populates="article_associations")
@@ -1030,6 +1029,25 @@ class ArticleTag(Base):
     tag = relationship("Tag", back_populates="article_associations")
     article = relationship("Article")
     tagger = relationship("User")
+
+
+class ArticleNote(Base):
+    """Unified notes on articles, decoupled from report/collection context."""
+    __tablename__ = "article_notes"
+
+    note_id = Column(Integer, primary_key=True, index=True)
+    article_id = Column(Integer, ForeignKey("articles.article_id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    content = Column(Text, nullable=False)
+    visibility = Column(String(20), default="personal", nullable=False)  # personal | shared
+    context_type = Column(String(50), nullable=True)  # 'report', 'collection', or NULL
+    context_id = Column(Integer, nullable=True)  # report_id or collection_id
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    article = relationship("Article")
+    user = relationship("User")
 
 
 # Add relationships to User model

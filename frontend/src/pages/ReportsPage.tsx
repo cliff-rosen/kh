@@ -986,7 +986,17 @@ export default function ReportsPage() {
                     <ArticleViewerModal
                         articles={articleViewerArticles}
                         initialIndex={articleViewerInitialIndex}
-                        onClose={() => setArticleViewerOpen(false)}
+                        onClose={() => {
+                            setArticleViewerOpen(false);
+                            // Re-fetch tags so cards reflect any changes made in the viewer
+                            if (selectedReport?.articles?.length) {
+                                const articleIds = selectedReport.articles.map(a => a.article_id);
+                                tagApi.getTagsForArticles(articleIds).then(setArticleTagsMap).catch(console.error);
+                            } else if (showingFavorites && streamFavorites.length > 0) {
+                                const ids = streamFavorites.map((a: any) => a.article_id);
+                                tagApi.getTagsForArticles(ids).then(setArticleTagsMap).catch(console.error);
+                            }
+                        }}
                         chatContext={chatContext}
                         chatPayloadHandlers={payloadHandlers}
                         onArticleUpdate={handleArticleUpdate}

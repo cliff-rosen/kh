@@ -1,49 +1,21 @@
 """
-Service for managing article notes with JSON storage and visibility control.
+Service for managing article notes — unified, decoupled from report/collection context.
+
+Notes live on articles directly. Each note optionally records a context_type
+('report' or 'collection') and context_id so we know where it was written from.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional
 from datetime import datetime
-import uuid
-import json
 import logging
 from fastapi import Depends
 
-from models import User
-from services.user_service import UserService
+from models import ArticleNote, User
 from database import get_async_db
 
-if TYPE_CHECKING:
-    from services.report_article_association_service import ReportArticleAssociationService
-
 logger = logging.getLogger(__name__)
-
-
-def _parse_notes(notes_str: Optional[str]) -> List[dict]:
-    """Parse notes from JSON string stored in Text column.
-
-    Returns the list of note dicts, or [] if the value is missing,
-    empty, or not a valid JSON array.
-    """
-    if not notes_str:
-        return []
-
-    try:
-        parsed = json.loads(notes_str)
-        if isinstance(parsed, list):
-            return parsed
-        return []
-    except (json.JSONDecodeError, TypeError):
-        return []
-
-
-def _serialize_notes(notes: List[dict]) -> Optional[str]:
-    """Serialize notes list to JSON string for storage, or None if empty."""
-    if not notes:
-        return None
-    return json.dumps(notes)
 
 
 class NotesService:
@@ -51,169 +23,155 @@ class NotesService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self._user_service: Optional[UserService] = None
-        self._association_service: Optional["ReportArticleAssociationService"] = None
-
-    @property
-    def user_service(self) -> UserService:
-        """Lazy-load UserService."""
-        if self._user_service is None:
-            self._user_service = UserService(self.db)
-        return self._user_service
-
-    @property
-    def association_service(self) -> "ReportArticleAssociationService":
-        """Lazy-load ReportArticleAssociationService."""
-        if self._association_service is None:
-            from services.report_article_association_service import ReportArticleAssociationService
-            self._association_service = ReportArticleAssociationService(self.db)
-        return self._association_service
-
-    # ==================== Async Methods ====================
 
     async def get_notes(
         self,
-        report_id: int,
         article_id: int,
-        user: User
+        user: User,
     ) -> List[dict]:
-        """Get all visible notes for an article (async)."""
-        association = await self.association_service.find(report_id, article_id)
-        if not association:
-            return []
+        """Get all visible notes for an article.
 
-        existing_notes = _parse_notes(association.notes)
+        Returns:
+        - User's own notes (personal and shared)
+        - Shared notes from other users in the same org
+        """
+        result = await self.db.execute(
+            select(ArticleNote, User.full_name, User.email)
+            .join(User, ArticleNote.user_id == User.user_id)
+            .where(ArticleNote.article_id == article_id)
+            .order_by(ArticleNote.created_at.asc())
+        )
 
-        visible_notes = []
-        for note in existing_notes:
-            if not isinstance(note, dict):
-                continue
-
-            note_user_id = note.get("user_id")
-            visibility = note.get("visibility", "personal")
-
-            if note_user_id == user.user_id:
-                visible_notes.append(note)
-            elif visibility == "shared" and user.org_id:
-                result = await self.db.execute(
-                    select(User).where(User.user_id == note_user_id)
+        visible = []
+        for row in result.all():
+            note, full_name, email = row
+            # Own notes — always visible
+            if note.user_id == user.user_id:
+                visible.append(self._to_dict(note, full_name, email))
+            # Shared notes from same org
+            elif note.visibility == "shared" and user.org_id:
+                # Check if note author is in same org
+                author_result = await self.db.execute(
+                    select(User.org_id).where(User.user_id == note.user_id)
                 )
-                author = result.scalars().first()
-                if author and author.org_id == user.org_id:
-                    visible_notes.append(note)
+                author_org = author_result.scalar()
+                if author_org == user.org_id:
+                    visible.append(self._to_dict(note, full_name, email))
 
-        return visible_notes
+        return visible
 
     async def create_note(
         self,
-        report_id: int,
         article_id: int,
         user: User,
         content: str,
-        visibility: str = "personal"
-    ) -> Optional[dict]:
-        """Create a new note on an article (async)."""
-        association = await self.association_service.find(report_id, article_id)
-        if not association:
-            return None
-
-        existing_notes = _parse_notes(association.notes)
-
-        now = datetime.utcnow().isoformat()
-        new_note = {
-            "id": str(uuid.uuid4()),
-            "user_id": user.user_id,
-            "author_name": user.full_name or user.email.split('@')[0],
-            "content": content,
-            "visibility": visibility,
-            "created_at": now,
-            "updated_at": now
-        }
-
-        existing_notes.append(new_note)
-        association.notes = _serialize_notes(existing_notes)
+        visibility: str = "personal",
+        context_type: Optional[str] = None,
+        context_id: Optional[int] = None,
+    ) -> dict:
+        """Create a new note on an article."""
+        note = ArticleNote(
+            article_id=article_id,
+            user_id=user.user_id,
+            content=content,
+            visibility=visibility,
+            context_type=context_type,
+            context_id=context_id,
+        )
+        self.db.add(note)
         await self.db.commit()
+        await self.db.refresh(note)
 
-        return new_note
+        author_name = user.full_name or user.email.split("@")[0]
+        return self._to_dict(note, user.full_name, user.email)
 
     async def update_note(
         self,
-        report_id: int,
-        article_id: int,
-        note_id: str,
+        note_id: int,
         user: User,
         content: Optional[str] = None,
-        visibility: Optional[str] = None
+        visibility: Optional[str] = None,
     ) -> Optional[dict]:
-        """Update an existing note (async). Only the author can update their note."""
-        association = await self.association_service.find(report_id, article_id)
-        if not association:
+        """Update an existing note. Only the author can update."""
+        result = await self.db.execute(
+            select(ArticleNote).where(ArticleNote.note_id == note_id)
+        )
+        note = result.scalars().first()
+        if not note or note.user_id != user.user_id:
             return None
 
-        existing_notes = _parse_notes(association.notes)
-        if not existing_notes:
-            return None
+        if content is not None:
+            note.content = content
+        if visibility is not None:
+            note.visibility = visibility
+        note.updated_at = datetime.utcnow()
 
-        for i, note in enumerate(existing_notes):
-            if not isinstance(note, dict):
-                continue
+        await self.db.commit()
+        await self.db.refresh(note)
 
-            if note.get("id") == note_id:
-                # Only author can update
-                if note.get("user_id") != user.user_id:
-                    return None
-
-                # Update fields
-                if content is not None:
-                    note["content"] = content
-                if visibility is not None:
-                    note["visibility"] = visibility
-                note["updated_at"] = datetime.utcnow().isoformat()
-
-                existing_notes[i] = note
-                association.notes = _serialize_notes(existing_notes)
-                await self.db.commit()
-
-                return note
-
-        return None
+        return self._to_dict(note, user.full_name, user.email)
 
     async def delete_note(
         self,
-        report_id: int,
-        article_id: int,
-        note_id: str,
-        user: User
+        note_id: int,
+        user: User,
     ) -> bool:
-        """Delete a note (async)."""
-        association = await self.association_service.find(report_id, article_id)
-        if not association:
+        """Delete a note. Only the author can delete."""
+        result = await self.db.execute(
+            select(ArticleNote).where(ArticleNote.note_id == note_id)
+        )
+        note = result.scalars().first()
+        if not note or note.user_id != user.user_id:
             return False
 
-        existing_notes = _parse_notes(association.notes)
-        if not existing_notes:
-            return False
+        await self.db.delete(note)
+        await self.db.commit()
+        return True
 
-        for i, note in enumerate(existing_notes):
-            if not isinstance(note, dict):
-                continue
+    async def get_notes_count(self, article_id: int, user: User) -> int:
+        """Get count of visible notes for an article (for badge display)."""
+        notes = await self.get_notes(article_id, user)
+        return len(notes)
 
-            if note.get("id") == note_id:
-                if note.get("user_id") != user.user_id:
-                    return False
+    async def get_notes_counts_batch(self, article_ids: List[int], user: User) -> dict:
+        """Batch get note counts for multiple articles."""
+        if not article_ids:
+            return {}
 
-                existing_notes.pop(i)
-                association.notes = _serialize_notes(existing_notes)
-                await self.db.commit()
+        result = await self.db.execute(
+            select(ArticleNote)
+            .where(ArticleNote.article_id.in_(article_ids))
+        )
+        all_notes = result.scalars().all()
 
-                return True
+        counts: dict = {aid: 0 for aid in article_ids}
+        for note in all_notes:
+            # Apply same visibility rules
+            if note.user_id == user.user_id:
+                counts[note.article_id] = counts.get(note.article_id, 0) + 1
+            elif note.visibility == "shared":
+                counts[note.article_id] = counts.get(note.article_id, 0) + 1
 
-        return False
+        return {k: v for k, v in counts.items() if v > 0}
+
+    def _to_dict(self, note: ArticleNote, full_name: Optional[str], email: Optional[str]) -> dict:
+        author_name = full_name or (email.split("@")[0] if email else "Unknown")
+        return {
+            "note_id": note.note_id,
+            "article_id": note.article_id,
+            "user_id": note.user_id,
+            "author_name": author_name,
+            "content": note.content,
+            "visibility": note.visibility,
+            "context_type": note.context_type,
+            "context_id": note.context_id,
+            "created_at": note.created_at.isoformat() if note.created_at else None,
+            "updated_at": note.updated_at.isoformat() if note.updated_at else None,
+        }
 
 
-# Dependency injection provider for async notes service
+# Dependency injection provider
 async def get_notes_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> NotesService:
-    """Get a NotesService instance with async database session."""
     return NotesService(db)

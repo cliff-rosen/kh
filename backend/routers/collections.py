@@ -41,6 +41,8 @@ async def create_collection(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new collection."""
+    if data.scope == "stream" and not data.stream_id:
+        raise HTTPException(status_code=400, detail="stream_id is required for stream-scoped collections")
     result = await collection_service.create_collection(
         name=data.name,
         description=data.description,
@@ -50,6 +52,20 @@ async def create_collection(
         stream_id=data.stream_id,
     )
     return result
+
+
+@router.get("/for-article/{article_id}")
+async def get_collections_for_article(
+    article_id: int,
+    collection_service: CollectionService = Depends(get_collection_service),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all collections (visible to user) that contain this article."""
+    return await collection_service.get_collections_for_article(
+        article_id=article_id,
+        user_id=current_user.user_id,
+        org_id=current_user.org_id,
+    )
 
 
 @router.get("/{collection_id}", response_model=CollectionResponse)
@@ -118,7 +134,6 @@ async def add_article_to_collection(
         article_id=data.article_id,
         user_id=current_user.user_id,
         org_id=current_user.org_id,
-        notes=data.notes,
     )
     if not success:
         raise HTTPException(status_code=404, detail="Collection not found")

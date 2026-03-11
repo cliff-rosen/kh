@@ -34,7 +34,6 @@ class CollectionResponse(BaseModel):
 
 class CollectionArticleAdd(BaseModel):
     article_id: int
-    notes: Optional[str] = None
 
 
 class CollectionDetailResponse(CollectionResponse):

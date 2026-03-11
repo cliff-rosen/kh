@@ -224,7 +224,6 @@ class CollectionService:
         article_id: int,
         user_id: int,
         org_id: Optional[int],
-        notes: Optional[str] = None
     ) -> bool:
         """Add an article to a collection (idempotent). Returns True if added."""
         # Access check
@@ -238,10 +237,10 @@ class CollectionService:
         # INSERT IGNORE for idempotent behavior
         await self.db.execute(
             text("""
-                INSERT IGNORE INTO collection_articles (collection_id, article_id, added_by, notes)
-                VALUES (:collection_id, :article_id, :added_by, :notes)
+                INSERT IGNORE INTO collection_articles (collection_id, article_id, added_by)
+                VALUES (:collection_id, :article_id, :added_by)
             """),
-            {"collection_id": collection_id, "article_id": article_id, "added_by": user_id, "notes": notes}
+            {"collection_id": collection_id, "article_id": article_id, "added_by": user_id}
         )
         await self.db.commit()
         return True
@@ -315,9 +314,50 @@ class CollectionService:
                 "pub_day": article.pub_day,
                 "added_at": assoc.added_at,
                 "added_by": assoc.added_by,
-                "notes": assoc.notes,
             })
         return articles
+
+    async def get_collections_for_article(
+        self,
+        article_id: int,
+        user_id: int,
+        org_id: Optional[int],
+    ) -> List[dict]:
+        """Get all collections visible to user that contain this article."""
+        from sqlalchemy import or_
+
+        conditions = [
+            and_(Collection.scope == CollectionScope.PERSONAL, Collection.user_id == user_id)
+        ]
+        if org_id:
+            conditions.append(
+                and_(Collection.scope == CollectionScope.ORGANIZATION, Collection.org_id == org_id)
+            )
+            conditions.append(
+                and_(Collection.scope == CollectionScope.STREAM, Collection.org_id == org_id)
+            )
+
+        result = await self.db.execute(
+            select(Collection, CollectionArticle.added_at)
+            .join(CollectionArticle, Collection.collection_id == CollectionArticle.collection_id)
+            .where(
+                and_(
+                    CollectionArticle.article_id == article_id,
+                    or_(*conditions),
+                )
+            )
+            .order_by(CollectionArticle.added_at.desc())
+        )
+
+        return [
+            {
+                "collection_id": coll.collection_id,
+                "name": coll.name,
+                "scope": coll.scope.value if hasattr(coll.scope, "value") else coll.scope,
+                "added_at": added_at.isoformat() if added_at else None,
+            }
+            for coll, added_at in result.all()
+        ]
 
     def _can_access(self, collection: Collection, user_id: int, org_id: Optional[int]) -> bool:
         """Check if user can access this collection."""

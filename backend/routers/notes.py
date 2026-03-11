@@ -1,146 +1,104 @@
 """
-Notes API endpoints for article notes with visibility control.
+Notes API endpoints — unified article notes with visibility control.
+
+Notes are associated with articles directly (not reports or collections).
+Each note optionally records context_type/context_id for where it was written.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
 import logging
+from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List  # noqa: used by response_model
 
 from models import User
-from services import auth_service
-from services.notes_service import NotesService, get_notes_service
-from schemas.organization import (
-    ArticleNote, ArticleNoteCreate, ArticleNoteUpdate, ArticleNotesResponse
+from schemas.note import (
+    NoteCreate, NoteUpdate, NoteResponse,
+    NotesListResponse
 )
+from services.notes_service import NotesService, get_notes_service
+from routers.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
 
 
-@router.get(
-    "/reports/{report_id}/articles/{article_id}",
-    response_model=ArticleNotesResponse,
-    summary="Get notes for an article"
-)
-async def get_article_notes(
-    report_id: int,
-    article_id: int,
-    current_user: User = Depends(auth_service.validate_token),
-    notes_service: NotesService = Depends(get_notes_service)
+@router.get("/articles/batch/counts")
+async def get_notes_counts_batch(
+    article_ids: str,  # comma-separated
+    notes_service: NotesService = Depends(get_notes_service),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Get all visible notes for an article in a report.
+    """Get note counts for multiple articles (for badge display on cards)."""
+    parsed_ids = [int(aid.strip()) for aid in article_ids.split(",") if aid.strip()]
+    if not parsed_ids:
+        return {}
+    return await notes_service.get_notes_counts_batch(parsed_ids, current_user)
 
-    Returns:
-    - User's own notes (personal and shared)
-    - Shared notes from other users in the same organization
-    """
-    notes = await notes_service.get_notes(report_id, article_id, current_user)
 
-    return ArticleNotesResponse(
-        report_id=report_id,
+@router.get("/articles/{article_id}", response_model=NotesListResponse)
+async def get_article_notes(
+    article_id: int,
+    notes_service: NotesService = Depends(get_notes_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all visible notes for an article."""
+    notes = await notes_service.get_notes(article_id, current_user)
+    return NotesListResponse(
         article_id=article_id,
-        notes=[ArticleNote(**n) for n in notes],
-        total_count=len(notes)
+        notes=[NoteResponse(**n) for n in notes],
+        total_count=len(notes),
     )
 
 
 @router.post(
-    "/reports/{report_id}/articles/{article_id}",
-    response_model=ArticleNote,
+    "/articles/{article_id}",
+    response_model=NoteResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a note on an article"
 )
-async def create_article_note(
-    report_id: int,
+async def create_note(
     article_id: int,
-    note_data: ArticleNoteCreate,
-    current_user: User = Depends(auth_service.validate_token),
-    notes_service: NotesService = Depends(get_notes_service)
+    data: NoteCreate,
+    notes_service: NotesService = Depends(get_notes_service),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Create a new note on an article.
-
-    - **content**: The note text
-    - **visibility**: "personal" (only you can see) or "shared" (org members can see)
-    """
+    """Create a note on an article."""
     note = await notes_service.create_note(
-        report_id=report_id,
         article_id=article_id,
         user=current_user,
-        content=note_data.content,
-        visibility=note_data.visibility
+        content=data.content,
+        visibility=data.visibility,
+        context_type=data.context_type,
+        context_id=data.context_id,
     )
-
-    if not note:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Article not found in report"
-        )
-
-    return ArticleNote(**note)
+    return NoteResponse(**note)
 
 
-@router.put(
-    "/reports/{report_id}/articles/{article_id}/notes/{note_id}",
-    response_model=ArticleNote,
-    summary="Update a note"
-)
-async def update_article_note(
-    report_id: int,
-    article_id: int,
-    note_id: str,
-    note_data: ArticleNoteUpdate,
-    current_user: User = Depends(auth_service.validate_token),
-    notes_service: NotesService = Depends(get_notes_service)
+@router.put("/notes/{note_id}", response_model=NoteResponse)
+async def update_note(
+    note_id: int,
+    data: NoteUpdate,
+    notes_service: NotesService = Depends(get_notes_service),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Update an existing note. Only the author can update their note.
-
-    - **content**: New note text (optional)
-    - **visibility**: New visibility setting (optional)
-    """
+    """Update a note. Only the author can update."""
     note = await notes_service.update_note(
-        report_id=report_id,
-        article_id=article_id,
         note_id=note_id,
         user=current_user,
-        content=note_data.content,
-        visibility=note_data.visibility
+        content=data.content,
+        visibility=data.visibility,
     )
-
     if not note:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Note not found or you don't have permission to update it"
-        )
-
-    return ArticleNote(**note)
+        raise HTTPException(status_code=404, detail="Note not found or not authorized")
+    return NoteResponse(**note)
 
 
-@router.delete(
-    "/reports/{report_id}/articles/{article_id}/notes/{note_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a note"
-)
-async def delete_article_note(
-    report_id: int,
-    article_id: int,
-    note_id: str,
-    current_user: User = Depends(auth_service.validate_token),
-    notes_service: NotesService = Depends(get_notes_service)
+@router.delete("/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_note(
+    note_id: int,
+    notes_service: NotesService = Depends(get_notes_service),
+    current_user: User = Depends(get_current_user),
 ):
-    """Delete a note. Only the author can delete their note."""
-    success = await notes_service.delete_note(
-        report_id=report_id,
-        article_id=article_id,
-        note_id=note_id,
-        user=current_user
-    )
-
+    """Delete a note. Only the author can delete."""
+    success = await notes_service.delete_note(note_id=note_id, user=current_user)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Note not found or you don't have permission to delete it"
-        )
+        raise HTTPException(status_code=404, detail="Note not found or not authorized")

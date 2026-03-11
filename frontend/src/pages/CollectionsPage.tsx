@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { FolderIcon } from '@heroicons/react/24/outline';
 import { Collection, CollectionArticle } from '../types/collection';
 import { collectionApi } from '../lib/api/collectionApi';
+import { useResearchStream } from '../context/ResearchStreamContext';
 import CollectionList from '../components/collections/CollectionList';
 import CollectionDetail from '../components/collections/CollectionDetail';
 import AddArticleModal from '../components/collections/AddArticleModal';
 import ArticleViewerModal from '../components/articles/ArticleViewerModal';
 
 export default function CollectionsPage() {
+    const { researchStreams } = useResearchStream();
     const [collections, setCollections] = useState<Collection[]>([]);
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -18,6 +20,7 @@ export default function CollectionsPage() {
     const [newName, setNewName] = useState('');
     const [newDesc, setNewDesc] = useState('');
     const [newScope, setNewScope] = useState<string>('personal');
+    const [newStreamId, setNewStreamId] = useState<number | null>(null);
     const [detailRefreshKey, setDetailRefreshKey] = useState(0);
 
     const loadCollections = useCallback(async () => {
@@ -35,12 +38,19 @@ export default function CollectionsPage() {
 
     const handleCreate = async () => {
         if (!newName.trim()) return;
+        if (newScope === 'stream' && !newStreamId) return;
         try {
-            const created = await collectionApi.create({ name: newName.trim(), description: newDesc || undefined, scope: newScope });
+            const created = await collectionApi.create({
+                name: newName.trim(),
+                description: newDesc || undefined,
+                scope: newScope,
+                stream_id: newScope === 'stream' ? (newStreamId ?? undefined) : undefined,
+            });
             setShowCreateModal(false);
             setNewName('');
             setNewDesc('');
             setNewScope('personal');
+            setNewStreamId(null);
             await loadCollections();
             setSelectedId(created.collection_id);
         } catch (err) {
@@ -152,15 +162,29 @@ export default function CollectionsPage() {
                                 className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                             {!editingCollection && (
-                                <select
-                                    value={newScope}
-                                    onChange={(e) => setNewScope(e.target.value)}
-                                    className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                >
-                                    <option value="personal">Personal</option>
-                                    <option value="organization">Organization</option>
-                                    <option value="stream">Stream</option>
-                                </select>
+                                <>
+                                    <select
+                                        value={newScope}
+                                        onChange={(e) => { setNewScope(e.target.value); setNewStreamId(null); }}
+                                        className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    >
+                                        <option value="personal">Personal</option>
+                                        <option value="organization">Organization</option>
+                                        <option value="stream">Stream</option>
+                                    </select>
+                                    {newScope === 'stream' && (
+                                        <select
+                                            value={newStreamId ?? ''}
+                                            onChange={(e) => setNewStreamId(e.target.value ? Number(e.target.value) : null)}
+                                            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        >
+                                            <option value="">Select a stream...</option>
+                                            {researchStreams.map(s => (
+                                                <option key={s.stream_id} value={s.stream_id}>{s.stream_name}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </>
                             )}
                         </div>
                         <div className="flex justify-end gap-2 mt-4">
@@ -172,7 +196,7 @@ export default function CollectionsPage() {
                             </button>
                             <button
                                 onClick={editingCollection ? handleEdit : handleCreate}
-                                disabled={!newName.trim()}
+                                disabled={!newName.trim() || (newScope === 'stream' && !newStreamId)}
                                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                             >
                                 {editingCollection ? 'Save' : 'Create'}
@@ -196,7 +220,7 @@ export default function CollectionsPage() {
                 <ArticleViewerModal
                     articles={viewerArticles as any[]}
                     initialIndex={viewerIndex}
-                    onClose={() => setViewerArticles([])}
+                    onClose={() => { setViewerArticles([]); setDetailRefreshKey(k => k + 1); }}
                 />
             )}
         </div>

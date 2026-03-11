@@ -24,5 +24,4 @@ export interface CollectionArticle {
     pub_day?: number;
     added_at: string;
     added_by: number;
-    notes?: string;
 }

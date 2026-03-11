@@ -777,13 +777,15 @@ export default function ArticleViewerModal({
                             {/* Notes Tab */}
                             {activeTab === 'notes' && (
                                 <div className="h-full p-4">
-                                    {reportId && articleId && isDbBacked ? (
-                                        <ArticleNotes reportId={reportId} articleId={articleId} />
+                                    {articleId && isDbBacked ? (
+                                        <ArticleNotes
+                                            articleId={articleId}
+                                            reportId={reportId}
+                                            reportTitle={reportTitle}
+                                        />
                                     ) : (
                                         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                                            {!isDbBacked
-                                                ? 'Notes are not available for workbench articles (not saved to database)'
-                                                : 'Notes require a report context'}
+                                            Notes are not available for workbench articles (not saved to database)
                                         </div>
                                     )}
                                 </div>

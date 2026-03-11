@@ -1,4 +1,4 @@
-import { ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ChevronRightIcon, FolderIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
 import { ReportArticle } from '../../types';
 import { CardFormat } from './ReportHeader';
 import { formatArticleDate } from '../../utils/dateUtils';
@@ -27,6 +27,10 @@ export interface ReportArticleCardProps {
     tags?: ArticleTag[];
     /** Show the source report name as a badge (used in favorites view) */
     showReportBadge?: boolean;
+    /** Collection names this article belongs to */
+    collections?: string[];
+    /** Number of notes on this article */
+    notesCount?: number;
 }
 
 export default function ReportArticleCard({
@@ -37,6 +41,8 @@ export default function ReportArticleCard({
     onToggleStar,
     tags,
     showReportBadge = false,
+    collections,
+    notesCount,
 }: ReportArticleCardProps) {
     return (
         <div
@@ -69,6 +75,23 @@ export default function ReportArticleCard({
                             {tags.map(tag => (
                                 <TagBadge key={tag.tag_id} name={tag.name} color={tag.color} scope={tag.scope} />
                             ))}
+                        </div>
+                    )}
+                    {/* Collection & notes indicators */}
+                    {((collections && collections.length > 0) || (notesCount && notesCount > 0)) && (
+                        <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                            {collections && collections.map(name => (
+                                <span key={name} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400">
+                                    <FolderIcon className="h-3 w-3" />
+                                    {name}
+                                </span>
+                            ))}
+                            {notesCount !== undefined && notesCount > 0 && (
+                                <span className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+                                    <ChatBubbleLeftIcon className="h-3 w-3" />
+                                    {notesCount} note{notesCount !== 1 ? 's' : ''}
+                                </span>
+                            )}
                         </div>
                     )}
                     {/* Report badge + stance (favorites context) */}
