@@ -14,14 +14,22 @@ The /full-text endpoint follows this priority:
 """
 
 import logging
+from datetime import date, timedelta
 from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_, and_
 
-from models import User
+from models import (
+    User, Article, Report, ReportArticleAssociation,
+    ResearchStream, Collection, CollectionArticle,
+)
 from schemas.canonical_types import CanonicalResearchArticle
+from schemas.explorer import ExplorerSearchResponse, ExplorerArticle, ExplorerArticleSource, PubMedPagination
 from services.article_service import ArticleService, get_article_service
 from services.pubmed_service import get_full_text_links, PubMedService
 from routers.auth import get_current_user
+from database import get_async_db
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -72,6 +80,236 @@ def _article_to_dict(a) -> dict:
         "pub_month": a.pub_month,
         "pub_day": a.pub_day,
     }
+
+
+@router.get("/explorer-search", response_model=ExplorerSearchResponse)
+async def explorer_search(
+    q: str,
+    stream_ids: str = "",
+    collection_ids: str = "",
+    include_streams: bool = False,
+    include_collections: bool = False,
+    include_pubmed: bool = False,
+    limit: int = 50,
+    pubmed_limit: int = 20,
+    pubmed_offset: int = 0,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Unified search across streams, collections, and optionally PubMed.
+
+    Searches article title and abstract. Results include provenance info
+    showing which streams/collections each article was found in.
+
+    PubMed has separate pagination (pubmed_offset/pubmed_limit) since it
+    can return thousands of results. Local results are returned in full
+    up to `limit`.
+    """
+    q = q.strip()
+    if not q:
+        return ExplorerSearchResponse(articles=[], total=0, sources_searched=[])
+
+    sources_searched: List[str] = []
+    # Map article_id -> ExplorerArticle (for local dedup and source merging)
+    local_map: Dict[int, ExplorerArticle] = {}
+
+    parsed_stream_ids = [int(s) for s in stream_ids.split(",") if s.strip().isdigit()] if stream_ids.strip() else []
+    parsed_collection_ids = [int(s) for s in collection_ids.split(",") if s.strip().isdigit()] if collection_ids.strip() else []
+
+    like_pattern = f"%{q}%"
+
+    # --- Stream search ---
+    if include_streams:
+        sources_searched.append("streams")
+        base_stmt = (
+            select(Article, Report.report_name, ResearchStream.stream_id, ResearchStream.stream_name)
+            .join(ReportArticleAssociation, Article.article_id == ReportArticleAssociation.article_id)
+            .join(Report, Report.report_id == ReportArticleAssociation.report_id)
+            .join(ResearchStream, ResearchStream.stream_id == Report.research_stream_id)
+        )
+        conditions = [or_(Article.title.ilike(like_pattern), Article.abstract.ilike(like_pattern))]
+        if parsed_stream_ids:
+            conditions.append(Report.research_stream_id.in_(parsed_stream_ids))
+        stmt = base_stmt.where(and_(*conditions)).limit(limit)
+
+        result = await db.execute(stmt)
+        for article, report_name, sid, sname in result.all():
+            source = ExplorerArticleSource(type="stream", id=sid, name=sname, report_name=report_name)
+            if article.article_id in local_map:
+                local_map[article.article_id].sources.append(source)
+            else:
+                local_map[article.article_id] = ExplorerArticle(
+                    article_id=article.article_id,
+                    title=article.title,
+                    authors=article.authors or [],
+                    journal=article.journal,
+                    pmid=article.pmid,
+                    doi=article.doi,
+                    abstract=article.abstract,
+                    url=article.url,
+                    pub_year=article.pub_year,
+                    pub_month=article.pub_month,
+                    pub_day=article.pub_day,
+                    sources=[source],
+                    is_local=True,
+                )
+
+    # --- Collection search ---
+    if include_collections:
+        sources_searched.append("collections")
+        base_stmt = (
+            select(Article, Collection.collection_id, Collection.name)
+            .join(CollectionArticle, Article.article_id == CollectionArticle.article_id)
+            .join(Collection, Collection.collection_id == CollectionArticle.collection_id)
+        )
+        conditions = [or_(Article.title.ilike(like_pattern), Article.abstract.ilike(like_pattern))]
+        if parsed_collection_ids:
+            conditions.append(CollectionArticle.collection_id.in_(parsed_collection_ids))
+        stmt = base_stmt.where(and_(*conditions)).limit(limit)
+
+        result = await db.execute(stmt)
+        for article, cid, cname in result.all():
+            source = ExplorerArticleSource(type="collection", id=cid, name=cname)
+            if article.article_id in local_map:
+                local_map[article.article_id].sources.append(source)
+            else:
+                local_map[article.article_id] = ExplorerArticle(
+                    article_id=article.article_id,
+                    title=article.title,
+                    authors=article.authors or [],
+                    journal=article.journal,
+                    pmid=article.pmid,
+                    doi=article.doi,
+                    abstract=article.abstract,
+                    url=article.url,
+                    pub_year=article.pub_year,
+                    pub_month=article.pub_month,
+                    pub_day=article.pub_day,
+                    sources=[source],
+                    is_local=True,
+                )
+
+    # --- PubMed search (optional, with pagination) ---
+    pubmed_articles: List[ExplorerArticle] = []
+    pubmed_pagination: PubMedPagination | None = None
+
+    if include_pubmed:
+        sources_searched.append("pubmed")
+        try:
+            pubmed_svc = PubMedService()
+
+            end_date = date.today().strftime("%Y-%m-%d")
+            start_date = (date.today() - timedelta(days=5 * 365)).strftime("%Y-%m-%d")
+
+            pm_results, pm_meta = await pubmed_svc.search_articles(
+                query=q,
+                max_results=pubmed_limit,
+                offset=pubmed_offset,
+                start_date=start_date,
+                end_date=end_date,
+                date_type="publication",
+            )
+
+            pm_total = pm_meta.get("total_results", 0)
+            pm_returned = pm_meta.get("returned", 0)
+
+            # Build a set of PMIDs already in local results for dedup
+            local_pmids = {ea.pmid for ea in local_map.values() if ea.pmid}
+            overlap_count = 0
+
+            for pm in pm_results:
+                if pm.pmid and pm.pmid in local_pmids:
+                    # Article already in local results -- just add PubMed source tag
+                    overlap_count += 1
+                    for ea in local_map.values():
+                        if ea.pmid == pm.pmid:
+                            ea.sources.append(ExplorerArticleSource(type="pubmed", name="PubMed"))
+                            break
+                    continue
+
+                pubmed_articles.append(ExplorerArticle(
+                    article_id=None,
+                    title=pm.title,
+                    authors=pm.authors or [],
+                    journal=pm.journal,
+                    pmid=pm.pmid,
+                    doi=pm.doi,
+                    abstract=pm.abstract,
+                    url=pm.url,
+                    pub_year=pm.pub_year,
+                    pub_month=pm.pub_month,
+                    pub_day=pm.pub_day,
+                    sources=[ExplorerArticleSource(type="pubmed", name="PubMed")],
+                    is_local=False,
+                ))
+
+            pubmed_pagination = PubMedPagination(
+                total=pm_total,
+                offset=pubmed_offset,
+                returned=len(pubmed_articles),
+                overlap_count=overlap_count,
+                has_more=(pubmed_offset + pubmed_limit) < pm_total,
+            )
+
+        except Exception as e:
+            logger.error(f"PubMed search failed (non-fatal): {e}", exc_info=True)
+            pubmed_pagination = PubMedPagination(total=0, offset=0, returned=0, has_more=False)
+
+    # Combine results: local first, then PubMed-only
+    local_articles = list(local_map.values())
+    all_articles = local_articles + pubmed_articles
+
+    return ExplorerSearchResponse(
+        articles=all_articles,
+        total=len(all_articles),
+        sources_searched=sources_searched,
+        local_count=len(local_articles),
+        pubmed=pubmed_pagination,
+    )
+
+
+class BulkPmidRequest(BaseModel):
+    pmids: List[str]
+
+
+class BulkPmidResult(BaseModel):
+    found: List[dict]       # articles successfully resolved
+    not_found: List[str]    # PMIDs that couldn't be found/imported
+
+
+@router.post("/bulk-resolve-pmids", response_model=BulkPmidResult)
+async def bulk_resolve_pmids(
+    data: BulkPmidRequest,
+    service: ArticleService = Depends(get_article_service),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Resolve a list of PMIDs to article_ids. For each PMID:
+    - If it exists in the local DB, return it.
+    - If not, fetch from PubMed and create it, then return it.
+    - If PubMed doesn't have it either, add to not_found list.
+    """
+    found = []
+    not_found = []
+
+    for raw_pmid in data.pmids:
+        pmid = raw_pmid.strip()
+        if not pmid:
+            continue
+        try:
+            article = await service.find_by_pmid(pmid)
+            if not article:
+                article = await service.find_or_create_from_pubmed(pmid)
+            if article:
+                found.append(_article_to_dict(article))
+            else:
+                not_found.append(pmid)
+        except Exception as e:
+            logger.error(f"Failed to resolve PMID {pmid}: {e}")
+            not_found.append(pmid)
+
+    return BulkPmidResult(found=found, not_found=not_found)
 
 
 @router.get("/db-search")

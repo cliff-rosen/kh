@@ -33,6 +33,7 @@ import EditStreamPage from './pages/EditStreamPage';
 
 import ReportsPage from './pages/ReportsPage';
 import CollectionsPage from './pages/CollectionsPage';
+import ExplorerPage from './pages/ExplorerPage';
 import ToolsPage from './pages/ToolsPage';
 import AdminPage from './pages/AdminPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
@@ -70,6 +71,7 @@ function AppContent() {
             <Route path="/new-stream" element={<NewStreamPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/collections" element={<CollectionsPage />} />
+            <Route path="/explorer" element={<ExplorerPage />} />
             <Route path="/tools" element={<ToolsPage />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Navigate to="/profile" replace />} />

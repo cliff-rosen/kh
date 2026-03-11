@@ -45,5 +45,18 @@ export const articleApi = {
     async getFullTextContent(pmid: string): Promise<FullTextContentResponse> {
         const response = await api.get(`/api/articles/${pmid}/full-text`);
         return response.data;
+    },
+
+    /**
+     * Resolve a list of PMIDs to articles. Creates articles from PubMed if not in local DB.
+     */
+    async bulkResolvePmids(pmids: string[]): Promise<BulkPmidResult> {
+        const response = await api.post('/api/articles/bulk-resolve-pmids', { pmids });
+        return response.data;
     }
 };
+
+export interface BulkPmidResult {
+    found: { article_id: number; title: string; authors: any; journal?: string; pmid?: string; pub_year?: number }[];
+    not_found: string[];
+}
