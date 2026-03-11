@@ -22,8 +22,9 @@ function formatAuthors(authors: any): string {
     return '';
 }
 
-export default function AddToCollectionModal({ collections, selectedArticles, onClose, onComplete }: AddToCollectionModalProps) {
+export default function AddToCollectionModal({ collections: initialCollections, selectedArticles, onClose, onComplete }: AddToCollectionModalProps) {
     const [step, setStep] = useState<Step>('pick');
+    const [collections, setCollections] = useState<Collection[]>(initialCollections);
     const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
     const [overlap, setOverlap] = useState<OverlapCheckResponse | null>(null);
     const [loading, setLoading] = useState(false);
@@ -55,6 +56,13 @@ export default function AddToCollectionModal({ collections, selectedArticles, on
             for (const id of overlap.new_ids) {
                 await collectionApi.addArticle(selectedCollection.collection_id, id);
             }
+            // Update local collection count so picker reflects the change
+            const addedCount = overlap.new_ids.length;
+            setCollections(prev => prev.map(c =>
+                c.collection_id === selectedCollection.collection_id
+                    ? { ...c, article_count: c.article_count + addedCount }
+                    : c
+            ));
             // TODO: For PubMed-only articles, import them first then add
             onComplete();
         } catch (err) {
