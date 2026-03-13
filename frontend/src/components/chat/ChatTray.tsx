@@ -285,11 +285,12 @@ export default function ChatTray({
     const hasLoadedInitial = useRef(false);
 
     // Load conversation when tray opens for the first time
-    // Check sessionStorage to restore previous state (including "new chat" state)
+    // Check localStorage to restore previous state (including "new chat" state)
+    // Uses localStorage (not sessionStorage) so cleared state survives tab/browser closes
     useEffect(() => {
         if (isOpen && !hasLoadedInitial.current) {
             hasLoadedInitial.current = true;
-            const storedChatId = sessionStorage.getItem(CHAT_ID_KEY);
+            const storedChatId = localStorage.getItem(CHAT_ID_KEY);
 
             if (storedChatId === 'new') {
                 // User explicitly started a new chat - stay empty
@@ -307,7 +308,7 @@ export default function ChatTray({
         }
     }, [isOpen, loadMostRecent, loadChat]);
 
-    // Sync chatId to sessionStorage when a conversation is created or loaded
+    // Sync chatId to localStorage when a conversation is created or loaded
     // This ensures refresh loads the correct conversation
     useEffect(() => {
         // Only sync after initial load is complete
@@ -315,10 +316,10 @@ export default function ChatTray({
 
         if (chatId !== null) {
             // A conversation exists - save its ID
-            sessionStorage.setItem(CHAT_ID_KEY, chatId.toString());
+            localStorage.setItem(CHAT_ID_KEY, chatId.toString());
         }
         // Note: We don't clear on chatId === null here because reset() handles that
-        // by explicitly setting 'new' in sessionStorage
+        // by explicitly setting 'new' in localStorage
     }, [chatId]);
 
     const scrollToBottom = () => {
@@ -391,7 +392,7 @@ export default function ChatTray({
         setActivePayload(null);
         setDismissedPayloads(new Set());
         // Persist "new chat" state so refresh doesn't reload old conversation
-        sessionStorage.setItem(CHAT_ID_KEY, 'new');
+        localStorage.setItem(CHAT_ID_KEY, 'new');
         // Focus the input after reset
         setTimeout(() => inputRef.current?.focus(), 0);
     }, [reset]);
