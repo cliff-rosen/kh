@@ -22,7 +22,8 @@ sections:
       **Workspace Tabs:**
       - **Analysis** - Stance analysis results (if configured)
       - **Notes** - Notes attached to the article
-      - **Links** - Full text links and external resources
+      - **Full Text** - Full article text or links to find it
+      - **Resources** - Additional related resources from PubMed
 
       **Navigation:**
       - Use Previous/Next buttons to move between articles
@@ -88,6 +89,34 @@ sections:
       - Use personal notes for preliminary thoughts you're not ready to share
       - Use shared notes to flag important findings for your team
       - Notes persist across sessions and are saved per article
+
+  - category: article-viewer
+    topic: full-text
+    title: Full Text & Resources
+    summary: Accessing full article text and related resources from PubMed
+    roles: [member, org_admin, platform_admin]
+    order: 35
+    content: |
+      The **Full Text** and **Resources** tabs help you access the article beyond its abstract.
+
+      Note: If the article has a DOI, a link to the publisher is always shown at the top of the article viewer regardless of which tab you're on.
+
+      **Full Text Tab:**
+      The system checks whether the full text is available in PubMed Central (PMC).
+
+      - **If yes** — the full text is displayed directly in the tab. Articles from our database show as "Full text (cached)"; articles fetched live show as "Full text from PubMed Central."
+      - **If no** — the tab shows links to help you find the article elsewhere:
+        - **Alternative Full Text Sources** — links from PubMed's LinkOut system to publisher websites and open-access repositories. Free sources are highlighted in green.
+        - **Publisher (via DOI)** — if the article has a DOI, a direct link to the publisher's page is shown. This may require a subscription or purchase.
+
+      **Resources Tab:**
+      This tab shows additional resources related to the article from PubMed's LinkOut system, organized by category:
+
+      - **Medical** — health information pages (e.g., MedlinePlus)
+      - **Molecular Biology Databases** — gene, protein, and pathway databases (e.g., Gene Ontology, BioCyc)
+      - **Other Literature Sources** — citation tools, patent databases, and related literature services
+
+      These resources are fetched automatically when you open either the Full Text or Resources tab.
 
   - category: article-viewer
     topic: using-chat
