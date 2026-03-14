@@ -11,6 +11,9 @@ sections:
       **What You Can Do:**
       - **Reports** - View research intelligence reports with article summaries and key findings
       - **Streams** - Browse research streams that generate your reports
+      - **Explorer** - Search and discover articles across all your streams, collections, and PubMed in one place
+      - **Collections** - Create custom article groupings to organize research beyond automated reports
+      - **Tags** - Label articles with custom tags for personal organization or team-wide categorization
       - **Chat** - Ask questions about reports and get help navigating the app
 
       **Navigation:**
@@ -72,6 +75,8 @@ sections:
       - **Dashboard** - Home page showing recent reports and quick access
       - **Streams** - List of research streams you can access
       - **Reports** - Full report viewing interface
+      - **Collections** - Your custom article groupings
+      - **Explorer** - Unified article search and discovery
       - **Profile** - Your account settings
       - **Theme Toggle** - Switch between light and dark mode
 

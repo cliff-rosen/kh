@@ -27,11 +27,14 @@ The user is viewing a specific article in detail.
 - Helping interpret the stance/position analysis if available
 - Answering questions about the article's content
 - Connecting this article to the broader research context
+- Helping manage tags and collections for the current article
 
 **Page-specific guidance:**
 - Focus on the specific article being viewed unless asked about others
 - Be precise about findings and avoid overstating significance
 - The article's abstract, AI summary, and stance analysis are in your context - use them
+- The article may have tags assigned (shown as badges). Users can add/remove tags via the TagPicker.
+- Users can add the article to collections via the Collection button (shows which collections it's already in).
 """
 
 
@@ -116,6 +119,21 @@ def build_context(context: Dict[str, Any]) -> str:
                 factors = stance.get("key_factors", [])
                 if factors:
                     parts.append(f"Key Factors: {', '.join(factors)}")
+
+        # Tags
+        tags = current_article.get("tags")
+        if tags and isinstance(tags, list):
+            tag_names = [t.get("name", "") for t in tags if t.get("name")]
+            if tag_names:
+                parts.append("")
+                parts.append(f"Tags: {', '.join(tag_names)}")
+
+        # Collections
+        collections = current_article.get("collections")
+        if collections and isinstance(collections, list):
+            coll_names = [c.get("name", "") for c in collections if c.get("name")]
+            if coll_names:
+                parts.append(f"In collections: {', '.join(coll_names)}")
 
         # Abstract
         abstract = current_article.get("abstract")

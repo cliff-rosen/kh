@@ -1,0 +1,109 @@
+sections:
+  - category: explorer
+    topic: overview
+    title: Explorer Overview
+    summary: Unified search across streams, collections, and PubMed
+    roles: [member, org_admin, platform_admin]
+    order: 10
+    content: |
+      Explorer is the unified search interface for discovering articles across all your sources in one place.
+
+      **What Explorer Does:**
+      - Searches across your research streams, collections, and PubMed simultaneously
+      - Deduplicates results — articles found in both local DB and PubMed appear once
+      - Lets you select articles and organize them into collections
+
+      **Two Views:**
+      - **List View** — Card-based article list with full details, PubMed pagination, and selection
+      - **Table View (Tablizer)** — Spreadsheet-style table with sorting, filtering, AI columns, and CSV export
+
+      **Accessing Explorer:**
+      Click "Explorer" in the top navigation bar.
+
+  - category: explorer
+    topic: searching
+    title: Searching in Explorer
+    summary: How to search, source toggles, and stream picker
+    roles: [member, org_admin, platform_admin]
+    order: 20
+    content: |
+      **Search Bar:**
+      Type your query and press Enter or click Search. Click the X in the search bar to clear and start over.
+
+      **Source Toggles:**
+      Choose which sources to search by toggling checkboxes:
+      - **Streams** — Articles from your research stream reports. You can pick a specific stream from the dropdown.
+      - **Collections** — Articles in your collections (personal, org, and stream-scoped).
+      - **PubMed** — Live search against all of PubMed (returns 20 results at a time).
+
+      You can enable any combination of sources. At least one must be selected.
+
+      **Stream Picker:**
+      When Streams is enabled, a dropdown appears letting you filter to a specific stream. If no stream is selected, all accessible streams are searched.
+
+  - category: explorer
+    topic: pubmed-results
+    title: PubMed Results & Pagination
+    summary: PubMed totals, Load More, and overlap deduplication
+    roles: [member, org_admin, platform_admin]
+    order: 30
+    content: |
+      **How PubMed Results Work:**
+      - PubMed results load in pages of 20 articles at a time
+      - The status panel shows the total number of PubMed matches (e.g., "1,234 found on PubMed")
+      - Click **Load More PubMed Results** to fetch the next page
+
+      **Overlap Handling:**
+      When an article from PubMed is already in your local database (from a stream or collection), it appears once with all its source badges. The overlap count is shown in the status panel so you know how many were deduplicated.
+
+      **Status Panel:**
+      The gray panel above results shows:
+      - How many articles came from local sources (streams/collections)
+      - How many PubMed matches exist total
+      - How many you've loaded so far
+
+  - category: explorer
+    topic: table-view
+    title: Table View (Tablizer)
+    summary: Switching to table view, AI columns, and export
+    roles: [member, org_admin, platform_admin]
+    order: 40
+    content: |
+      **Switching Views:**
+      Use the list/table toggle icons in the top-right of the Explorer header.
+
+      **Important:** Load all the results you want before switching to table view. The table view does not have a "Load More" button — it shows whatever was loaded in list view.
+
+      **Table Features:**
+      - Sort by any column (click column headers)
+      - Toggle column visibility (Columns button)
+      - Add AI columns for automated analysis (e.g., "Is this a clinical trial?")
+      - Export to CSV
+      - Click any row to open the article viewer
+
+      **AI Columns:**
+      AI columns use Claude to analyze each article. Add them via the "+ AI Column" button. Results include confidence scores and reasoning.
+
+  - category: explorer
+    topic: selecting-articles
+    title: Selecting & Organizing Articles
+    summary: Checkbox selection, Add to Collection, Create Collection
+    roles: [member, org_admin, platform_admin]
+    order: 50
+    content: |
+      **Selecting Articles:**
+      - In list view: click the checkbox on any article card, or use "Select All"
+      - In table view: use the checkbox column on the left
+      - Selected count appears in the action bar at the bottom
+
+      **Add to Existing Collection:**
+      Click "Add to Collection" in the action bar. You'll see:
+      1. A list of your collections with article counts and which already contain selected articles
+      2. After picking a collection, a summary showing how many are new vs. already in the collection
+      3. Confirm to add the new articles
+
+      **Create New Collection:**
+      Click "New Collection" to create a collection from your selection. Provide a name and optional description.
+
+      **Clearing Selection:**
+      Click "Clear" in the action bar or clear the search with the X button.

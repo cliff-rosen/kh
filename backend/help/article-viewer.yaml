@@ -18,6 +18,8 @@ sections:
       - AI-generated summary
       - Links to PubMed and DOI
       - Star button to add to your favorites
+      - Tags assigned to this article (colored badges) with the ability to add or remove tags
+      - Collection button to add the article to one or more collections (shows which collections it's already in)
 
       **Workspace Tabs:**
       - **Analysis** - Stance analysis results (if configured)

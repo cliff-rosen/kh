@@ -28,11 +28,16 @@ On this page, users explore research intelligence reports containing curated bio
 - Browse and search articles within reports
 - View article details, notes, and relevance information
 - Compare reports to see what's changed over time
+- Filter and search articles by tags
+- List and browse article collections
 
 **Page-specific guidance:**
 - Be specific about article PMIDs so users can find them in the UI
 - If an article modal is open, focus on that specific article unless asked otherwise
 - When searching, use article_id from results (not the numbered list position)
+- Articles may have tags (personal or org-wide) shown as colored badges on article cards
+- Users can filter by tags using the tag filter bar above the article list
+- The search_articles_in_reports tool accepts optional tag_names to filter results
 """
 
 

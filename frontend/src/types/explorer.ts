@@ -8,7 +8,7 @@ export interface ExplorerSource {
 export interface ExplorerArticle {
     article_id: number | null;
     title: string;
-    authors: any;
+    authors: string | string[] | null;
     journal?: string;
     pmid?: string;
     doi?: string;

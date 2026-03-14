@@ -40,6 +40,7 @@ from . import reports
 from . import tablizer
 from . import article_viewer
 from . import artifacts
+from . import explorer
 
 
 # =============================================================================

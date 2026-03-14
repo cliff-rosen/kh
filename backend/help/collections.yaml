@@ -1,0 +1,87 @@
+sections:
+  - category: collections
+    topic: overview
+    title: Collections Overview
+    summary: Custom article groupings with personal, org, and stream scopes
+    roles: [member, org_admin, platform_admin]
+    order: 10
+    content: |
+      Collections are custom article groupings you create to organize research beyond automated reports.
+
+      **What Collections Are:**
+      - Independent from reports — you curate them manually
+      - Can contain articles from any source (streams, PubMed imports, etc.)
+      - Each collection has a name, optional description, and article count
+
+      **Scopes:**
+      - **Personal** — Only you can see and manage it
+      - **Organization** — All members of your org can see it; org admins manage it
+      - **Stream** — Tied to a specific research stream; visible to anyone who can access the stream
+
+      **Where to Find Collections:**
+      - Click "Collections" in the top navigation bar
+      - The Explorer page lets you add articles to collections from search results
+
+  - category: collections
+    topic: creating
+    title: Creating Collections
+    summary: How to create new collections
+    roles: [member, org_admin, platform_admin]
+    order: 20
+    content: |
+      **From Explorer:**
+      1. Search for articles in Explorer
+      2. Select the articles you want
+      3. Click "New Collection" in the action bar
+      4. Enter a name and optional description
+      5. Click Create — the selected articles are added automatically
+
+      **From the Collections Page:**
+      1. Go to Collections in the top navigation
+      2. Click the create button
+      3. Enter a name and description
+      4. Add articles later using PMID import or from Explorer
+
+  - category: collections
+    topic: adding-articles
+    title: Adding Articles to Collections
+    summary: Multiple ways to add articles — Explorer, Article Viewer, bulk PMID
+    roles: [member, org_admin, platform_admin]
+    order: 30
+    content: |
+      There are three ways to add articles to collections:
+
+      **1. From Explorer (bulk):**
+      - Search and select articles
+      - Click "Add to Collection" in the action bar
+      - Pick a collection — you'll see an overlap check showing which are new vs. already in the collection
+      - Confirm to add
+
+      **2. From Article Viewer (single article):**
+      - Open any article (click it in a report or Explorer)
+      - Click the Collection button (folder icon)
+      - A dropdown shows all your collections with checkmarks for those the article is already in
+      - Click a collection to add the article — the count updates immediately
+
+      **3. Bulk PMID Import (Collections page):**
+      - Open a collection and click "Add Articles"
+      - Paste PMIDs (separated by commas, spaces, newlines, or semicolons)
+      - Or upload a CSV file — the system auto-detects the PMID column
+      - Articles are looked up in your database first, then fetched from PubMed if needed
+
+  - category: collections
+    topic: managing
+    title: Managing Collections
+    summary: Viewing, editing, and deleting collections
+    roles: [member, org_admin, platform_admin]
+    order: 40
+    content: |
+      **Viewing Articles:**
+      Click a collection to see all its articles. You can filter by tags using the tag filter bar.
+
+      **Editing:**
+      - Change the collection name or description from the collection detail view
+      - Remove individual articles by clicking the remove button
+
+      **Deleting:**
+      Delete a collection from its settings. This removes the collection and all article associations but does not delete the articles themselves.

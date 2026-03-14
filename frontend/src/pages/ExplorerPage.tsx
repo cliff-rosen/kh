@@ -18,6 +18,8 @@ import ArticleViewerModal from '../components/articles/ArticleViewerModal';
 import AddToCollectionModal from '../components/explorer/AddToCollectionModal';
 import CreateCollectionModal from '../components/explorer/CreateCollectionModal';
 import { Tablizer, type TableColumn, type RowViewerProps } from '../components/tools/Tablizer';
+import ChatTray from '../components/chat/ChatTray';
+import { ReportArticle } from '../types/report';
 
 const PUBMED_PAGE_SIZE = 20;
 
@@ -43,10 +45,10 @@ interface DisplayExplorerArticle extends ExplorerArticle {
 
 // RowViewer adapter: maps ExplorerArticle[] to what ArticleViewerModal expects
 function ExplorerRowViewer({ data, initialIndex, onClose }: RowViewerProps<DisplayExplorerArticle>) {
-    const viewerArticles = data.map(a => ({
+    const viewerArticles: ReportArticle[] = data.map(a => ({
         article_id: a.article_id || 0,
         title: a.title,
-        authors: a.authors,
+        authors: Array.isArray(a.authors) ? a.authors : a.authors ? [a.authors] : [],
         journal: a.journal,
         pmid: a.pmid,
         doi: a.doi,
@@ -94,8 +96,11 @@ export default function ExplorerPage() {
     // Selection state
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+    // Chat
+    const [isChatOpen, setIsChatOpen] = useState(false);
+
     // Modals
-    const [viewerArticles, setViewerArticles] = useState<any[]>([]);
+    const [viewerArticles, setViewerArticles] = useState<ReportArticle[]>([]);
     const [viewerIndex, setViewerIndex] = useState(0);
     const [showAddToCollection, setShowAddToCollection] = useState(false);
     const [showCreateCollection, setShowCreateCollection] = useState(false);
@@ -116,6 +121,21 @@ export default function ExplorerPage() {
         })),
         [results]
     );
+
+    // Chat context
+    const chatContext = useMemo(() => ({
+        current_page: 'explorer',
+        search_query: query,
+        sources: { streams: searchStreams, collections: searchCollections, pubmed: searchPubmed },
+        selected_stream_ids: selectedStreamIds,
+        result_count: results.length,
+        local_count: localCount,
+        pubmed_total: pubmedPagination?.total ?? 0,
+        selected_count: selectedIds.size,
+        view_mode: viewMode,
+    }), [query, searchStreams, searchCollections, searchPubmed,
+         selectedStreamIds, results, localCount, pubmedPagination,
+         selectedIds, viewMode]);
 
     const buildSearchParams = useCallback((pubmedOffset = 0) => ({
         q: query.trim(),
@@ -191,10 +211,10 @@ export default function ExplorerPage() {
     const selectedArticles = results.filter(a => selectedIds.has(articleKey(a)));
 
     const openViewer = (article: ExplorerArticle) => {
-        const viewerList = results.map(a => ({
+        const viewerList: ReportArticle[] = results.map(a => ({
             article_id: a.article_id || 0,
             title: a.title,
-            authors: a.authors,
+            authors: Array.isArray(a.authors) ? a.authors : a.authors ? [a.authors] : [],
             journal: a.journal,
             pmid: a.pmid,
             doi: a.doi,
@@ -218,7 +238,7 @@ export default function ExplorerPage() {
         }
     };
 
-    const formatAuthors = (authors: any): string => {
+    const formatAuthors = (authors: string | string[] | null): string => {
         if (!authors) return '';
         if (typeof authors === 'string') return authors;
         if (Array.isArray(authors) && authors.length > 0) {
@@ -537,6 +557,8 @@ export default function ExplorerPage() {
                     onComplete={() => { setShowCreateCollection(false); setSelectedIds(new Set()); }}
                 />
             )}
+
+            <ChatTray initialContext={chatContext} isOpen={isChatOpen} onOpenChange={setIsChatOpen} />
         </div>
     );
 }
@@ -548,7 +570,7 @@ function ArticleCard({ article, isSelected, onToggleSelect, onOpen, formatAuthor
     isSelected: boolean;
     onToggleSelect: () => void;
     onOpen: () => void;
-    formatAuthors: (authors: any) => string;
+    formatAuthors: (authors: string | string[] | null) => string;
 }) {
     return (
         <div

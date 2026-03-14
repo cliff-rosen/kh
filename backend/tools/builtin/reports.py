@@ -286,6 +286,7 @@ async def execute_search_articles_in_reports(
     query = params.get("query", "").strip()
     stream_id = context.get("stream_id") or params.get("stream_id")
     max_results = min(params.get("max_results", 20), 50)
+    tag_names = params.get("tag_names", [])
 
     if not query:
         return "Error: No search query provided."
@@ -299,13 +300,33 @@ async def execute_search_articles_in_reports(
             user_id=user_id,
             stream_id=stream_id,
             query=query,
-            max_results=max_results
+            max_results=max_results if not tag_names else max_results * 3  # fetch more if filtering by tags
         )
 
         if not results:
             return f"No articles found matching '{query}' in this stream's reports."
 
-        text_lines = [f"Found {len(results)} articles matching '{query}':\n"]
+        # Filter by tags if requested
+        if tag_names:
+            from services.tag_service import TagService
+            org_id = context.get("org_id")
+            tag_service = TagService(db)
+            article_ids = [r.article.article_id for r in results]
+            tags_map = await tag_service.get_tags_for_articles(article_ids, user_id, org_id)
+            name_lower = {n.lower() for n in tag_names}
+            results = [
+                r for r in results
+                if r.article.article_id in tags_map and
+                name_lower.issubset({t["name"].lower() for t in tags_map[r.article.article_id]})
+            ]
+            results = results[:max_results]
+
+        if not results:
+            tag_desc = f" with tags [{', '.join(tag_names)}]" if tag_names else ""
+            return f"No articles found matching '{query}'{tag_desc} in this stream's reports."
+
+        tag_desc = f" (filtered by tags: {', '.join(tag_names)})" if tag_names else ""
+        text_lines = [f"Found {len(results)} articles matching '{query}'{tag_desc}:\n"]
         articles_data = []
 
         for i, result in enumerate(results, 1):
@@ -783,6 +804,11 @@ register_tool(ToolConfig(
                 "type": "integer",
                 "description": "Maximum results to return (default 20, max 50)",
                 "default": 20
+            },
+            "tag_names": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Optional: filter results to only articles that have ALL of these tags assigned. Tag names are case-insensitive."
             }
         },
         "required": ["query"]

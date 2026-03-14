@@ -1,0 +1,108 @@
+sections:
+  - category: tags
+    topic: overview
+    title: Tags Overview
+    summary: Personal and organization tags for labeling articles
+    roles: [member, org_admin, platform_admin]
+    order: 10
+    content: |
+      Tags are colored labels you attach to articles to organize and filter your research.
+
+      **Two Scopes:**
+      - **Personal tags** — Only you can see them. Create as many as you want.
+      - **Organization tags** — Shared across your organization. All members can see and use them, but only org admins can create or delete them.
+
+      **How Tags Work:**
+      - Tags appear as colored badges on article cards and in the article viewer
+      - When any org member assigns an org tag to an article, all org members see it
+      - Personal tag assignments are completely private
+
+      **Where Tags Appear:**
+      - Article cards in reports (colored badges)
+      - Article Viewer (with add/remove capability)
+      - Tag filter bar on Reports and Collection detail pages
+      - Profile page (tag management)
+
+  - category: tags
+    topic: assigning
+    title: Assigning Tags to Articles
+    summary: How to tag articles using the TagPicker
+    roles: [member, org_admin, platform_admin]
+    order: 20
+    content: |
+      **From the Article Viewer:**
+      1. Open any article (click it in a report, collection, or Explorer)
+      2. Look for the tag area near the top of the article
+      3. Click to open the TagPicker dropdown
+      4. Toggle existing tags on or off
+      5. Create new personal tags inline by typing a name
+
+      **Tag Badges:**
+      Tags appear as small colored badges. Organization tags show a small org icon to distinguish them from personal tags.
+
+      **Removing Tags:**
+      Open the TagPicker and click an active tag to remove it, or click the X on a tag badge.
+
+  - category: tags
+    topic: filtering
+    title: Filtering by Tags
+    summary: Using the tag filter bar on Reports and Collections
+    roles: [member, org_admin, platform_admin]
+    order: 30
+    content: |
+      **Tag Filter Bar:**
+      On the Reports page and Collection detail view, a tag filter bar appears above the article list when articles have tags.
+
+      **How to Filter:**
+      - Click a tag to toggle it on (highlighted) or off
+      - When tags are selected, only articles matching at least one selected tag are shown
+      - The count next to each tag shows how many articles have that tag
+      - Click "Clear" to remove all tag filters
+
+      **In Chat:**
+      You can also ask the chat assistant to search by tags. The search_articles_in_reports tool supports tag filtering, and the search_articles_by_tags tool finds articles across all your tagged content.
+
+  - category: tags
+    topic: managing
+    title: Managing Tags
+    summary: Creating, editing, and deleting tags from your Profile
+    roles: [member, org_admin, platform_admin]
+    order: 40
+    content: |
+      **Tag Manager (Profile Page):**
+      Go to Profile and click the Tags tab to manage your tags.
+
+      **Personal Tags:**
+      - Create new tags with a name and optional color
+      - Edit tag names and colors
+      - Delete tags (removes from all articles)
+      - No limit on number of personal tags
+
+      **Inline Creation:**
+      You can also create new personal tags directly in the TagPicker when viewing an article.
+
+  - category: tags
+    topic: org-tags
+    title: Organization Tags
+    summary: Shared tags managed by org admins
+    roles: [org_admin, platform_admin]
+    order: 50
+    content: |
+      **Organization Tags:**
+      Organization tags are shared across all members of your organization.
+
+      **Who Can Do What:**
+      - **Org Admins** can create, rename, change colors, and delete org tags
+      - **All Members** can assign and unassign org tags to articles
+      - When any member assigns an org tag, all members see it
+
+      **Managing Org Tags:**
+      Go to Profile → Tags → Organization Tags section. From there you can:
+      - Create new org tags with name and color
+      - Edit existing org tags
+      - Delete org tags (removes from all articles for all members)
+
+      **Best Practices:**
+      - Use org tags for team-wide categories (e.g., "Key Finding", "Needs Review", "Competitor Intel")
+      - Keep personal tags for your own workflow (e.g., "Read Later", "For Presentation")
+      - Org tags enable collaborative curation — tag important articles so your team can filter by them

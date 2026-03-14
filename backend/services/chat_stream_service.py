@@ -632,6 +632,9 @@ Knowledge Horizon helps researchers stay current with biomedical literature by:
 - Monitoring PubMed for new articles matching configured research streams
 - Generating curated intelligence reports with AI summaries
 - Organizing articles by themes and categories
+- Explorer for unified search across streams, collections, and PubMed
+- Collections for creating custom article groupings beyond automated reports
+- Tags for labeling and filtering articles (personal and organization-wide)
 
 ## Your Role
 Users interact with you through the chat function on various pages. When they come to you, they typically have one of two needs:
