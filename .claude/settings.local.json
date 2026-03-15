@@ -45,7 +45,8 @@
       "Bash(C:\\\\code\\\\kh\\\\backend\\\\venv\\\\Scripts\\\\python.exe:*)",
       "Bash(cmd /c:*)",
       "Bash(cmd.exe /c \"cd /d C:\\\\code\\\\kh\\\\backend & venv\\\\Scripts\\\\python.exe -c \"\"print\\(''hello''\\)\"\"\")",
-      "Bash(eb status:*)"
+      "Bash(eb status:*)",
+      "Bash(backend/venv/Scripts/python.exe -c \"import yaml; yaml.safe_load\\(open\\('C:/code/kh/backend/help/article-viewer.yaml'\\)\\); print\\('Valid YAML'\\)\")"
     ],
     "deny": [],
     "ask": [],
