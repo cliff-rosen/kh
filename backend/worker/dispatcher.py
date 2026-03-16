@@ -10,14 +10,9 @@ run_pipeline() only takes execution_id - it reads everything else from the execu
 
 import logging
 import asyncio
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    from backports.zoneinfo import ZoneInfo
 
 from models import ResearchStream, PipelineExecution, ExecutionStatus, RunType
 from services.pipeline_service import PipelineService
@@ -26,21 +21,8 @@ from services.research_stream_service import ResearchStreamService
 from services.report_service import ReportService
 from services.user_service import UserService
 from services.email_service import get_email_service
+from utils.scheduling import calculate_next_run, FREQUENCY_LOOKBACK
 from worker.status_broker import broker
-
-# Day name -> weekday number (Monday=0 .. Sunday=6)
-DAY_NAME_TO_NUM = {
-    'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
-    'friday': 4, 'saturday': 5, 'sunday': 6,
-}
-
-# Frequency -> lookback days  (used for date-range calculation)
-FREQUENCY_LOOKBACK = {
-    'daily': 1,
-    'weekly': 7,
-    'biweekly': 14,
-    'monthly': 30,
-}
 
 logger = logging.getLogger('worker.dispatcher')
 
@@ -261,67 +243,9 @@ class JobDispatcher:
         if not stream.schedule_config:
             return
 
-        next_run = self._calculate_next_run(stream.schedule_config)
+        next_run = calculate_next_run(stream.schedule_config)
         await self.stream_service.update_next_scheduled_run(stream, next_run)
         logger.debug(f"Updated next_scheduled_run for stream {stream.stream_id}: {next_run}")
-
-    def _calculate_next_run(self, schedule_config: dict) -> datetime:
-        """
-        Calculate the next scheduled run time based on config.
-
-        For weekly/biweekly: finds the next occurrence of run_day at run_time.
-        For daily: tomorrow at run_time.
-        For monthly: next run_day_of_month at run_time.
-
-        All calculations respect the configured timezone, then convert to UTC
-        for storage (since next_scheduled_run is compared in UTC).
-        """
-        frequency = schedule_config.get('frequency') or 'weekly'
-        tz_name = schedule_config.get('timezone') or 'UTC'
-        tz = ZoneInfo(tz_name)
-
-        # Parse preferred_time / run_time (HH:MM)
-        run_time_str = schedule_config.get('preferred_time') or '03:00'
-        hour, minute = (int(x) for x in run_time_str.split(':'))
-
-        now_local = datetime.now(tz)
-
-        if frequency == 'daily':
-            # Tomorrow at run_time
-            candidate = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0) + timedelta(days=1)
-            return candidate.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
-
-        elif frequency in ('weekly', 'biweekly'):
-            run_day_name = schedule_config.get('anchor_day') or 'monday'
-            target_weekday = DAY_NAME_TO_NUM.get(run_day_name.lower(), 0)
-            current_weekday = now_local.weekday()
-
-            # Days until next target weekday
-            days_ahead = (target_weekday - current_weekday) % 7
-            if days_ahead == 0:
-                # Same day — schedule for next week (we just ran today)
-                days_ahead = 7
-
-            if frequency == 'biweekly':
-                days_ahead += 7  # Skip an extra week
-
-            candidate = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0) + timedelta(days=days_ahead)
-            return candidate.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
-
-        elif frequency == 'monthly':
-            run_day_of_month = schedule_config.get('run_day_of_month', 1)
-            # Next month on run_day_of_month at run_time
-            if now_local.month == 12:
-                candidate = now_local.replace(year=now_local.year + 1, month=1, day=run_day_of_month,
-                                              hour=hour, minute=minute, second=0, microsecond=0)
-            else:
-                candidate = now_local.replace(month=now_local.month + 1, day=run_day_of_month,
-                                              hour=hour, minute=minute, second=0, microsecond=0)
-            return candidate.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
-
-        else:
-            # Unknown frequency — default weekly
-            return datetime.utcnow() + timedelta(weeks=1)
 
     def get_running_jobs(self) -> Dict[str, Any]:
         """Get info about currently running jobs"""

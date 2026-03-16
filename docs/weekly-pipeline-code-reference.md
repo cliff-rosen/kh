@@ -4,6 +4,22 @@ Step-by-step mapping of each operation in the weekly pipeline cycle to the exact
 
 ---
 
+## Overview
+
+| Step | What Happens | Trigger | Entry Point |
+|------|-------------|---------|-------------|
+| 1. Configure schedule | Admin sets frequency, run day/time, send day/time | Admin UI | `routers/operations.py:230` |
+| 2. Discover due stream | Worker finds streams where `next_scheduled_run <= now` | Worker poll (30s) | `worker/loop.py:74` |
+| 3. Run pipeline | Retrieval, dedup, filter, report generation, summaries | Worker dispatch | `worker/dispatcher.py:99` |
+| 4. Complete + advance | Mark execution completed, advance `next_scheduled_run` | Pipeline done | `worker/dispatcher.py:151–156` |
+| 5. Notify admin | Email admins with approval request (or failure alert) | After step 4 | `worker/dispatcher.py:162` |
+| 6. Admin approves | Set approval status, atomically queue subscriber emails | Admin UI | `routers/curation.py:984` |
+| 7. Send emails | Pick up due queue entries, send via SMTP | Worker poll (30s) | `worker/loop.py:78` |
+
+Schedule calculation logic lives in `utils/scheduling.py` — shared by the dispatcher, operations service, and email queue service.
+
+---
+
 ## Step 1: Configure Stream Schedule
 
 Admin sets up the schedule (frequency, run day/time, send day/time) for a research stream.
@@ -12,12 +28,10 @@ Admin sets up the schedule (frequency, run day/time, send day/time) for a resear
 |------|-------|
 | API endpoint | `routers/operations.py:225` — `PATCH /api/operations/streams/{stream_id}/schedule` |
 | Service logic | `services/operations_service.py:470` — `update_stream_schedule()` |
-| Calculates initial `next_scheduled_run` | `services/operations_service.py:513–519` — calls `dispatcher._calculate_next_run()` |
+| Calculates initial `next_scheduled_run` | `services/operations_service.py:513–519` — calls `utils.scheduling.calculate_next_run()` |
 | Clears `next_scheduled_run` if disabled | `services/operations_service.py:520–522` |
 | Schedule config stored on | `models.py:265` — `ResearchStream.schedule_config` (JSON) |
 | Next run stored on | `models.py:267` — `ResearchStream.next_scheduled_run` (DateTime, indexed) |
-
-**Note:** Line 515–517 instantiates a `JobDispatcher` just to call `_calculate_next_run()`. This is a code smell — that calculation logic should live somewhere both the operations service and the dispatcher can reach it without one importing the other.
 
 ---
 
@@ -76,8 +90,7 @@ After the pipeline finishes, the dispatcher atomically marks the execution as co
 | What | Where |
 |------|-------|
 | Mark completed | `worker/dispatcher.py:151` — `execution_service.mark_completed()` |
-| Advance next run | `worker/dispatcher.py:154` — `_update_next_scheduled_run()` → `stream_service.update_next_scheduled_run()` |
-| Calculate next run time | `worker/dispatcher.py:268` — `_calculate_next_run()` |
+| Advance next run | `worker/dispatcher.py:154` — `_update_next_scheduled_run()` → `utils.scheduling.calculate_next_run()` |
 | **COMMIT** — both in one transaction | `worker/dispatcher.py:156` |
 | On failure: same pattern | `worker/dispatcher.py:170–177` — mark failed + advance schedule + commit |
 
@@ -111,12 +124,12 @@ Admin reviews the report in the web app, then approves it. Approval atomically q
 | Set approval status | `services/report_service.py:1326–1328` — `APPROVED`, `approved_by`, `approved_at` |
 | Create audit event | `services/report_service.py:1331–1337` — `CurationEvent` |
 | **Auto-queue emails** | `services/report_service.py:1340` — `email_queue_service.auto_queue_for_approved_report()` |
-| Calculate send datetime | `services/report_email_queue_service.py:342` — `calculate_send_datetime()` |
-| Resolve subscribers | `services/report_email_queue_service.py:438` — `get_stream_subscribers()` → `subscription_service` |
-| Create queue entries | `services/report_email_queue_service.py:454–461` — `status=scheduled`, `scheduled_for=<send time>` |
+| Calculate send datetime | `services/report_email_queue_service.py:332` — delegates to `utils.scheduling.calculate_send_datetime()` |
+| Resolve subscribers | `services/report_email_queue_service.py:382` — `get_stream_subscribers()` → `subscription_service` |
+| Create queue entries | `services/report_email_queue_service.py:398–405` — `status=scheduled`, `scheduled_for=<send time>` |
 | **COMMIT** — approval + queue entries atomic | `services/report_service.py:1342` |
 
-**Key detail:** `auto_queue_for_approved_report()` does NOT commit (line 409 docstring). The caller (`approve_report`) commits everything in one transaction so approval and email queuing are atomic.
+**Key detail:** `auto_queue_for_approved_report()` does NOT commit. The caller (`approve_report`) commits everything in one transaction so approval and email queuing are atomic.
 
 ---
 
@@ -127,26 +140,12 @@ On the next poll cycle after `scheduled_for` time arrives, the worker picks up d
 | What | Where |
 |------|-------|
 | Poll cycle triggers processing | `worker/loop.py:78` — `_process_email_queue()` |
-| Queue processing logic | `services/report_email_queue_service.py:469` — `process_queue()` |
-| Find due entries | `services/report_email_queue_service.py:500–508` — `scheduled_for <= now AND status = scheduled` |
-| Mark ready | `services/report_email_queue_service.py:528–530` — bulk mark `READY`, commit |
-| Generate email HTML (once per report) | `services/report_email_queue_service.py:573` — `report_service.generate_report_email_html()` |
-| Send each email | `services/report_email_queue_service.py:596` — `email_service.send_report_email()` |
-| Mark sent/failed | `services/report_email_queue_service.py:606–621` — update status, commit per entry |
+| Queue processing logic | `services/report_email_queue_service.py:413` — `process_queue()` |
+| Find due entries | `services/report_email_queue_service.py:444–452` — `scheduled_for <= now AND status = scheduled` |
+| Mark ready | `services/report_email_queue_service.py:472–474` — bulk mark `READY`, commit |
+| Generate email HTML (once per report) | `services/report_email_queue_service.py:517` — `report_service.generate_report_email_html()` |
+| Send each email | `services/report_email_queue_service.py:540` — `email_service.send_report_email()` |
+| Mark sent/failed | `services/report_email_queue_service.py:550–565` — update status, commit per entry |
 | Manual trigger endpoint | `routers/operations.py:800` — `POST /api/operations/email-queue/process` |
 
 **Status flow:** `scheduled` → `ready` → `processing` → `sent` or `failed`
-
----
-
-## Summary Table
-
-| Step | Trigger | Entry Point | Key Commit |
-|------|---------|-------------|------------|
-| 1. Configure schedule | Admin UI | `routers/operations.py:230` | `operations_service.py:524` |
-| 2. Discover due stream | Worker poll (30s) | `worker/loop.py:74` | — (read only) |
-| 3. Run pipeline | Worker dispatch | `worker/dispatcher.py:99` | Multiple per-stage commits in pipeline_service |
-| 4. Complete + advance | Pipeline done | `worker/dispatcher.py:151–156` | `dispatcher.py:156` (atomic) |
-| 5. Notify admin | After step 4 commit | `worker/dispatcher.py:162` | — (sends email, no DB commit) |
-| 6. Admin approves | Admin UI | `routers/curation.py:984` | `report_service.py:1342` (atomic w/ email queue) |
-| 7. Send emails | Worker poll (30s) | `worker/loop.py:78` | Per-entry in `report_email_queue_service.py` |

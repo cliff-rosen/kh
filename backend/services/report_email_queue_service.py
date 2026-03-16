@@ -11,13 +11,8 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select, func
 from typing import List, Optional, Tuple
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from fastapi import Depends
-
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    from backports.zoneinfo import ZoneInfo
 
 from models import (
     ReportEmailQueue, ReportEmailQueueStatus,
@@ -31,15 +26,10 @@ from schemas.report_email_queue import (
     BulkScheduleResponse,
 )
 from database import get_async_db
+from utils.scheduling import calculate_send_datetime as _calculate_send_datetime
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
-
-# Day name -> weekday number (Monday=0 .. Sunday=6)
-DAY_NAME_TO_NUM = {
-    'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
-    'friday': 4, 'saturday': 5, 'sunday': 6,
-}
 
 
 @dataclass
@@ -340,64 +330,8 @@ class ReportEmailQueueService:
 
     @staticmethod
     def calculate_send_datetime(schedule_config: dict, reference_date: date) -> datetime:
-        """
-        Calculate the send datetime for a report based on schedule config.
-
-        For weekly/biweekly: the next occurrence of send_day at send_time on or after reference_date.
-        For daily: reference_date at send_time (or next day if send_time < run_time).
-        For monthly: send_day_of_month at send_time.
-
-        Returns a naive UTC datetime.
-        """
-        tz_name = schedule_config.get('timezone') or 'UTC'
-        tz = ZoneInfo(tz_name)
-        frequency = schedule_config.get('frequency') or 'weekly'
-
-        send_time_str = schedule_config.get('send_time') or '08:00'
-        s_hour, s_minute = (int(x) for x in send_time_str.split(':'))
-
-        if frequency in ('weekly', 'biweekly'):
-            send_day_name = schedule_config.get('send_day') or schedule_config.get('anchor_day') or 'monday'
-            target_weekday = DAY_NAME_TO_NUM.get(send_day_name.lower(), 0)
-            ref_weekday = reference_date.weekday()
-
-            days_ahead = (target_weekday - ref_weekday) % 7
-            if days_ahead == 0:
-                # Same day as reference — check if send_time is after run_time
-                run_time_str = schedule_config.get('preferred_time') or '03:00'
-                r_hour, r_minute = (int(x) for x in run_time_str.split(':'))
-                if (s_hour, s_minute) <= (r_hour, r_minute):
-                    days_ahead = 7  # Next week
-
-            send_date = reference_date + timedelta(days=days_ahead)
-
-        elif frequency == 'daily':
-            # Same day unless send_time <= run_time
-            run_time_str = schedule_config.get('preferred_time') or '03:00'
-            r_hour, r_minute = (int(x) for x in run_time_str.split(':'))
-            if (s_hour, s_minute) <= (r_hour, r_minute):
-                send_date = reference_date + timedelta(days=1)
-            else:
-                send_date = reference_date
-
-        elif frequency == 'monthly':
-            send_day_of_month = schedule_config.get('send_day_of_month',
-                                                     schedule_config.get('run_day_of_month', 1))
-            if send_day_of_month >= reference_date.day:
-                send_date = reference_date.replace(day=send_day_of_month)
-            else:
-                # Next month
-                if reference_date.month == 12:
-                    send_date = reference_date.replace(year=reference_date.year + 1, month=1, day=send_day_of_month)
-                else:
-                    send_date = reference_date.replace(month=reference_date.month + 1, day=send_day_of_month)
-        else:
-            send_date = reference_date
-
-        # Build timezone-aware datetime, then convert to naive UTC
-        local_dt = datetime(send_date.year, send_date.month, send_date.day,
-                            s_hour, s_minute, 0, tzinfo=tz)
-        return local_dt.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
+        """Calculate the send datetime for a report. Delegates to utils.scheduling."""
+        return _calculate_send_datetime(schedule_config, reference_date)
 
     async def auto_queue_for_approved_report(self, report_id: int) -> int:
         """

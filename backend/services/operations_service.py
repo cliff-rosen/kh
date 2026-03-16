@@ -512,9 +512,8 @@ class OperationsService:
 
         # When schedule is enabled (or config changes), calculate next_scheduled_run
         if current_config.get('enabled'):
-            from worker.dispatcher import JobDispatcher
-            dispatcher = JobDispatcher(self.db)
-            next_run = dispatcher._calculate_next_run(current_config)
+            from utils.scheduling import calculate_next_run
+            next_run = calculate_next_run(current_config)
             stream.next_scheduled_run = next_run
             logger.info(f"Set next_scheduled_run for stream {stream_id}: {next_run}")
         elif 'enabled' in updates and not updates['enabled']:
