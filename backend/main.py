@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 # from routers import search, auth, workflow, tools, files, bot, asset
 # Import only Knowledge Horizon compatible routers (legacy routers removed)
 from routers import auth, llm, search, web_retrieval, pubmed, extraction, unified_search, lab, research_streams, reports, chat_stream, tools, retrieval_testing, prompt_testing, document_analysis, articles, tablizer, collections, tags
@@ -9,6 +8,8 @@ from routers import auth, llm, search, web_retrieval, pubmed, extraction, unifie
 from routers import user, organization, subscriptions, admin, notes, operations, curation, help, starring
 # Tracking and chat persistence routers
 from routers import tracking, chat
+# Health check router
+from routers import health
 from database import init_db
 from config import settings, setup_logging
 from middleware import LoggingMiddleware
@@ -114,6 +115,9 @@ app.include_router(tags.router)
 app.include_router(tracking.router)
 app.include_router(chat.router)
 
+# Health check router
+app.include_router(health.router, prefix="/api")
+
 # Legacy routers removed for Knowledge Horizon transition:
 # - workbench: Uses legacy Asset/Mission models
 # - article_chat: Uses UserCompanyProfile
@@ -137,10 +141,6 @@ async def root():
     """Root endpoint - redirects to API health check"""
     return {"message": "JamBot API", "health": "/api/health", "docs": "/docs"}
 
-@app.get("/api/health")
-async def health_check():
-    """Health check endpoint for monitoring"""
-    return {"status": "healthy", "version": settings.SETTING_VERSION}
 
 
 @app.exception_handler(ValidationError)
