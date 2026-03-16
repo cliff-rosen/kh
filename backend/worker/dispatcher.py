@@ -10,20 +10,20 @@ run_pipeline() only takes execution_id - it reads everything else from the execu
 
 import logging
 import asyncio
-from datetime import datetime, date, timedelta, time
+from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-import uuid
 
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
     from backports.zoneinfo import ZoneInfo
 
-from models import ResearchStream, PipelineExecution, ExecutionStatus, RunType, Report
+from models import ResearchStream, PipelineExecution, ExecutionStatus, RunType
 from services.pipeline_service import PipelineService
 from services.execution_service import ExecutionService
+from services.research_stream_service import ResearchStreamService
+from services.report_service import ReportService
 from services.user_service import UserService
 from services.email_service import get_email_service
 from worker.status_broker import broker
@@ -52,6 +52,8 @@ class JobDispatcher:
         self.db = db
         self.pipeline_service = PipelineService(db)
         self.execution_service = ExecutionService(db)
+        self.stream_service = ResearchStreamService(db)
+        self.report_service = ReportService(db)
         self._running_jobs: Dict[str, asyncio.Task] = {}
 
     async def execute_pending(self, execution: PipelineExecution) -> None:
@@ -107,12 +109,7 @@ class JobDispatcher:
         logger.info(f"Dispatching scheduled run for stream {stream_id}")
 
         # Re-query stream from our session (the passed object is from a different session)
-        stmt = select(ResearchStream).where(ResearchStream.stream_id == stream_id)
-        result = await self.db.execute(stmt)
-        stream = result.scalars().first()
-
-        if not stream:
-            raise ValueError(f"Stream {stream_id} not found")
+        stream = await self.stream_service.get_stream_by_id(stream_id)
 
         # Calculate date range from frequency
         # End date = day before run day, start = end - lookback + 1
@@ -154,7 +151,7 @@ class JobDispatcher:
             await self.execution_service.mark_completed(execution_id)
 
             # Update next_scheduled_run on the stream
-            self._update_next_scheduled_run(stream)
+            await self._update_next_scheduled_run(stream)
 
             await self.db.commit()
 
@@ -176,7 +173,7 @@ class JobDispatcher:
                 logger.error(f"Failed to mark execution as failed: {inner_e}")
 
             # Still update next_scheduled_run even on failure
-            self._update_next_scheduled_run(stream)
+            await self._update_next_scheduled_run(stream)
 
             await self.db.commit()
             await broker.publish_complete(execution_id, success=False, error=str(e))
@@ -224,10 +221,7 @@ class JobDispatcher:
                     return
 
                 # Load the report for name and article count
-                stmt = select(Report).where(Report.report_id == execution.report_id)
-                result = await self.db.execute(stmt)
-                report = result.scalars().first()
-
+                report = await self.report_service.get_report_by_id_internal(execution.report_id)
                 if not report:
                     logger.warning(f"Cannot notify: report {execution.report_id} not found")
                     return
@@ -264,13 +258,13 @@ class JobDispatcher:
         except Exception as e:
             logger.error(f"Failed to notify admins for execution {execution_id}: {e}", exc_info=True)
 
-    def _update_next_scheduled_run(self, stream: ResearchStream) -> None:
-        """Calculate and set the next scheduled run time"""
+    async def _update_next_scheduled_run(self, stream: ResearchStream) -> None:
+        """Calculate and set the next scheduled run time via stream service."""
         if not stream.schedule_config:
             return
 
         next_run = self._calculate_next_run(stream.schedule_config)
-        stream.next_scheduled_run = next_run
+        await self.stream_service.update_next_scheduled_run(stream.stream_id, next_run)
         logger.debug(f"Updated next_scheduled_run for stream {stream.stream_id}: {next_run}")
 
     def _calculate_next_run(self, schedule_config: dict) -> datetime:
