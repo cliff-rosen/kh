@@ -148,7 +148,7 @@ class JobDispatcher:
                 await broker.publish(execution_id, status.stage, status.message)
 
             # Mark as completed
-            await self.execution_service.mark_completed(execution_id)
+            execution = await self.execution_service.mark_completed(execution_id)
 
             # Update next_scheduled_run on the stream
             await self._update_next_scheduled_run(stream)
@@ -160,9 +160,8 @@ class JobDispatcher:
 
             # Notify admins of successful completion
             await self._notify_admins_scheduled_complete(
-                execution_id=execution_id,
+                execution=execution,
                 stream_name=stream.stream_name,
-                success=True,
             )
 
         except Exception as e:
@@ -182,7 +181,6 @@ class JobDispatcher:
             await self._notify_admins_scheduled_complete(
                 execution_id=execution_id,
                 stream_name=stream.stream_name,
-                success=False,
                 error_message=str(e),
             )
 
@@ -190,19 +188,20 @@ class JobDispatcher:
 
     async def _notify_admins_scheduled_complete(
         self,
-        execution_id: str,
         stream_name: str,
-        success: bool,
+        execution: Optional[PipelineExecution] = None,
+        execution_id: Optional[str] = None,
         error_message: Optional[str] = None,
     ) -> None:
         """
         Notify platform admins when a scheduled pipeline run completes.
 
-        On success: sends approval request emails with report details.
-        On failure: sends failure alert emails.
+        On success: pass `execution` (already loaded). Sends approval request emails.
+        On failure: pass `execution_id` + `error_message`. Sends failure alert emails.
 
         Email failures are logged but never break the pipeline flow.
         """
+        eid = execution.id if execution else execution_id or "unknown"
         try:
             user_service = UserService(self.db)
             admins = await user_service.get_admin_users_for_approval(org_id=None)
@@ -213,14 +212,12 @@ class JobDispatcher:
 
             email_service = get_email_service()
 
-            if success:
-                # Re-query execution to get report_id
-                execution = await self.execution_service.get_by_id(execution_id)
-                if not execution or not execution.report_id:
-                    logger.warning(f"Cannot notify: execution {execution_id} has no report_id")
+            if execution and not error_message:
+                # Success path — execution object already in session
+                if not execution.report_id:
+                    logger.warning(f"Cannot notify: execution {eid} has no report_id")
                     return
 
-                # Load the report for name and article count
                 report = await self.report_service.get_report_by_id_internal(execution.report_id)
                 if not report:
                     logger.warning(f"Cannot notify: report {execution.report_id} not found")
@@ -242,21 +239,22 @@ class JobDispatcher:
                         requester_name="Scheduled Pipeline",
                     )
             else:
+                # Failure path
                 for admin in admins:
                     admin_name = admin.full_name or admin.email
                     logger.info(f"Sending pipeline failure alert to {admin.email} for stream {stream_name}")
                     await email_service.send_pipeline_failure_alert_email(
                         recipient_email=admin.email,
                         recipient_name=admin_name,
-                        execution_id=execution_id,
+                        execution_id=eid,
                         stream_name=stream_name,
                         error_message=error_message or "Unknown error",
                     )
 
-            logger.info(f"Notified {len(admins)} admin(s) about scheduled run completion (success={success})")
+            logger.info(f"Notified {len(admins)} admin(s) about scheduled run for {stream_name}")
 
         except Exception as e:
-            logger.error(f"Failed to notify admins for execution {execution_id}: {e}", exc_info=True)
+            logger.error(f"Failed to notify admins for execution {eid}: {e}", exc_info=True)
 
     async def _update_next_scheduled_run(self, stream: ResearchStream) -> None:
         """Calculate and set the next scheduled run time via stream service."""
@@ -264,7 +262,7 @@ class JobDispatcher:
             return
 
         next_run = self._calculate_next_run(stream.schedule_config)
-        await self.stream_service.update_next_scheduled_run(stream.stream_id, next_run)
+        await self.stream_service.update_next_scheduled_run(stream, next_run)
         logger.debug(f"Updated next_scheduled_run for stream {stream.stream_id}: {next_run}")
 
     def _calculate_next_run(self, schedule_config: dict) -> datetime:
