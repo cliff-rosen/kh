@@ -9,6 +9,8 @@ from routers import auth, llm, search, web_retrieval, pubmed, extraction, unifie
 from routers import user, organization, subscriptions, admin, notes, operations, curation, help, starring
 # Tracking and chat persistence routers
 from routers import tracking, chat
+# Health check router
+from routers import health
 from database import init_db
 from config import settings, setup_logging
 from middleware import LoggingMiddleware
@@ -112,6 +114,9 @@ app.include_router(starring.router)
 app.include_router(tracking.router)
 app.include_router(chat.router)
 
+# Health check router
+app.include_router(health.router, prefix="/api")
+
 # Legacy routers removed for Knowledge Horizon transition:
 # - workbench: Uses legacy Asset/Mission models
 # - article_chat: Uses UserCompanyProfile
@@ -134,12 +139,6 @@ async def startup_event():
 async def root():
     """Root endpoint - redirects to API health check"""
     return {"message": "JamBot API", "health": "/api/health", "docs": "/docs"}
-
-@app.get("/api/health")
-async def health_check():
-    """Health check endpoint for monitoring"""
-    return {"status": "healthy", "version": settings.SETTING_VERSION}
-
 
 @app.exception_handler(ValidationError)
 async def validation_exception_handler(request: Request, exc: ValidationError):
