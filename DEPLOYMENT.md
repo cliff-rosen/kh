@@ -59,7 +59,20 @@ The deploy script writes `VITE_APP_VERSION=v1.0.X` to `frontend/.env.production`
 
 ---
 
-## 3. Deploying
+## 3. Branching Model
+
+This project uses a **main/develop** branching model. See `BRANCHING.md` for full details.
+
+| Branch | Purpose | Deploys to |
+|--------|---------|------------|
+| `main` | Always matches production. Only moves forward via release merges or hotfixes. | **Production** |
+| `develop` | Active development. All day-to-day work happens here. | Local dev only |
+
+**Key rule:** Production deployments ONLY happen from the `main` branch. The deploy script enforces this.
+
+---
+
+## 4. Deploying
 
 ### Local Dev
 
@@ -71,19 +84,63 @@ cd backend && venv/Scripts/python.exe -m uvicorn main:app --reload
 cd frontend && npm run dev
 ```
 
-### Production
+### Production — Release
 
-All deployments go through `deploy.ps1` at the repo root. Uses semantic versioning (`v1.0.0`, `v1.0.1`, etc.).
+When `develop` is ready to ship:
 
-```powershell
+```bash
+# 1. Switch to main and merge develop
+git checkout main
+git merge develop
+
+# 2. Deploy (tags, builds, and pushes to production)
 .\deploy.ps1              # Deploy everything (frontend + backend)
 .\deploy.ps1 -Frontend    # Frontend only
 .\deploy.ps1 -Backend     # Backend only
-.\deploy.ps1 -SkipTag     # Deploy without creating a new version tag
+.\deploy.ps1 -SkipTag     # Re-deploy current version without a new tag
+
+# 3. Push main so the remote matches
+git push origin main
+
+# 4. Return to develop
+git checkout develop
+git merge main            # Keep develop up-to-date with the release tag commit
+git push origin develop
 ```
 
-What `deploy.ps1` does:
-1. **Preflight** — refuses to deploy if working tree is dirty or not at repo root
+### Production — Hotfix
+
+When a bug is found in production and `develop` has unreleased work:
+
+```bash
+# 1. Create hotfix branch from the current production tag
+git checkout main
+git checkout -b hotfix/X.Y.Z
+
+# 2. Fix, commit
+git add <fixed-files>
+git commit -m "fix: describe the bug fix"
+
+# 3. Merge into main and deploy
+git checkout main
+git merge hotfix/X.Y.Z
+.\deploy.ps1
+
+# 4. Push main
+git push origin main
+
+# 5. Merge into develop so the fix isn't lost
+git checkout develop
+git merge main
+git push origin develop
+
+# 6. Clean up
+git branch -d hotfix/X.Y.Z
+```
+
+### What `deploy.ps1` does
+
+1. **Preflight** — refuses to deploy if not on `main`, working tree is dirty, or not at repo root (use `-Force` to override the branch check)
 2. **Version tag** — reads latest `v*` tag, auto-increments patch, confirms with user, creates annotated tag, pushes to origin
 3. **Frontend** — writes `VITE_APP_VERSION` to `.env.production`, builds, syncs to S3
 4. **Backend** — writes version to `BUILD_VERSION`, deploys to EB via `eb deploy`
@@ -107,7 +164,7 @@ curl https://api.knowledgehorizon.ai/api/health
 
 ---
 
-## 4. Database Schema Changes
+## 5. Database Schema Changes
 
 Schema changes happen ad-hoc during development against `khdev`. Before deploying to production, those changes must be applied to `kh2`.
 

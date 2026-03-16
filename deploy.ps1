@@ -5,9 +5,10 @@
 #   .\deploy.ps1 -Frontend    # Frontend only
 #   .\deploy.ps1 -Backend     # Backend only
 #   .\deploy.ps1 -SkipTag     # Deploy without creating a new version tag
+#   .\deploy.ps1 -Force       # Override the main-branch check (use with caution)
 #
 # What it does:
-#   1. Preflight: checks repo root, checks for uncommitted changes
+#   1. Preflight: checks main branch, repo root, uncommitted changes
 #   2. Version tag: reads latest v* tag, auto-increments patch, confirms, creates annotated tag, pushes
 #   3. Frontend: writes VITE_APP_VERSION to .env.production, builds, syncs to S3
 #   4. Backend: writes version to BUILD_VERSION, deploys to EB
@@ -16,7 +17,8 @@
 param(
     [switch]$Backend,
     [switch]$Frontend,
-    [switch]$SkipTag
+    [switch]$SkipTag,
+    [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,6 +39,17 @@ $S3_BUCKET = "www.knowledgehorizon.ai"
 if (-not (Test-Path ".git")) {
     Write-Host "ERROR: Must run from the repository root." -ForegroundColor Red
     exit 1
+}
+
+# Must be on main branch
+$branch = git rev-parse --abbrev-ref HEAD
+if ($branch -ne "main" -and -not $Force) {
+    Write-Host "ERROR: Deployments must be run from the 'main' branch (currently on '$branch')." -ForegroundColor Red
+    Write-Host "  Merge your changes into main first, or use -Force to override." -ForegroundColor Yellow
+    exit 1
+}
+if ($branch -ne "main" -and $Force) {
+    Write-Host "WARNING: Deploying from '$branch' (not main). -Force was specified." -ForegroundColor Yellow
 }
 
 # Must have clean working tree
