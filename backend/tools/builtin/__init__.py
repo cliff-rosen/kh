@@ -14,6 +14,7 @@ from tools.builtin import deep_research
 
 from tools.builtin import streams
 from tools.builtin import artifacts
+from tools.builtin import key_authors
 
 # Add more tool modules here as they are created:
 # from tools.builtin import research

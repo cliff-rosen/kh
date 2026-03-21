@@ -12,6 +12,7 @@ class WorkerState:
     """Global worker state"""
     def __init__(self):
         self.running = False
+        self.paused = False  # When True, loop still polls and heartbeats but won't dispatch new jobs
         self.scheduler_task: Optional[asyncio.Task] = None
         self.active_jobs: dict = {}
         # Event to wake up scheduler immediately when a job is triggered

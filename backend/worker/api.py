@@ -442,3 +442,53 @@ async def health_check():
         status="healthy",
         timestamp=datetime.utcnow()
     )
+
+
+class PauseResponse(BaseModel):
+    """Response after pause/resume"""
+    paused: bool
+    message: str
+
+
+@router.post("/pause", response_model=PauseResponse)
+async def pause_worker():
+    """Pause job dispatch. Worker stays alive and heartbeats but won't pick up new jobs."""
+    logger.info("Pause requested via API")
+    worker_state.paused = True
+    return PauseResponse(paused=True, message="Worker paused. No new jobs will be dispatched.")
+
+
+@router.post("/resume", response_model=PauseResponse)
+async def resume_worker():
+    """Resume job dispatch after pause."""
+    logger.info("Resume requested via API")
+    worker_state.paused = False
+    worker_state.wake_event.set()  # Wake the loop so it picks up jobs immediately
+    return PauseResponse(paused=False, message="Worker resumed. Jobs will be dispatched on next poll.")
+
+
+class ShutdownResponse(BaseModel):
+    """Response after requesting shutdown"""
+    message: str
+    active_jobs: int
+
+
+@router.post("/shutdown", response_model=ShutdownResponse)
+async def shutdown_worker():
+    """
+    Request graceful shutdown of the worker process.
+
+    Sets running=False which stops the poll loop after the current cycle.
+    Active jobs are given 30s to complete before the process exits.
+    In production, systemd restarts the worker automatically (Restart=always).
+    """
+    logger.info("Shutdown requested via API")
+
+    active_count = len([j for j in worker_state.active_jobs.values() if not j.done()])
+    worker_state.running = False
+    worker_state.wake_event.set()  # Wake the loop so it exits promptly
+
+    return ShutdownResponse(
+        message="Shutdown initiated. Worker will stop after current cycle.",
+        active_jobs=active_count,
+    )

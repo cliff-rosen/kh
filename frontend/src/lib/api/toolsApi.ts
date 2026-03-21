@@ -90,5 +90,32 @@ export const toolsApi = {
         };
 
         return this.testPubMedQuery(request);
+    },
+
+    /**
+     * Get articles from key authors
+     */
+    async getKeyAuthorArticles(filters?: { author?: string; query?: string; max_results?: number }): Promise<KeyAuthorArticlesResponse> {
+        const params: Record<string, string | number> = {};
+        if (filters?.author) params.author = filters.author;
+        if (filters?.query) params.query = filters.query;
+        if (filters?.max_results) params.max_results = filters.max_results;
+        const response = await api.get('/api/tools/key-authors/articles', { params });
+        return response.data;
+    },
+
+    async getKeyAuthors(): Promise<{ authors: string[] }> {
+        const response = await api.get('/api/tools/key-authors/authors');
+        return response.data;
     }
 };
+
+// ============================================================================
+// Key Author Articles Types
+// ============================================================================
+
+export interface KeyAuthorArticlesResponse {
+    articles: CanonicalResearchArticle[];
+    total_count: number;
+}
+

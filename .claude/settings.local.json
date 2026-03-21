@@ -49,7 +49,11 @@
       "Bash(backend/venv/Scripts/python.exe -c \"import yaml; yaml.safe_load\\(open\\('C:/code/kh/backend/help/article-viewer.yaml'\\)\\); print\\('Valid YAML'\\)\")",
       "Bash(cd C:/code/kh/backend && cmd.exe /c \"eb logs --all 2>&1\" 2>&1 | head -1000)",
       "Bash(cd C:/code/kh/backend && aws elasticbeanstalk request-environment-info --environment-name knowledgehorizon-env --info-type bundle 2>&1)",
-      "Bash(aws elasticbeanstalk:*)"
+      "Bash(aws elasticbeanstalk:*)",
+      "Bash(GOOGLE_WORKSPACE_CLI_CONFIG_DIR=~/.config/gws-account2 gws drive files get --params '{\"fileId\":\"1ZeVb5F4hQok6wnX4nmgO-XiYqn4eJZya\",\"alt\":\"media\"}' -o /tmp/key-authors.docx)",
+      "Read(//c/tmp/**)",
+      "Bash(python3 -c \":*)",
+      "Bash(cd:*)"
     ],
     "deny": [],
     "ask": [],

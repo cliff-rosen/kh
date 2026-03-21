@@ -1,9 +1,23 @@
 """
 Report Generation Worker - Main Entry Point
 
-Standalone FastAPI service that:
-1. Runs a scheduler loop to discover and dispatch jobs
-2. Exposes a management API for external control
+Standalone process (port 8001) that runs alongside the main API (port 8000).
+Responsible for all background work: scheduled pipelines, email delivery.
+
+This file is just wiring: FastAPI app, lifespan, logging, CLI entry point.
+On startup it launches loop.run() and mounts the management API from api.py.
+
+Modules:
+    main.py     App setup, lifecycle              → starts loop, mounts api
+    loop.py     Poll cycle, job dispatch          → scheduler, dispatcher, heartbeat
+    scheduler.py  Job discovery (read-only)       → queries streams + executions
+    dispatcher.py Job execution + notification    → services (pipeline, stream, email...)
+    api.py      Management API (SSE, triggers)    → execution service, status broker
+    state.py    Shared mutable state              → used by main, loop, api
+    status_broker.py  In-memory pub/sub for SSE   → written by dispatcher, read by api
+
+See docs/weekly-pipeline-technical-architecture.md for sequence diagrams
+and the full call graph.
 
 Usage:
     python -m worker.main
@@ -132,7 +146,7 @@ def main():
     uvicorn.run(
         "worker.main:app",
         host="0.0.0.0",
-        port=8001,
+        port=8002,
         reload=False,
         log_level="info"
     )

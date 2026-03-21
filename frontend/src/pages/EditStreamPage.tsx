@@ -801,7 +801,7 @@ export default function EditStreamPage() {
                     <button
                         onClick={() => setIsChatOpen(true)}
                         className="fixed bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
-                        title="Open chat"
+                        title="Ask Ira"
                     >
                         <ChatBubbleLeftRightIcon className="h-6 w-6" />
                     </button>
@@ -925,7 +925,7 @@ export default function EditStreamPage() {
                             >
                                 <div className="flex flex-col items-start">
                                     <span>AI Settings</span>
-                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Stance analysis & chat assistant</span>
+                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Stance analysis & Ira</span>
                                 </div>
                             </button>
                             <button

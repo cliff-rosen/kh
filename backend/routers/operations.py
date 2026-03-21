@@ -31,6 +31,10 @@ from services.report_email_queue_service import (
     ReportEmailQueueService,
     get_report_email_queue_service,
 )
+from services.worker_status_service import (
+    WorkerStatusService,
+    get_worker_status_service,
+)
 from config.settings import settings
 
 # Import domain types from schemas
@@ -844,3 +848,202 @@ async def process_email_queue(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process email queue: {str(e)}",
         )
+
+
+# ==================== Worker Status ====================
+
+
+class WorkerStatusResponse(BaseModel):
+    """Response for worker status endpoint."""
+    worker_id: Optional[str] = None
+    started_at: Optional[datetime] = None
+    last_heartbeat: Optional[datetime] = None
+    status: str  # running, stopping, down, unknown
+    seconds_since_heartbeat: Optional[int] = None
+    active_jobs: int = 0
+    poll_interval_seconds: int = 0
+    max_concurrent_jobs: int = 0
+    last_poll_summary: Optional[dict] = None
+    version: Optional[str] = None
+
+
+@router.get(
+    "/worker-status",
+    response_model=WorkerStatusResponse,
+    summary="Get worker process status",
+)
+async def get_worker_status(
+    current_user: User = Depends(auth_service.validate_token),
+    service: WorkerStatusService = Depends(get_worker_status_service),
+):
+    """
+    Get the current status of the background worker process.
+
+    Reads the most recent heartbeat from the worker_status table.
+    If no heartbeat exists or the last heartbeat is stale (> 2 minutes),
+    the worker is reported as down.
+    """
+    logger.info(f"get_worker_status - user_id={current_user.user_id}")
+
+    try:
+        result = await service.get_current_status()
+        logger.info(f"get_worker_status complete - user_id={current_user.user_id}, status={result.status}")
+        return WorkerStatusResponse(
+            worker_id=result.worker_id,
+            started_at=result.started_at,
+            last_heartbeat=result.last_heartbeat,
+            status=result.status,
+            seconds_since_heartbeat=result.seconds_since_heartbeat,
+            active_jobs=result.active_jobs,
+            poll_interval_seconds=result.poll_interval_seconds,
+            max_concurrent_jobs=result.max_concurrent_jobs,
+            last_poll_summary=result.last_poll_summary,
+            version=result.version,
+        )
+
+    except Exception as e:
+        logger.error(f"get_worker_status failed: {e}", exc_info=True)
+        # If the table doesn't exist yet, return unknown rather than 500
+        return WorkerStatusResponse(status="unknown")
+
+
+class WorkerPauseResponse(BaseModel):
+    """Response for worker pause/resume proxy."""
+    paused: bool
+    message: str
+
+
+class WorkerShutdownResponse(BaseModel):
+    """Response for worker shutdown proxy."""
+    message: str
+    active_jobs: int
+
+
+@router.post(
+    "/worker/shutdown",
+    response_model=WorkerShutdownResponse,
+    summary="Request worker shutdown (restart)",
+)
+async def shutdown_worker(
+    current_user: User = Depends(auth_service.validate_token),
+):
+    """
+    Request graceful shutdown of the worker process.
+
+    Proxies to the worker's management API. In production, systemd
+    restarts the worker automatically after shutdown (Restart=always),
+    so this effectively performs a restart.
+
+    Platform admin only.
+    """
+    from models import UserRole
+
+    if current_user.role != UserRole.PLATFORM_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin access required",
+        )
+
+    logger.info(f"shutdown_worker - user_id={current_user.user_id}")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{settings.WORKER_URL}/worker/shutdown",
+                timeout=10.0,
+            )
+
+            if response.status_code != 200:
+                logger.error(f"shutdown_worker error - status={response.status_code}, body={response.text}")
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=response.json().get("detail", "Worker error"),
+                )
+
+            result = response.json()
+            logger.info(f"shutdown_worker success - active_jobs={result.get('active_jobs')}")
+            return WorkerShutdownResponse(**result)
+
+    except httpx.RequestError as e:
+        logger.error(f"shutdown_worker connection error - {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Worker service unavailable",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"shutdown_worker failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to shutdown worker: {str(e)}",
+        )
+
+
+async def _proxy_worker_post(endpoint: str, user_id: int) -> dict:
+    """Helper to proxy a POST to the worker API. Raises HTTPException on failure."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{settings.WORKER_URL}/worker/{endpoint}",
+                timeout=10.0,
+            )
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=response.json().get("detail", "Worker error"),
+                )
+            return response.json()
+
+    except httpx.RequestError as e:
+        logger.error(f"worker {endpoint} connection error - {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Worker service unavailable",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"worker {endpoint} failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Worker {endpoint} failed: {str(e)}",
+        )
+
+
+@router.post(
+    "/worker/pause",
+    response_model=WorkerPauseResponse,
+    summary="Pause worker job dispatch",
+)
+async def pause_worker(
+    current_user: User = Depends(auth_service.validate_token),
+):
+    """Pause the worker. It stays alive and heartbeats but won't dispatch new jobs. Platform admin only."""
+    from models import UserRole
+    if current_user.role != UserRole.PLATFORM_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Platform admin access required")
+
+    logger.info(f"pause_worker - user_id={current_user.user_id}")
+    result = await _proxy_worker_post("pause", current_user.user_id)
+    logger.info(f"pause_worker success - user_id={current_user.user_id}")
+    return WorkerPauseResponse(**result)
+
+
+@router.post(
+    "/worker/resume",
+    response_model=WorkerPauseResponse,
+    summary="Resume worker job dispatch",
+)
+async def resume_worker(
+    current_user: User = Depends(auth_service.validate_token),
+):
+    """Resume the worker after a pause. Platform admin only."""
+    from models import UserRole
+    if current_user.role != UserRole.PLATFORM_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Platform admin access required")
+
+    logger.info(f"resume_worker - user_id={current_user.user_id}")
+    result = await _proxy_worker_post("resume", current_user.user_id)
+    logger.info(f"resume_worker success - user_id={current_user.user_id}")
+    return WorkerPauseResponse(**result)

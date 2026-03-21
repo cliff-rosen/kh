@@ -551,6 +551,13 @@ class ChatStreamService:
         if page_context:
             sections.append(f"== CURRENT CONTEXT ==\n{page_context}")
 
+        # 4b. KEY AUTHORS (curated list of important researchers, stream-scoped)
+        stream_id = await self._resolve_stream_id(context)
+        if stream_id:
+            key_authors_section = await self._build_key_authors_section(stream_id)
+            if key_authors_section:
+                sections.append(f"== KEY AUTHORS ==\n{key_authors_section}")
+
         # 5. PAYLOAD MANIFEST (payloads from conversation history, if any)
         payload_manifest = self._build_payload_manifest(db_messages)
         if payload_manifest:
@@ -625,7 +632,7 @@ class ChatStreamService:
     # ==========================================================================
 
     # Global preamble - explains the overall situation (always included)
-    GLOBAL_PREAMBLE = """You are the AI assistant for Knowledge Horizon, a biomedical research intelligence platform.
+    GLOBAL_PREAMBLE = """You are Ira (Intelligent Research Assistant), the research assistant for Knowledge Horizon, a biomedical research intelligence platform.
 
 ## What Knowledge Horizon Does
 Knowledge Horizon helps researchers stay current with biomedical literature by:
@@ -694,6 +701,35 @@ If a task requires chaining many tools with fragile parsing, or you're not confi
 
 ## Page-Specific Instructions
 Users can be on different pages in the app, each with its own context and capabilities. Page-specific instructions (if any) appear in the next section."""
+
+    async def _build_key_authors_section(self, stream_id: int) -> Optional[str]:
+        """Load key authors for a stream and build a system prompt section."""
+        try:
+            from services.key_authors_service import get_key_authors_list
+            authors = await get_key_authors_list(self.db, stream_id=stream_id)
+            if not authors:
+                return None
+            authors_str = ", ".join(authors)
+            return (
+                f"These are recognized domain experts designated as key authors for this stream: {authors_str}\n\n"
+                "You know who these people are. When the user refers to 'key authors' or asks about what experts in the field have published, "
+                "they mean these researchers. You can search PubMed for their work using get_key_author_articles.\n\n"
+                "**How to use get_key_author_articles:**\n"
+                "- author: filter by name (e.g. 'Carbone M'). Omit to search all key authors.\n"
+                "- query: topic filter combined with author (e.g. 'BAP1', 'mesothelioma treatment').\n"
+                "- start_date / end_date: date range in YYYY/MM/DD format. Defaults to last year.\n"
+                "- Searching all key authors without a query is slow — prefer adding a query or specific author.\n\n"
+                "**Examples of when to use it:**\n"
+                "- 'Have any key authors written about BAP1?' → call with query='BAP1'\n"
+                "- 'Find recent key author articles on immunotherapy' → call with query='immunotherapy'\n"
+                "- 'What has Hassan published on mesothelioma?' → call with author='Hassan R', query='mesothelioma'\n\n"
+                "**When regular PubMed search results include key authors:**\n"
+                "If you do a PubMed search and the results include articles by any of these key authors, "
+                "mention it — the user will want to know that recognized experts have published on the topic."
+            )
+        except Exception as e:
+            logger.warning(f"Failed to load key authors for system prompt: {e}")
+            return None
 
     async def _get_global_preamble(self) -> str:
         """Get the global preamble, checking for database override first."""
@@ -864,26 +900,25 @@ SUGGESTED_ACTIONS:
 
         return base_context
 
+    async def _resolve_stream_id(self, context: Dict[str, Any]) -> Optional[int]:
+        """Resolve stream_id from context, falling back to report's stream if needed."""
+        stream_id = context.get("stream_id")
+        if not stream_id and context.get("report_id"):
+            from services.report_service import ReportService
+            report_service = ReportService(self.db)
+            report = await report_service.get_report_by_id_internal(context["report_id"])
+            if report:
+                stream_id = report.research_stream_id
+        return stream_id
+
     async def _load_stream_instructions(self, context: Dict[str, Any]) -> Optional[str]:
         """Load stream-specific chat instructions based on stream_id in context (async).
 
         Instructions are stored in the chat_config table (scope='stream').
         """
-        from models import Report, ChatConfig
+        from models import ChatConfig
 
-        stream_id = context.get("stream_id")
-
-        # Try to get stream_id from report_id if not directly provided
-        if not stream_id and context.get("report_id"):
-            stmt = select(Report).where(
-                Report.report_id == context.get("report_id"),
-                Report.user_id == self.user_id,
-            )
-            result = await self.db.execute(stmt)
-            report = result.scalars().first()
-            if report:
-                stream_id = report.research_stream_id
-
+        stream_id = await self._resolve_stream_id(context)
         if not stream_id:
             return None
 

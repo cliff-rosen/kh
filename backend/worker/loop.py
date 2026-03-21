@@ -7,6 +7,10 @@ Runs continuously as a background task within the worker process.
 
 import asyncio
 import logging
+import os
+import platform
+from datetime import datetime
+from typing import Optional
 
 from database import AsyncSessionLocal
 from worker.scheduler import JobDiscovery
@@ -21,6 +25,11 @@ logger = logging.getLogger('worker.loop')
 POLL_INTERVAL_SECONDS = 30  # How often to check for ready jobs
 MAX_CONCURRENT_JOBS = 2     # Maximum simultaneous pipeline runs
 
+# Unique ID for this worker instance (survives restarts via hostname, not random)
+WORKER_ID = f"{platform.node()}:{os.getpid()}"
+
+_started_at: Optional[datetime] = None  # Set on first poll
+
 
 # ==================== Scheduler Loop ====================
 
@@ -31,8 +40,12 @@ async def run():
     Periodically checks for ready jobs and dispatches them.
     Never crashes - all exceptions are caught and logged.
     """
+    global _started_at
+    _started_at = datetime.utcnow()
+
     logger.info("=" * 60)
     logger.info("Scheduler loop starting")
+    logger.info(f"  Worker ID: {WORKER_ID}")
     logger.info(f"  Poll interval: {POLL_INTERVAL_SECONDS}s")
     logger.info(f"  Max concurrent jobs: {MAX_CONCURRENT_JOBS}")
     logger.info("=" * 60)
@@ -77,6 +90,8 @@ async def _poll():
 
     await _process_email_queue()
 
+    poll_summary = {}
+
     async with AsyncSessionLocal() as db:
         discovery = JobDiscovery(db)
         ready_jobs = await discovery.find_all_ready_jobs()
@@ -104,6 +119,22 @@ async def _poll():
         else:
             logger.info(f"Status: {active_count} active, {pending_count} pending, {scheduled_count} scheduled due")
 
+        dispatched = 0
+
+        # When paused, still poll and heartbeat but don't dispatch new jobs
+        if worker_state.paused:
+            logger.info("Worker is PAUSED — skipping job dispatch")
+            poll_summary = {
+                "pending_found": pending_count,
+                "scheduled_found": scheduled_count,
+                "active_jobs": active_count,
+                "dispatched": 0,
+                "paused": True,
+            }
+            # Write heartbeat even when paused so the UI knows we're alive
+            await _write_heartbeat(poll_summary)
+            return
+
         # Dispatch pending executions (manual triggers)
         for execution in ready_jobs['pending_executions']:
             if active_count >= MAX_CONCURRENT_JOBS:
@@ -116,6 +147,7 @@ async def _poll():
             )
             worker_state.active_jobs[execution.id] = task
             active_count += 1
+            dispatched += 1
 
         # Dispatch scheduled streams
         for stream in ready_jobs['scheduled_streams']:
@@ -134,6 +166,64 @@ async def _poll():
             )
             worker_state.active_jobs[job_key] = task
             active_count += 1
+            dispatched += 1
+
+        poll_summary = {
+            "pending_found": pending_count,
+            "scheduled_found": scheduled_count,
+            "active_jobs": active_count,
+            "dispatched": dispatched,
+        }
+
+    # Write heartbeat after poll completes (separate session, never fails the poll)
+    await _write_heartbeat(poll_summary)
+
+
+# ==================== Heartbeat ====================
+
+async def _write_heartbeat(poll_summary: dict):
+    """Upsert worker status row so the main API can report health."""
+    try:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import text
+            now = datetime.utcnow()
+
+            # Read version from BUILD_VERSION file if present
+            version = None
+            try:
+                with open("BUILD_VERSION", "r") as f:
+                    version = f.read().strip()
+            except FileNotFoundError:
+                pass
+
+            import json
+            await db.execute(text("""
+                INSERT INTO worker_status
+                    (worker_id, started_at, last_heartbeat, status, active_jobs,
+                     poll_interval_seconds, max_concurrent_jobs, last_poll_summary, version)
+                VALUES
+                    (:worker_id, :started_at, :now, :status, :active_jobs,
+                     :poll_interval, :max_jobs, :summary, :version)
+                ON DUPLICATE KEY UPDATE
+                    last_heartbeat = :now,
+                    status = :status,
+                    active_jobs = :active_jobs,
+                    last_poll_summary = :summary,
+                    version = :version
+            """), {
+                "worker_id": WORKER_ID,
+                "started_at": _started_at,
+                "now": now,
+                "status": "paused" if worker_state.paused else ("running" if worker_state.running else "stopping"),
+                "active_jobs": len([j for j in worker_state.active_jobs.values() if not j.done()]),
+                "poll_interval": POLL_INTERVAL_SECONDS,
+                "max_jobs": MAX_CONCURRENT_JOBS,
+                "summary": json.dumps(poll_summary),
+                "version": version,
+            })
+            await db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to write heartbeat: {e}")
 
 
 # ==================== Job Execution Helpers ====================

@@ -947,6 +947,27 @@ class Artifact(Base):
         return self.updater.full_name or self.updater.email if self.updater else None
 
 
+class WorkerStatus(Base):
+    """
+    Heartbeat table for the background worker process.
+
+    One row per worker instance, upserted every poll cycle.
+    The main API reads this to show worker health in the admin UI.
+    If last_heartbeat is stale (> 2 minutes), the worker is considered down.
+    """
+    __tablename__ = "worker_status"
+
+    worker_id = Column(String(100), primary_key=True)
+    started_at = Column(DateTime, nullable=False)
+    last_heartbeat = Column(DateTime, nullable=False, index=True)
+    status = Column(String(20), nullable=False, default="running")  # running, stopping
+    active_jobs = Column(Integer, nullable=False, default=0)
+    poll_interval_seconds = Column(Integer, nullable=False, default=30)
+    max_concurrent_jobs = Column(Integer, nullable=False, default=2)
+    last_poll_summary = Column(JSON, nullable=True)  # What happened in the last poll cycle
+    version = Column(String(50), nullable=True)  # Build version if available
+
+
 # Add relationships to User model
 User.research_streams = relationship("ResearchStream", back_populates="user", foreign_keys="ResearchStream.user_id")
 User.created_streams = relationship("ResearchStream", foreign_keys="ResearchStream.created_by")

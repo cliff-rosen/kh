@@ -324,3 +324,54 @@ export async function processEmailQueue(forceAll: boolean = true): Promise<Proce
     });
     return response.data;
 }
+
+
+// ==================== Worker Status API ====================
+
+export interface WorkerStatusResponse {
+    worker_id: string | null;
+    started_at: string | null;
+    last_heartbeat: string | null;
+    status: 'running' | 'paused' | 'stopping' | 'down' | 'unknown';
+    seconds_since_heartbeat: number | null;
+    active_jobs: number;
+    poll_interval_seconds: number;
+    max_concurrent_jobs: number;
+    last_poll_summary: {
+        pending_found: number;
+        scheduled_found: number;
+        active_jobs: number;
+        dispatched: number;
+    } | null;
+    version: string | null;
+}
+
+export async function getWorkerStatus(): Promise<WorkerStatusResponse> {
+    const response = await api.get('/api/operations/worker-status');
+    return response.data;
+}
+
+export interface WorkerShutdownResponse {
+    message: string;
+    active_jobs: number;
+}
+
+export async function shutdownWorker(): Promise<WorkerShutdownResponse> {
+    const response = await api.post('/api/operations/worker/shutdown');
+    return response.data;
+}
+
+export interface WorkerPauseResponse {
+    paused: boolean;
+    message: string;
+}
+
+export async function pauseWorker(): Promise<WorkerPauseResponse> {
+    const response = await api.post('/api/operations/worker/pause');
+    return response.data;
+}
+
+export async function resumeWorker(): Promise<WorkerPauseResponse> {
+    const response = await api.post('/api/operations/worker/resume');
+    return response.data;
+}
