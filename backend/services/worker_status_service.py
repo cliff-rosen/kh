@@ -103,6 +103,26 @@ class WorkerStatusService:
         status = result.scalar()
         return status == "paused"
 
+    async def has_active_worker(self, exclude_worker_id: str) -> bool:
+        """Check if another worker has a recent heartbeat (within 120s)."""
+        from datetime import timedelta
+        cutoff = datetime.utcnow() - timedelta(seconds=HEARTBEAT_STALE_SECONDS)
+        result = await self.db.execute(
+            select(WorkerStatus.worker_id, WorkerStatus.last_heartbeat)
+            .where(WorkerStatus.last_heartbeat > cutoff)
+            .where(WorkerStatus.worker_id != exclude_worker_id)
+            .limit(1)
+        )
+        row = result.fetchone()
+        return row is not None
+
+    async def delete_all(self) -> int:
+        """Delete all rows. Called on startup to clean up stale entries."""
+        from sqlalchemy import delete as sa_delete
+        result = await self.db.execute(sa_delete(WorkerStatus))
+        await self.db.commit()
+        return result.rowcount
+
 
 async def get_worker_status_service(
     db: AsyncSession = Depends(get_async_db),

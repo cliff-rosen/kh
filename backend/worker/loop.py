@@ -278,22 +278,12 @@ async def _another_worker_is_active() -> bool:
     """Check if another worker has a recent heartbeat. Returns True if we should not start."""
     try:
         async with AsyncSessionLocal() as db:
-            from sqlalchemy import text
-            now = datetime.utcnow()
-            result = await db.execute(text("""
-                SELECT worker_id, last_heartbeat
-                FROM worker_status
-                WHERE last_heartbeat > :cutoff
-                AND worker_id != :my_id
-            """), {
-                "cutoff": now - timedelta(seconds=120),
-                "my_id": WORKER_ID,
-            })
-            row = result.fetchone()
-            if row:
-                logger.warning(f"Active worker found: {row[0]}, last heartbeat: {row[1]}")
-                return True
-            return False
+            from services.worker_status_service import WorkerStatusService
+            service = WorkerStatusService(db)
+            is_active = await service.has_active_worker(exclude_worker_id=WORKER_ID)
+            if is_active:
+                logger.warning("Another active worker detected")
+            return is_active
     except Exception as e:
         logger.warning(f"Failed to check for active workers: {e}")
         return False  # If we can't check, proceed with startup
@@ -303,11 +293,11 @@ async def _cleanup_stale_workers():
     """Delete all rows from worker_status. Called on startup to ensure a clean slate."""
     try:
         async with AsyncSessionLocal() as db:
-            from sqlalchemy import text
-            result = await db.execute(text("DELETE FROM worker_status"))
-            await db.commit()
-            if result.rowcount > 0:
-                logger.info(f"Cleaned up {result.rowcount} stale worker_status row(s)")
+            from services.worker_status_service import WorkerStatusService
+            service = WorkerStatusService(db)
+            count = await service.delete_all()
+            if count > 0:
+                logger.info(f"Cleaned up {count} stale worker_status row(s)")
     except Exception as e:
         logger.warning(f"Failed to clean up worker_status: {e}")
 
