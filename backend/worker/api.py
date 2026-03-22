@@ -476,19 +476,36 @@ class ShutdownResponse(BaseModel):
 @router.post("/shutdown", response_model=ShutdownResponse)
 async def shutdown_worker():
     """
-    Request graceful shutdown of the worker process.
+    Shut down the worker process.
 
-    Sets running=False which stops the poll loop after the current cycle.
-    Active jobs are given 30s to complete before the process exits.
+    Sends SIGTERM to the current process, which triggers uvicorn's graceful
+    shutdown → lifespan cleanup → loop stop → process exit.
     In production, systemd restarts the worker automatically (Restart=always).
     """
+    import os
+    import signal
+
     logger.info("Shutdown requested via API")
 
     active_count = len([j for j in worker_state.active_jobs.values() if not j.done()])
+
+    # Stop the loop gracefully, then kill the process
     worker_state.running = False
-    worker_state.wake_event.set()  # Wake the loop so it exits promptly
+    worker_state.wake_event.set()
+
+    async def _kill_after_loop():
+        # Wait for the scheduler loop to finish its current cycle
+        if worker_state.scheduler_task:
+            try:
+                await asyncio.wait_for(worker_state.scheduler_task, timeout=10.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
+        logger.info("Scheduler loop exited, sending SIGTERM")
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    asyncio.create_task(_kill_after_loop())
 
     return ShutdownResponse(
-        message="Shutdown initiated. Worker will stop after current cycle.",
+        message="Shutdown initiated. Process will exit shortly.",
         active_jobs=active_count,
     )

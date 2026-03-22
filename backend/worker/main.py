@@ -96,6 +96,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Shutting down Report Generation Worker...")
     worker_state.running = False
+    worker_state.wake_event.set()
 
     if worker_state.scheduler_task:
         worker_state.scheduler_task.cancel()
