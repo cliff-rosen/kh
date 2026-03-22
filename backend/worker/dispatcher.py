@@ -206,7 +206,7 @@ class JobDispatcher:
                     return
 
                 report_name = report.report_name
-                article_count = (report.pipeline_metrics or {}).get('final_article_count', 0)
+                article_count = (report.pipeline_metrics or {}).get('included_in_report', 0)
 
                 for admin in admins:
                     admin_name = admin.full_name or admin.email
