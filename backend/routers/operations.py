@@ -57,12 +57,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/operations", tags=["operations"])
 
 
-
-
 # ==================== API-Specific Models (request/response wrappers) ====================
+
 
 class ExecutionQueueResponse(BaseModel):
     """Response wrapper for execution queue with pagination info."""
+
     executions: List[ExecutionQueueItem]
     total: int
     streams: List[StreamOption]
@@ -70,6 +70,7 @@ class ExecutionQueueResponse(BaseModel):
 
 class UpdateScheduleRequest(BaseModel):
     """Request to update schedule configuration."""
+
     enabled: Optional[bool] = None
     frequency: Optional[str] = None
     anchor_day: Optional[str] = None
@@ -81,16 +82,18 @@ class UpdateScheduleRequest(BaseModel):
 
 class TriggerRunRequest(BaseModel):
     """Request to trigger a pipeline run."""
+
     stream_id: int
     run_type: str = "manual"  # manual, test
     # Job config options
     report_name: Optional[str] = None
     start_date: Optional[str] = None  # ISO date string
-    end_date: Optional[str] = None    # ISO date string
+    end_date: Optional[str] = None  # ISO date string
 
 
 class TriggerRunResponse(BaseModel):
     """Response after triggering a run."""
+
     execution_id: str
     stream_id: int
     status: str
@@ -99,15 +102,25 @@ class TriggerRunResponse(BaseModel):
 
 class DirectRunRequest(BaseModel):
     """Request to execute pipeline directly (SSE)."""
+
     stream_id: int
     run_type: str = Field("test", description="Type of run: manual, test, or scheduled")
-    start_date: Optional[str] = Field(None, description="Start date for retrieval (YYYY/MM/DD). Defaults to 7 days ago.")
-    end_date: Optional[str] = Field(None, description="End date for retrieval (YYYY/MM/DD). Defaults to today.")
-    report_name: Optional[str] = Field(None, description="Custom name for the generated report. Defaults to YYYY.MM.DD format.")
+    start_date: Optional[str] = Field(
+        None,
+        description="Start date for retrieval (YYYY/MM/DD). Defaults to 7 days ago.",
+    )
+    end_date: Optional[str] = Field(
+        None, description="End date for retrieval (YYYY/MM/DD). Defaults to today."
+    )
+    report_name: Optional[str] = Field(
+        None,
+        description="Custom name for the generated report. Defaults to YYYY.MM.DD format.",
+    )
 
 
 class RunStatusResponse(BaseModel):
     """Status of a pipeline execution."""
+
     execution_id: str
     stream_id: int
     status: str
@@ -119,10 +132,11 @@ class RunStatusResponse(BaseModel):
 
 # ==================== Execution Queue Endpoints ====================
 
+
 @router.get(
     "/executions",
     response_model=ExecutionQueueResponse,
-    summary="Get pipeline execution queue"
+    summary="Get pipeline execution queue",
 )
 async def get_execution_queue(
     execution_status: Optional[str] = None,
@@ -131,7 +145,7 @@ async def get_execution_queue(
     limit: int = 50,
     offset: int = 0,
     current_user: User = Depends(auth_service.validate_token),
-    service: OperationsService = Depends(get_operations_service)
+    service: OperationsService = Depends(get_operations_service),
 ):
     """
     Get pipeline executions with optional filters (async).
@@ -151,61 +165,76 @@ async def get_execution_queue(
             approval_status=approval_status,
             stream_id=stream_id,
             limit=limit,
-            offset=offset
+            offset=offset,
         )
 
-        logger.info(f"get_execution_queue complete - user_id={current_user.user_id}, count={len(executions)}")
-        return ExecutionQueueResponse(executions=executions, total=total, streams=streams)
+        logger.info(
+            f"get_execution_queue complete - user_id={current_user.user_id}, count={len(executions)}"
+        )
+        return ExecutionQueueResponse(
+            executions=executions, total=total, streams=streams
+        )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"get_execution_queue failed - user_id={current_user.user_id}: {e}", exc_info=True)
+        logger.error(
+            f"get_execution_queue failed - user_id={current_user.user_id}: {e}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get execution queue: {str(e)}"
+            detail=f"Failed to get execution queue: {str(e)}",
         )
 
 
 @router.get(
     "/executions/{execution_id}",
     response_model=ExecutionDetail,
-    summary="Get execution details"
+    summary="Get execution details",
 )
 async def get_execution_detail(
     execution_id: str,
     current_user: User = Depends(auth_service.validate_token),
-    service: OperationsService = Depends(get_operations_service)
+    service: OperationsService = Depends(get_operations_service),
 ):
     """Get full execution details including report and WIP articles (async)."""
-    logger.info(f"get_execution_detail - user_id={current_user.user_id}, execution_id={execution_id}")
+    logger.info(
+        f"get_execution_detail - user_id={current_user.user_id}, execution_id={execution_id}"
+    )
 
     try:
         result = await service.get_execution_detail(execution_id, current_user.user_id)
 
-        logger.info(f"get_execution_detail complete - user_id={current_user.user_id}, execution_id={execution_id}")
+        logger.info(
+            f"get_execution_detail complete - user_id={current_user.user_id}, execution_id={execution_id}"
+        )
         return result
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"get_execution_detail failed - user_id={current_user.user_id}, execution_id={execution_id}: {e}", exc_info=True)
+        logger.error(
+            f"get_execution_detail failed - user_id={current_user.user_id}, execution_id={execution_id}: {e}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get execution detail: {str(e)}"
+            detail=f"Failed to get execution detail: {str(e)}",
         )
 
 
 # ==================== Scheduler Endpoints ====================
 
+
 @router.get(
     "/streams/scheduled",
     response_model=List[ScheduledStreamSummary],
-    summary="Get all scheduled streams"
+    summary="Get all scheduled streams",
 )
 async def get_scheduled_streams(
     current_user: User = Depends(auth_service.validate_token),
-    service: OperationsService = Depends(get_operations_service)
+    service: OperationsService = Depends(get_operations_service),
 ):
     """Get all streams with scheduling configuration and their last execution status (async)."""
     logger.info(f"get_scheduled_streams - user_id={current_user.user_id}")
@@ -213,59 +242,70 @@ async def get_scheduled_streams(
     try:
         result = await service.get_scheduled_streams(current_user.user_id)
 
-        logger.info(f"get_scheduled_streams complete - user_id={current_user.user_id}, count={len(result)}")
+        logger.info(
+            f"get_scheduled_streams complete - user_id={current_user.user_id}, count={len(result)}"
+        )
         return result
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"get_scheduled_streams failed - user_id={current_user.user_id}: {e}", exc_info=True)
+        logger.error(
+            f"get_scheduled_streams failed - user_id={current_user.user_id}: {e}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get scheduled streams: {str(e)}"
+            detail=f"Failed to get scheduled streams: {str(e)}",
         )
 
 
 @router.patch(
     "/streams/{stream_id}/schedule",
     response_model=ScheduledStreamSummary,
-    summary="Update stream schedule"
+    summary="Update stream schedule",
 )
 async def update_stream_schedule(
     stream_id: int,
     request: UpdateScheduleRequest,
     current_user: User = Depends(auth_service.validate_token),
-    service: OperationsService = Depends(get_operations_service)
+    service: OperationsService = Depends(get_operations_service),
 ):
     """Update scheduling configuration for a stream (async)."""
-    logger.info(f"update_stream_schedule - user_id={current_user.user_id}, stream_id={stream_id}")
+    logger.info(
+        f"update_stream_schedule - user_id={current_user.user_id}, stream_id={stream_id}"
+    )
 
     try:
         result = await service.update_stream_schedule(
             stream_id=stream_id,
             user_id=current_user.user_id,
-            updates=request.model_dump(exclude_none=True)
+            updates=request.model_dump(exclude_none=True),
         )
 
-        logger.info(f"update_stream_schedule complete - user_id={current_user.user_id}, stream_id={stream_id}")
+        logger.info(
+            f"update_stream_schedule complete - user_id={current_user.user_id}, stream_id={stream_id}"
+        )
         return result
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"update_stream_schedule failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
+        logger.error(
+            f"update_stream_schedule failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update schedule: {str(e)}"
+            detail=f"Failed to update schedule: {str(e)}",
         )
 
 
 # ==================== Run Management (Proxy to Worker) ====================
 
+
 @router.post(
-    "/runs",
-    response_model=TriggerRunResponse,
-    summary="Trigger a pipeline run"
+    "/runs", response_model=TriggerRunResponse, summary="Trigger a pipeline run"
 )
 async def trigger_run(
     request: TriggerRunRequest,
@@ -276,23 +316,26 @@ async def trigger_run(
 
     Proxies to the worker service which creates a pending execution.
     """
-    logger.info(f"trigger_run - user_id={current_user.user_id}, stream_id={request.stream_id}")
+    logger.info(
+        f"trigger_run - user_id={current_user.user_id}, stream_id={request.stream_id}"
+    )
 
-    result = await _proxy_worker("POST", "/worker/runs", json={
-        "stream_id": request.stream_id,
-        "run_type": request.run_type,
-        "report_name": request.report_name,
-        "start_date": request.start_date,
-        "end_date": request.end_date,
-    })
+    result = await _proxy_worker(
+        "POST",
+        "/worker/runs",
+        json={
+            "stream_id": request.stream_id,
+            "run_type": request.run_type,
+            "report_name": request.report_name,
+            "start_date": request.start_date,
+            "end_date": request.end_date,
+        },
+    )
     logger.info(f"trigger_run success - execution_id={result.get('execution_id')}")
     return TriggerRunResponse(**result)
 
 
-@router.post(
-    "/runs/direct",
-    summary="Execute pipeline directly via SSE"
-)
+@router.post("/runs/direct", summary="Execute pipeline directly via SSE")
 async def execute_run_direct(
     request: DirectRunRequest,
     db: AsyncSession = Depends(get_async_db),
@@ -316,13 +359,20 @@ async def execute_run_direct(
 
     The response is a stream of JSON objects, one per line, each representing a status update.
     """
-    logger.info(f"execute_run_direct - user_id={current_user.user_id}, stream_id={request.stream_id}")
+    logger.info(
+        f"execute_run_direct - user_id={current_user.user_id}, stream_id={request.stream_id}"
+    )
 
     try:
         # Verify stream exists and user has access
-        stream = await stream_service.get_research_stream(current_user, request.stream_id)
+        stream = await stream_service.get_research_stream(
+            current_user, request.stream_id
+        )
         if not stream:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found",
+            )
 
         # Parse run type (defaults to TEST for direct execution)
         run_type_value = RunType.TEST
@@ -332,7 +382,7 @@ async def execute_run_direct(
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid run_type. Must be one of: test, scheduled, manual"
+                    detail=f"Invalid run_type. Must be one of: test, scheduled, manual",
                 )
 
         # Calculate date range (default to last 7 days)
@@ -366,7 +416,7 @@ async def execute_run_direct(
                     run_type=run_type_value,
                     start_date=start_date,
                     end_date=end_date,
-                    report_name=request.report_name
+                    report_name=request.report_name,
                 ):
                     # Format as SSE event
                     status_dict = pipeline_status.to_dict()
@@ -374,15 +424,17 @@ async def execute_run_direct(
                     yield f"data: {event_data}\n\n"
 
                 # Send final completion event
-                yield "data: {\"stage\": \"done\"}\n\n"
+                yield 'data: {"stage": "done"}\n\n'
 
             except Exception as e:
                 # Send error event
-                error_data = json.dumps({
-                    "stage": "error",
-                    "message": str(e),
-                    "error_type": type(e).__name__
-                })
+                error_data = json.dumps(
+                    {
+                        "stage": "error",
+                        "message": str(e),
+                        "error_type": type(e).__name__,
+                    }
+                )
                 yield f"data: {error_data}\n\n"
 
         # Return streaming response
@@ -392,8 +444,8 @@ async def execute_run_direct(
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
-                "X-Accel-Buffering": "no"  # Disable nginx buffering
-            }
+                "X-Accel-Buffering": "no",  # Disable nginx buffering
+            },
         )
 
     except HTTPException:
@@ -402,21 +454,21 @@ async def execute_run_direct(
         logger.error(f"execute_run_direct failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Pipeline execution failed: {str(e)}"
+            detail=f"Pipeline execution failed: {str(e)}",
         )
 
 
 @router.get(
-    "/runs/{execution_id}",
-    response_model=RunStatusResponse,
-    summary="Get run status"
+    "/runs/{execution_id}", response_model=RunStatusResponse, summary="Get run status"
 )
 async def get_run_status(
     execution_id: str,
     current_user: User = Depends(auth_service.validate_token),
 ):
     """Get the status of a pipeline execution."""
-    logger.info(f"get_run_status - user_id={current_user.user_id}, execution_id={execution_id}")
+    logger.info(
+        f"get_run_status - user_id={current_user.user_id}, execution_id={execution_id}"
+    )
 
     result = await _proxy_worker("GET", f"/worker/runs/{execution_id}")
     return RunStatusResponse(**result)
@@ -425,7 +477,7 @@ async def get_run_status(
 @router.get(
     "/runs/{execution_id}/stream",
     response_class=EventSourceResponse,
-    summary="Stream run status updates"
+    summary="Stream run status updates",
 )
 async def stream_run_status(
     execution_id: str,
@@ -436,7 +488,9 @@ async def stream_run_status(
 
     Proxies the SSE stream from the worker service.
     """
-    logger.info(f"stream_run_status - user_id={current_user.user_id}, execution_id={execution_id}")
+    logger.info(
+        f"stream_run_status - user_id={current_user.user_id}, execution_id={execution_id}"
+    )
 
     async def event_generator():
         try:
@@ -444,13 +498,19 @@ async def stream_run_status(
                 async with client.stream(
                     "GET",
                     f"{settings.WORKER_URL}/worker/runs/{execution_id}/stream",
-                    timeout=httpx.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0)
+                    timeout=httpx.Timeout(
+                        connect=10.0, read=300.0, write=10.0, pool=10.0
+                    ),
                 ) as response:
                     if response.status_code != 200:
-                        logger.error(f"stream_run_status worker error - status={response.status_code}")
+                        logger.error(
+                            f"stream_run_status worker error - status={response.status_code}"
+                        )
                         yield {
                             "event": "message",
-                            "data": json.dumps({"error": f"Worker returned {response.status_code}"})
+                            "data": json.dumps(
+                                {"error": f"Worker returned {response.status_code}"}
+                            ),
                         }
                         return
 
@@ -458,31 +518,22 @@ async def stream_run_status(
                         # Parse SSE format from worker: "data: {...}"
                         if line.startswith("data: "):
                             data = line[6:]  # Strip "data: " prefix
-                            yield {
-                                "event": "message",
-                                "data": data
-                            }
+                            yield {"event": "message", "data": data}
 
         except httpx.RequestError as e:
             logger.error(f"stream_run_status connection error - {e}")
             yield {
                 "event": "message",
-                "data": json.dumps({"error": "Worker connection failed"})
+                "data": json.dumps({"error": "Worker connection failed"}),
             }
         except Exception as e:
             logger.error(f"stream_run_status unexpected error - {e}", exc_info=True)
-            yield {
-                "event": "message",
-                "data": json.dumps({"error": "Stream error"})
-            }
+            yield {"event": "message", "data": json.dumps({"error": "Stream error"})}
 
     return EventSourceResponse(event_generator(), ping=1)
 
 
-@router.delete(
-    "/runs/{execution_id}",
-    summary="Cancel a run"
-)
+@router.delete("/runs/{execution_id}", summary="Cancel a run")
 async def cancel_run(
     execution_id: str,
     current_user: User = Depends(auth_service.validate_token),
@@ -492,7 +543,9 @@ async def cancel_run(
 
     Proxies to the worker service.
     """
-    logger.info(f"cancel_run - user_id={current_user.user_id}, execution_id={execution_id}")
+    logger.info(
+        f"cancel_run - user_id={current_user.user_id}, execution_id={execution_id}"
+    )
 
     result = await _proxy_worker("DELETE", f"/worker/runs/{execution_id}")
     logger.info(f"cancel_run success - execution_id={execution_id}")
@@ -504,12 +557,14 @@ async def cancel_run(
 
 class EmailQueueListResponse(BaseModel):
     """Response for email queue list."""
+
     entries: List[ReportEmailQueueWithDetails]
     total: int
 
 
 class SubscriberInfo(BaseModel):
     """User info for subscriber picker."""
+
     user_id: int
     email: str
     full_name: Optional[str] = None
@@ -518,6 +573,7 @@ class SubscriberInfo(BaseModel):
 
 class ApprovedReportInfo(BaseModel):
     """Report info for report picker."""
+
     report_id: int
     report_name: str
     stream_name: Optional[str] = None
@@ -540,7 +596,9 @@ async def list_email_queue(
     queue_service: ReportEmailQueueService = Depends(get_report_email_queue_service),
 ):
     """Get email queue entries with optional filters."""
-    logger.info(f"list_email_queue - user_id={current_user.user_id}, status={status_filter}")
+    logger.info(
+        f"list_email_queue - user_id={current_user.user_id}, status={status_filter}"
+    )
 
     try:
         entries, total = await queue_service.get_queue_entries(
@@ -551,7 +609,9 @@ async def list_email_queue(
             limit=limit,
             offset=offset,
         )
-        logger.info(f"list_email_queue complete - total={total}, returned={len(entries)}")
+        logger.info(
+            f"list_email_queue complete - total={total}, returned={len(entries)}"
+        )
         return EmailQueueListResponse(entries=entries, total=total)
 
     except HTTPException:
@@ -591,7 +651,9 @@ async def get_approved_reports_for_email(
             ApprovedReportInfo(
                 report_id=r.report_id,
                 report_name=r.report_name,
-                stream_name=streams.get(r.research_stream_id) if r.research_stream_id else None,
+                stream_name=(
+                    streams.get(r.research_stream_id) if r.research_stream_id else None
+                ),
                 created_at=r.created_at,
             )
             for r in reports
@@ -621,7 +683,9 @@ async def get_report_subscribers(
     queue_service: ReportEmailQueueService = Depends(get_report_email_queue_service),
 ):
     """Get all subscribers for the given report's stream."""
-    logger.info(f"get_report_subscribers - user_id={current_user.user_id}, report_id={report_id}")
+    logger.info(
+        f"get_report_subscribers - user_id={current_user.user_id}, report_id={report_id}"
+    )
 
     try:
         subscribers = await queue_service.get_stream_subscribers(report_id)
@@ -738,8 +802,11 @@ async def process_email_queue(
                    Useful when you want to send immediately.
     """
     from datetime import date
+
     today = date.today()
-    logger.info(f"process_email_queue - user_id={current_user.user_id}, force_all={force_all}, server_date={today}")
+    logger.info(
+        f"process_email_queue - user_id={current_user.user_id}, force_all={force_all}, server_date={today}"
+    )
 
     try:
         result = await queue_service.process_queue(force_all=force_all)
@@ -770,6 +837,7 @@ async def process_email_queue(
 
 class WorkerStatusResponse(BaseModel):
     """Response for worker status endpoint."""
+
     worker_id: Optional[str] = None
     started_at: Optional[datetime] = None
     last_heartbeat: Optional[datetime] = None
@@ -802,7 +870,9 @@ async def get_worker_status(
 
     try:
         result = await service.get_current_status()
-        logger.info(f"get_worker_status complete - user_id={current_user.user_id}, status={result.status}")
+        logger.info(
+            f"get_worker_status complete - user_id={current_user.user_id}, status={result.status}"
+        )
         return WorkerStatusResponse(
             worker_id=result.worker_id,
             started_at=result.started_at,
@@ -824,14 +894,57 @@ async def get_worker_status(
 
 class WorkerPauseResponse(BaseModel):
     """Response for worker pause/resume proxy."""
+
     paused: bool
     message: str
 
 
 class WorkerShutdownResponse(BaseModel):
     """Response for worker shutdown proxy."""
+
     message: str
     active_jobs: int
+
+
+async def _proxy_worker(
+    method: str, path: str, json: Optional[dict] = None, timeout: float = 10.0
+) -> dict:
+    """
+    Proxy a request to the worker API. Raises HTTPException on failure.
+
+    Args:
+        method: HTTP method (GET, POST, DELETE)
+        path: Path under WORKER_URL (e.g. "/worker/runs")
+        json: Optional JSON body for POST
+        timeout: Request timeout in seconds
+    """
+    url = f"{settings.WORKER_URL}{path}"
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.request(method, url, json=json, timeout=timeout)
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=response.json().get("detail", "Worker error"),
+                )
+            return response.json()
+
+    except httpx.RequestError as e:
+        logger.error(
+            f"worker proxy {method} {path} connection error - {e}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Worker service unavailable",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"worker proxy {method} {path} failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Worker {method} {path} failed: {str(e)}",
+        )
 
 
 @router.post(
@@ -865,45 +978,6 @@ async def shutdown_worker(
     return WorkerShutdownResponse(**result)
 
 
-async def _proxy_worker(
-    method: str, path: str, json: Optional[dict] = None, timeout: float = 10.0
-) -> dict:
-    """
-    Proxy a request to the worker API. Raises HTTPException on failure.
-
-    Args:
-        method: HTTP method (GET, POST, DELETE)
-        path: Path under WORKER_URL (e.g. "/worker/runs")
-        json: Optional JSON body for POST
-        timeout: Request timeout in seconds
-    """
-    url = f"{settings.WORKER_URL}{path}"
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.request(method, url, json=json, timeout=timeout)
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=response.json().get("detail", "Worker error"),
-                )
-            return response.json()
-
-    except httpx.RequestError as e:
-        logger.error(f"worker proxy {method} {path} connection error - {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Worker service unavailable",
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"worker proxy {method} {path} failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Worker {method} {path} failed: {str(e)}",
-        )
-
-
 @router.post(
     "/worker/pause",
     response_model=WorkerPauseResponse,
@@ -915,13 +989,19 @@ async def pause_worker(
 ):
     """Pause the worker. Sets a DB flag — no proxy needed. Platform admin only."""
     from models import UserRole
+
     if current_user.role != UserRole.PLATFORM_ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Platform admin access required")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin access required",
+        )
 
     logger.info(f"pause_worker - user_id={current_user.user_id}")
     await service.set_paused(True)
     logger.info(f"pause_worker success - user_id={current_user.user_id}")
-    return WorkerPauseResponse(paused=True, message="Worker paused. No new jobs will be dispatched.")
+    return WorkerPauseResponse(
+        paused=True, message="Worker paused. No new jobs will be dispatched."
+    )
 
 
 @router.post(
@@ -935,10 +1015,16 @@ async def resume_worker(
 ):
     """Resume the worker. Clears the DB flag. Platform admin only."""
     from models import UserRole
+
     if current_user.role != UserRole.PLATFORM_ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Platform admin access required")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin access required",
+        )
 
     logger.info(f"resume_worker - user_id={current_user.user_id}")
     await service.set_paused(False)
     logger.info(f"resume_worker success - user_id={current_user.user_id}")
-    return WorkerPauseResponse(paused=False, message="Worker resumed. Jobs will be dispatched on next poll.")
+    return WorkerPauseResponse(
+        paused=False, message="Worker resumed. Jobs will be dispatched on next poll."
+    )
