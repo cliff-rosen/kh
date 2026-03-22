@@ -977,6 +977,25 @@ class WorkerStatus(Base):
     version = Column(String(50), nullable=True)  # Build version if available
 
 
+class ArticleNote(Base):
+    """Unified notes on articles, decoupled from report/collection context."""
+    __tablename__ = "article_notes"
+
+    note_id = Column(Integer, primary_key=True, index=True)
+    article_id = Column(Integer, ForeignKey("articles.article_id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    content = Column(Text, nullable=False)
+    visibility = Column(String(20), default="personal", nullable=False)  # personal | shared
+    context_type = Column(String(50), nullable=True)  # 'report', 'collection', or NULL
+    context_id = Column(Integer, nullable=True)  # report_id or collection_id
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    article = relationship("Article")
+    user = relationship("User")
+
+
 class Collection(Base):
     """Custom groupings of articles, independent from reports"""
     __tablename__ = "collections"
