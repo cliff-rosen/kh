@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { WrenchScrewdriverIcon, MagnifyingGlassIcon, DocumentTextIcon, DocumentMagnifyingGlassIcon, TableCellsIcon } from '@heroicons/react/24/outline';
+import { WrenchScrewdriverIcon, MagnifyingGlassIcon, DocumentTextIcon, DocumentMagnifyingGlassIcon, TableCellsIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import PubMedIdChecker from '../components/tools/PubMedIdChecker';
 import PubMedSearch from '../components/tools/PubMedSearch';
 import { DocumentAnalysis } from '../components/tools/DocumentAnalysis';
 import PubMedWorkbench from '../components/pubmed/PubMedWorkbench';
+import KeyAuthorArticles from '../components/tools/KeyAuthorArticles';
 
-type ToolTab = 'search' | 'id-checker' | 'document-analysis' | 'tablizer';
+type ToolTab = 'search' | 'id-checker' | 'document-analysis' | 'tablizer' | 'key-authors';
 
 const tabs: { id: ToolTab; label: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
     {
@@ -31,6 +32,12 @@ const tabs: { id: ToolTab; label: string; description: string; icon: React.Compo
         label: 'Tablizer',
         description: 'AI-powered table enrichment with generated columns',
         icon: TableCellsIcon,
+    },
+    {
+        id: 'key-authors',
+        label: 'Key Authors',
+        description: 'Recent publications from key authors in the field',
+        icon: UserGroupIcon,
     },
 ];
 
@@ -91,6 +98,7 @@ export default function ToolsPage() {
                 {activeTab === 'id-checker' && <PubMedIdChecker />}
                 {activeTab === 'document-analysis' && <DocumentAnalysis />}
                 {activeTab === 'tablizer' && <PubMedWorkbench />}
+                {activeTab === 'key-authors' && <KeyAuthorArticles />}
             </div>
         </div>
     );

@@ -15,11 +15,10 @@ Note: Only ~30% of PubMed articles are in PMC (open access, NIH-funded, or volun
 For articles NOT in PMC, the get_full_text tool returns LinkOut URLs to publishers.
 """
 
-import asyncio
 import logging
 from typing import Any, Dict, Union
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tools.registry import ToolConfig, ToolResult, register_tool
 from utils.date_utils import format_pub_date
@@ -27,9 +26,9 @@ from utils.date_utils import format_pub_date
 logger = logging.getLogger(__name__)
 
 
-def execute_search_pubmed(
+async def execute_search_pubmed(
     params: Dict[str, Any],
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
@@ -46,16 +45,23 @@ def execute_search_pubmed(
         return "Error: No search query provided."
 
     try:
-        service = PubMedService()
-        articles, metadata = asyncio.run(service.search_articles(
-            query=query,
-            max_results=max_results
-        ))
+        from config.settings import settings
 
-        if not articles:
+        service = PubMedService()
+
+        # Fetch more than requested so key author cross-referencing covers a wider set
+        fetch_limit = max(max_results, settings.KEY_AUTHOR_CROSSREF_FETCH_LIMIT)
+        all_articles, metadata = await service.search_articles(
+            query=query,
+            max_results=fetch_limit
+        )
+
+        if not all_articles:
             return f"No articles found for query: {query}"
 
-        total_results = metadata.get('total_results', len(articles))
+        total_results = metadata.get('total_results', len(all_articles))
+        # Display articles are the user-requested subset
+        articles = all_articles[:max_results]
 
         # Build payload data for frontend
         articles_data = []
@@ -89,11 +95,22 @@ def execute_search_pubmed(
                 "has_free_full_text": bool(getattr(article, 'pmc_id', None))
             })
 
+        # Cross-reference with key authors (stream-scoped)
+        key_author_note = ""
+        try:
+            from services.key_authors_service import cross_reference_key_authors
+            key_author_note = await cross_reference_key_authors(
+                db, all_articles, total_results, stream_id=context.get("stream_id")
+            )
+        except Exception as e:
+            logger.debug(f"Key author cross-reference skipped: {e}")
+
         text_result = (
             f"Found {total_results} results for \"{query}\". Showing top {len(articles)}.\n"
             f"A search results panel with full details (authors, journals, abstracts) is displayed to the user. "
             f"Do NOT repeat article details inline. Just summarize findings or offer to help explore specific articles.\n\n"
             + "\n".join(compact_lines)
+            + key_author_note
         )
 
         payload = {
@@ -113,9 +130,9 @@ def execute_search_pubmed(
         return f"Error searching PubMed: {str(e)}"
 
 
-def execute_get_pubmed_article(
+async def execute_get_pubmed_article(
     params: Dict[str, Any],
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
@@ -137,7 +154,7 @@ def execute_get_pubmed_article(
 
     try:
         service = PubMedService()
-        articles = asyncio.run(service.get_articles_from_ids([pmid]))
+        articles = await service.get_articles_from_ids([pmid])
 
         if not articles:
             return f"No article found with PMID: {pmid}"
@@ -180,9 +197,9 @@ def execute_get_pubmed_article(
         return f"Error fetching article: {str(e)}"
 
 
-def execute_get_full_text(
+async def execute_get_full_text(
     params: Dict[str, Any],
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
@@ -196,6 +213,7 @@ def execute_get_full_text(
     - If no options available: Error message
     """
     from services.pubmed_service import PubMedService, get_full_text_links
+    import asyncio
 
     pmc_id = params.get("pmc_id", "")
     pmid = params.get("pmid", "")
@@ -214,7 +232,7 @@ def execute_get_full_text(
             if pmid.lower().startswith("pmid:"):
                 pmid = pmid[5:].strip()
 
-            articles = asyncio.run(service.get_articles_from_ids([pmid]))
+            articles = await service.get_articles_from_ids([pmid])
             if not articles:
                 logger.warning(f"No article found for PMID: {pmid}")
                 return f"No article found with PMID: {pmid}"
@@ -223,22 +241,19 @@ def execute_get_full_text(
 
             if not article.pmc_id:
                 # No PMC ID - fetch full-text links as alternative with retry
-
-                # Retry logic for ELink API (can be flaky with 500 errors)
-                import time
                 links = []
                 links_error = None
                 max_retries = 3
                 for attempt in range(max_retries):
                     try:
-                        links = asyncio.run(get_full_text_links(pmid))
+                        links = await get_full_text_links(pmid)
                         links_error = None  # Success
                         break
                     except Exception as e:
                         links_error = str(e)
                         logger.warning(f"ELink API error (attempt {attempt + 1}/{max_retries}): {e}")
                         if attempt < max_retries - 1:
-                            time.sleep(1)  # Brief delay before retry
+                            await asyncio.sleep(1)  # Brief delay before retry
 
                 # Separate free and paid links
                 free_links = [l for l in links if l.get('is_free', False)]
@@ -288,7 +303,7 @@ def execute_get_full_text(
                 pmc_id = f"PMC{pmc_id}"
 
         # Fetch the full text
-        full_text = asyncio.run(service.get_pmc_full_text(pmc_id))
+        full_text = await service.get_pmc_full_text(pmc_id)
 
         if not full_text:
             logger.warning(f"No full text returned for PMC ID: {pmc_id}")
@@ -296,7 +311,7 @@ def execute_get_full_text(
 
         # If we don't have article metadata yet, try to fetch it
         if not article and pmid:
-            articles = asyncio.run(service.get_articles_from_ids([pmid]))
+            articles = await service.get_articles_from_ids([pmid])
             if articles:
                 article = articles[0]
 

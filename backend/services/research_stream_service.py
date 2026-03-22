@@ -628,6 +628,14 @@ class ResearchStreamService:
             raise ValueError(f"Research stream {stream_id} not found")
         return stream
 
+    async def update_next_scheduled_run(self, stream: ResearchStream, next_run: datetime) -> None:
+        """
+        Set the next_scheduled_run timestamp for a stream.
+        Caller must pass a stream already loaded in the current session.
+        Does NOT commit — caller is responsible for committing.
+        """
+        stream.next_scheduled_run = next_run
+
     async def get_streams_by_ids(self, stream_ids: List[int]) -> List[ResearchStream]:
         """
         Get multiple research streams by their IDs (async).

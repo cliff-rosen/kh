@@ -442,3 +442,70 @@ async def health_check():
         status="healthy",
         timestamp=datetime.utcnow()
     )
+
+
+class PauseResponse(BaseModel):
+    """Response after pause/resume"""
+    paused: bool
+    message: str
+
+
+@router.post("/pause", response_model=PauseResponse)
+async def pause_worker():
+    """Pause job dispatch. Worker stays alive and heartbeats but won't pick up new jobs."""
+    logger.info("Pause requested via API")
+    worker_state.paused = True
+    return PauseResponse(paused=True, message="Worker paused. No new jobs will be dispatched.")
+
+
+@router.post("/resume", response_model=PauseResponse)
+async def resume_worker():
+    """Resume job dispatch after pause."""
+    logger.info("Resume requested via API")
+    worker_state.paused = False
+    worker_state.wake_event.set()  # Wake the loop so it picks up jobs immediately
+    return PauseResponse(paused=False, message="Worker resumed. Jobs will be dispatched on next poll.")
+
+
+class ShutdownResponse(BaseModel):
+    """Response after requesting shutdown"""
+    message: str
+    active_jobs: int
+
+
+@router.post("/shutdown", response_model=ShutdownResponse)
+async def shutdown_worker():
+    """
+    Shut down the worker process.
+
+    Sends SIGTERM to the current process, which triggers uvicorn's graceful
+    shutdown → lifespan cleanup → loop stop → process exit.
+    In production, systemd restarts the worker automatically (Restart=always).
+    """
+    import os
+    import signal
+
+    logger.info("Shutdown requested via API")
+
+    active_count = len([j for j in worker_state.active_jobs.values() if not j.done()])
+
+    # Stop the loop gracefully, then kill the process
+    worker_state.running = False
+    worker_state.wake_event.set()
+
+    async def _kill_after_loop():
+        # Wait for the scheduler loop to finish its current cycle
+        if worker_state.scheduler_task:
+            try:
+                await asyncio.wait_for(worker_state.scheduler_task, timeout=10.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
+        logger.info("Scheduler loop exited, sending SIGTERM")
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    asyncio.create_task(_kill_after_loop())
+
+    return ShutdownResponse(
+        message="Shutdown initiated. Process will exit shortly.",
+        active_jobs=active_count,
+    )

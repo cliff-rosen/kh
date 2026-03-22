@@ -10,37 +10,19 @@ run_pipeline() only takes execution_id - it reads everything else from the execu
 
 import logging
 import asyncio
-from datetime import datetime, date, timedelta, time
+from datetime import date, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-import uuid
 
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    from backports.zoneinfo import ZoneInfo
-
-from models import ResearchStream, PipelineExecution, ExecutionStatus, RunType, Report
+from models import ResearchStream, PipelineExecution, ExecutionStatus, RunType
 from services.pipeline_service import PipelineService
 from services.execution_service import ExecutionService
+from services.research_stream_service import ResearchStreamService
+from services.report_service import ReportService
 from services.user_service import UserService
 from services.email_service import get_email_service
+from utils.scheduling import calculate_next_run, FREQUENCY_LOOKBACK
 from worker.status_broker import broker
-
-# Day name -> weekday number (Monday=0 .. Sunday=6)
-DAY_NAME_TO_NUM = {
-    'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
-    'friday': 4, 'saturday': 5, 'sunday': 6,
-}
-
-# Frequency -> lookback days  (used for date-range calculation)
-FREQUENCY_LOOKBACK = {
-    'daily': 1,
-    'weekly': 7,
-    'biweekly': 14,
-    'monthly': 30,
-}
 
 logger = logging.getLogger('worker.dispatcher')
 
@@ -52,6 +34,8 @@ class JobDispatcher:
         self.db = db
         self.pipeline_service = PipelineService(db)
         self.execution_service = ExecutionService(db)
+        self.stream_service = ResearchStreamService(db)
+        self.report_service = ReportService(db)
         self._running_jobs: Dict[str, asyncio.Task] = {}
 
     async def execute_pending(self, execution: PipelineExecution) -> None:
@@ -107,12 +91,7 @@ class JobDispatcher:
         logger.info(f"Dispatching scheduled run for stream {stream_id}")
 
         # Re-query stream from our session (the passed object is from a different session)
-        stmt = select(ResearchStream).where(ResearchStream.stream_id == stream_id)
-        result = await self.db.execute(stmt)
-        stream = result.scalars().first()
-
-        if not stream:
-            raise ValueError(f"Stream {stream_id} not found")
+        stream = await self.stream_service.get_stream_by_id(stream_id)
 
         # Calculate date range from frequency
         # End date = day before run day, start = end - lookback + 1
@@ -151,10 +130,10 @@ class JobDispatcher:
                 await broker.publish(execution_id, status.stage, status.message)
 
             # Mark as completed
-            await self.execution_service.mark_completed(execution_id)
+            execution = await self.execution_service.mark_completed(execution_id)
 
             # Update next_scheduled_run on the stream
-            self._update_next_scheduled_run(stream)
+            await self._update_next_scheduled_run(stream)
 
             await self.db.commit()
 
@@ -163,9 +142,8 @@ class JobDispatcher:
 
             # Notify admins of successful completion
             await self._notify_admins_scheduled_complete(
-                execution_id=execution_id,
+                execution=execution,
                 stream_name=stream.stream_name,
-                success=True,
             )
 
         except Exception as e:
@@ -176,7 +154,7 @@ class JobDispatcher:
                 logger.error(f"Failed to mark execution as failed: {inner_e}")
 
             # Still update next_scheduled_run even on failure
-            self._update_next_scheduled_run(stream)
+            await self._update_next_scheduled_run(stream)
 
             await self.db.commit()
             await broker.publish_complete(execution_id, success=False, error=str(e))
@@ -185,7 +163,6 @@ class JobDispatcher:
             await self._notify_admins_scheduled_complete(
                 execution_id=execution_id,
                 stream_name=stream.stream_name,
-                success=False,
                 error_message=str(e),
             )
 
@@ -193,19 +170,20 @@ class JobDispatcher:
 
     async def _notify_admins_scheduled_complete(
         self,
-        execution_id: str,
         stream_name: str,
-        success: bool,
+        execution: Optional[PipelineExecution] = None,
+        execution_id: Optional[str] = None,
         error_message: Optional[str] = None,
     ) -> None:
         """
         Notify platform admins when a scheduled pipeline run completes.
 
-        On success: sends approval request emails with report details.
-        On failure: sends failure alert emails.
+        On success: pass `execution` (already loaded). Sends approval request emails.
+        On failure: pass `execution_id` + `error_message`. Sends failure alert emails.
 
         Email failures are logged but never break the pipeline flow.
         """
+        eid = execution.id if execution else execution_id or "unknown"
         try:
             user_service = UserService(self.db)
             admins = await user_service.get_admin_users_for_approval(org_id=None)
@@ -216,18 +194,13 @@ class JobDispatcher:
 
             email_service = get_email_service()
 
-            if success:
-                # Re-query execution to get report_id
-                execution = await self.execution_service.get_by_id(execution_id)
-                if not execution or not execution.report_id:
-                    logger.warning(f"Cannot notify: execution {execution_id} has no report_id")
+            if execution and not error_message:
+                # Success path — execution object already in session
+                if not execution.report_id:
+                    logger.warning(f"Cannot notify: execution {eid} has no report_id")
                     return
 
-                # Load the report for name and article count
-                stmt = select(Report).where(Report.report_id == execution.report_id)
-                result = await self.db.execute(stmt)
-                report = result.scalars().first()
-
+                report = await self.report_service.get_report_by_id_internal(execution.report_id)
                 if not report:
                     logger.warning(f"Cannot notify: report {execution.report_id} not found")
                     return
@@ -248,88 +221,31 @@ class JobDispatcher:
                         requester_name="Scheduled Pipeline",
                     )
             else:
+                # Failure path
                 for admin in admins:
                     admin_name = admin.full_name or admin.email
                     logger.info(f"Sending pipeline failure alert to {admin.email} for stream {stream_name}")
                     await email_service.send_pipeline_failure_alert_email(
                         recipient_email=admin.email,
                         recipient_name=admin_name,
-                        execution_id=execution_id,
+                        execution_id=eid,
                         stream_name=stream_name,
                         error_message=error_message or "Unknown error",
                     )
 
-            logger.info(f"Notified {len(admins)} admin(s) about scheduled run completion (success={success})")
+            logger.info(f"Notified {len(admins)} admin(s) about scheduled run for {stream_name}")
 
         except Exception as e:
-            logger.error(f"Failed to notify admins for execution {execution_id}: {e}", exc_info=True)
+            logger.error(f"Failed to notify admins for execution {eid}: {e}", exc_info=True)
 
-    def _update_next_scheduled_run(self, stream: ResearchStream) -> None:
-        """Calculate and set the next scheduled run time"""
+    async def _update_next_scheduled_run(self, stream: ResearchStream) -> None:
+        """Calculate and set the next scheduled run time via stream service."""
         if not stream.schedule_config:
             return
 
-        next_run = self._calculate_next_run(stream.schedule_config)
-        stream.next_scheduled_run = next_run
+        next_run = calculate_next_run(stream.schedule_config)
+        await self.stream_service.update_next_scheduled_run(stream, next_run)
         logger.debug(f"Updated next_scheduled_run for stream {stream.stream_id}: {next_run}")
-
-    def _calculate_next_run(self, schedule_config: dict) -> datetime:
-        """
-        Calculate the next scheduled run time based on config.
-
-        For weekly/biweekly: finds the next occurrence of run_day at run_time.
-        For daily: tomorrow at run_time.
-        For monthly: next run_day_of_month at run_time.
-
-        All calculations respect the configured timezone, then convert to UTC
-        for storage (since next_scheduled_run is compared in UTC).
-        """
-        frequency = schedule_config.get('frequency') or 'weekly'
-        tz_name = schedule_config.get('timezone') or 'UTC'
-        tz = ZoneInfo(tz_name)
-
-        # Parse preferred_time / run_time (HH:MM)
-        run_time_str = schedule_config.get('preferred_time') or '03:00'
-        hour, minute = (int(x) for x in run_time_str.split(':'))
-
-        now_local = datetime.now(tz)
-
-        if frequency == 'daily':
-            # Tomorrow at run_time
-            candidate = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0) + timedelta(days=1)
-            return candidate.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
-
-        elif frequency in ('weekly', 'biweekly'):
-            run_day_name = schedule_config.get('anchor_day') or 'monday'
-            target_weekday = DAY_NAME_TO_NUM.get(run_day_name.lower(), 0)
-            current_weekday = now_local.weekday()
-
-            # Days until next target weekday
-            days_ahead = (target_weekday - current_weekday) % 7
-            if days_ahead == 0:
-                # Same day — schedule for next week (we just ran today)
-                days_ahead = 7
-
-            if frequency == 'biweekly':
-                days_ahead += 7  # Skip an extra week
-
-            candidate = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0) + timedelta(days=days_ahead)
-            return candidate.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
-
-        elif frequency == 'monthly':
-            run_day_of_month = schedule_config.get('run_day_of_month', 1)
-            # Next month on run_day_of_month at run_time
-            if now_local.month == 12:
-                candidate = now_local.replace(year=now_local.year + 1, month=1, day=run_day_of_month,
-                                              hour=hour, minute=minute, second=0, microsecond=0)
-            else:
-                candidate = now_local.replace(month=now_local.month + 1, day=run_day_of_month,
-                                              hour=hour, minute=minute, second=0, microsecond=0)
-            return candidate.astimezone(ZoneInfo('UTC')).replace(tzinfo=None)
-
-        else:
-            # Unknown frequency — default weekly
-            return datetime.utcnow() + timedelta(weeks=1)
 
     def get_running_jobs(self) -> Dict[str, Any]:
         """Get info about currently running jobs"""

@@ -8,6 +8,7 @@
  * - /operations/reports/:id/curate → Report Curation (editing, approval)
  * - /operations/scheduler    → Scheduler Management
  * - /operations/email-queue  → Email Queue (scheduled report email delivery)
+ * - /operations/worker       → Worker Status (monitor and control background worker)
  */
 
 import { Routes, Route, NavLink, Navigate, Outlet } from 'react-router-dom';
@@ -16,8 +17,9 @@ import {
     ClockIcon,
     ClipboardDocumentCheckIcon,
     EnvelopeIcon,
+    ServerIcon,
 } from '@heroicons/react/24/outline';
-import { ReportQueue, ExecutionDetail, SchedulerManagement, ReportApprovalQueue, ReportCuration, EmailQueueList } from '../components/operations';
+import { ReportQueue, ExecutionDetail, SchedulerManagement, ReportApprovalQueue, ReportCuration, EmailQueueList, WorkerStatus } from '../components/operations';
 
 function OperationsLayout() {
     return (
@@ -78,6 +80,19 @@ function OperationsLayout() {
                         <EnvelopeIcon className="h-4 w-4" />
                         Email Queue
                     </NavLink>
+                    <NavLink
+                        to="/operations/worker"
+                        className={({ isActive }) =>
+                            `flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                                isActive
+                                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:border-gray-300'
+                            }`
+                        }
+                    >
+                        <ServerIcon className="h-4 w-4" />
+                        Worker
+                    </NavLink>
                 </nav>
             </div>
 
@@ -102,6 +117,7 @@ export default function OperationsPage() {
                 <Route path="executions/:executionId" element={<ExecutionDetail />} />
                 <Route path="scheduler" element={<SchedulerManagement />} />
                 <Route path="email-queue" element={<EmailQueueList />} />
+                <Route path="worker" element={<WorkerStatus />} />
             </Route>
             <Route path="*" element={<Navigate to="/operations" replace />} />
         </Routes>

@@ -103,7 +103,7 @@ const sections: Section[] = [
                                 <div>
                                     <strong className="text-green-800 dark:text-green-200">AI-Guided Interview (Recommended):</strong>
                                     <p className="text-green-700 dark:text-green-300 text-sm mt-1">
-                                        Have a conversation with our AI assistant. It will ask questions about your needs and help you build the stream configuration step-by-step.
+                                        Have a conversation with Ira, your research assistant. She will ask questions about your needs and help you build the stream configuration step-by-step.
                                     </p>
                                 </div>
                                 <div>

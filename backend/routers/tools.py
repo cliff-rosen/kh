@@ -10,8 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime, timedelta
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import User
+from database import get_async_db
 from routers.auth import get_current_user
 from schemas.canonical_types import CanonicalResearchArticle
 
@@ -225,4 +227,72 @@ async def check_pubmed_ids(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"PubMed ID check failed: {str(e)}"
+        )
+
+
+# ============================================================================
+# Key Author Articles
+# ============================================================================
+
+class KeyAuthorArticlesResponse(BaseModel):
+    """Response from key author articles endpoint"""
+    articles: List[CanonicalResearchArticle]
+    total_count: int
+
+
+@router.get("/key-authors/articles", response_model=KeyAuthorArticlesResponse)
+async def get_key_author_articles(
+    author: Optional[str] = None,
+    query: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    max_results: int = 20,
+    stream_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Search PubMed live for articles by key authors.
+    Optionally filter by author name, keyword query, date range, and stream.
+    Defaults to last year if no dates specified.
+    """
+    from services.key_authors_service import search_key_author_articles
+
+    try:
+        articles, total_count = await search_key_author_articles(
+            db, author=author, query=query,
+            start_date=start_date, end_date=end_date,
+            max_results=max_results, stream_id=stream_id,
+        )
+        return KeyAuthorArticlesResponse(
+            articles=articles,
+            total_count=total_count
+        )
+    except Exception as e:
+        logger.error(f"Key author articles fetch failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch key author articles: {str(e)}"
+        )
+
+
+@router.get("/key-authors/authors")
+async def get_key_authors(
+    stream_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get the curated list of key authors, optionally scoped to a stream.
+    """
+    from services.key_authors_service import get_key_authors_list
+
+    try:
+        authors = await get_key_authors_list(db, stream_id=stream_id)
+        return {"authors": authors}
+    except Exception as e:
+        logger.error(f"Key authors fetch failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch key authors: {str(e)}"
         )

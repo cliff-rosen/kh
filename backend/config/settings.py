@@ -69,12 +69,15 @@ class Settings(BaseSettings):
     # Search Provider Limits
     GOOGLE_SCHOLAR_MAX_RESULTS_PER_CALL: int = int(os.getenv("GOOGLE_SCHOLAR_MAX_RESULTS_PER_CALL", "20"))
     PUBMED_MAX_RESULTS_PER_CALL: int = int(os.getenv("PUBMED_MAX_RESULTS_PER_CALL", "10000"))
+
+    # Key Author Cross-Reference Settings
+    KEY_AUTHOR_CROSSREF_FETCH_LIMIT: int = int(os.getenv("KEY_AUTHOR_CROSSREF_FETCH_LIMIT", "100"))
     
     # Smart Search Filtering Limits
     MAX_ARTICLES_TO_FILTER: int = int(os.getenv("MAX_ARTICLES_TO_FILTER", "500"))
 
     # Worker Service URL (for pipeline execution)
-    WORKER_URL: str = os.getenv("WORKER_URL", "http://localhost:8001")
+    WORKER_URL: str = os.getenv("WORKER_URL", "http://localhost:8002")
 
     # Environment
     IS_PRODUCTION: bool = _is_production

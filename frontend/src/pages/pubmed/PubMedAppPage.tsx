@@ -138,7 +138,7 @@ export default function PubMedAppPage() {
                     <button
                         onClick={() => setIsChatOpen(true)}
                         className="fixed bottom-6 left-6 p-4 bg-purple-600 hover:bg-purple-700 text-white rounded-full shadow-lg transition-all hover:scale-105 z-50"
-                        aria-label="Open chat assistant"
+                        aria-label="Open Ira"
                     >
                         <ChatBubbleLeftRightIcon className="h-6 w-6" />
                     </button>
