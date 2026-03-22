@@ -960,7 +960,7 @@ class WorkerStatus(Base):
     worker_id = Column(String(100), primary_key=True)
     started_at = Column(DateTime, nullable=False)
     last_heartbeat = Column(DateTime, nullable=False, index=True)
-    status = Column(String(20), nullable=False, default="running")  # running, stopping
+    status = Column(String(20), nullable=False, default="running")  # running, paused, stopping
     active_jobs = Column(Integer, nullable=False, default=0)
     poll_interval_seconds = Column(Integer, nullable=False, default=30)
     max_concurrent_jobs = Column(Integer, nullable=False, default=2)

@@ -88,6 +88,9 @@ async def _poll():
     """Run one poll cycle: process email queue, then discover and dispatch jobs."""
     logger.info("Polling for ready jobs...")
 
+    # Read persisted pause flag from DB
+    await _sync_paused_flag()
+
     await _process_email_queue()
 
     poll_summary = {}
@@ -197,36 +200,78 @@ async def _write_heartbeat(poll_summary: dict):
                 pass
 
             import json
-            await db.execute(text("""
-                INSERT INTO worker_status
-                    (worker_id, started_at, last_heartbeat, status, active_jobs,
-                     poll_interval_seconds, max_concurrent_jobs, last_poll_summary, version)
-                VALUES
-                    (:worker_id, :started_at, :now, :status, :active_jobs,
-                     :poll_interval, :max_jobs, :summary, :version)
-                ON DUPLICATE KEY UPDATE
-                    last_heartbeat = :now,
-                    status = :status,
-                    active_jobs = :active_jobs,
-                    last_poll_summary = :summary,
-                    version = :version
-            """), {
-                "worker_id": WORKER_ID,
-                "started_at": _started_at,
-                "now": now,
-                "status": "paused" if worker_state.paused else ("running" if worker_state.running else "stopping"),
-                "active_jobs": len([j for j in worker_state.active_jobs.values() if not j.done()]),
-                "poll_interval": POLL_INTERVAL_SECONDS,
-                "max_jobs": MAX_CONCURRENT_JOBS,
-                "summary": json.dumps(poll_summary),
-                "version": version,
-            })
+            active_jobs = len([j for j in worker_state.active_jobs.values() if not j.done()])
+            summary_json = json.dumps(poll_summary)
+
+            # On INSERT (first heartbeat), set status to 'running'.
+            # On UPDATE, don't touch status — it may be 'paused' (set by the main API).
+            # Only override status on UPDATE if the worker is stopping.
+            if not worker_state.running:
+                # Worker is shutting down — override status regardless
+                await db.execute(text("""
+                    INSERT INTO worker_status
+                        (worker_id, started_at, last_heartbeat, status, active_jobs,
+                         poll_interval_seconds, max_concurrent_jobs, last_poll_summary, version)
+                    VALUES
+                        (:worker_id, :started_at, :now, 'stopping', :active_jobs,
+                         :poll_interval, :max_jobs, :summary, :version)
+                    ON DUPLICATE KEY UPDATE
+                        last_heartbeat = :now,
+                        status = 'stopping',
+                        active_jobs = :active_jobs,
+                        last_poll_summary = :summary,
+                        version = :version
+                """), {
+                    "worker_id": WORKER_ID,
+                    "started_at": _started_at,
+                    "now": now,
+                    "active_jobs": active_jobs,
+                    "poll_interval": POLL_INTERVAL_SECONDS,
+                    "max_jobs": MAX_CONCURRENT_JOBS,
+                    "summary": summary_json,
+                    "version": version,
+                })
+            else:
+                # Normal heartbeat — don't overwrite status on UPDATE
+                await db.execute(text("""
+                    INSERT INTO worker_status
+                        (worker_id, started_at, last_heartbeat, status, active_jobs,
+                         poll_interval_seconds, max_concurrent_jobs, last_poll_summary, version)
+                    VALUES
+                        (:worker_id, :started_at, :now, 'running', :active_jobs,
+                         :poll_interval, :max_jobs, :summary, :version)
+                    ON DUPLICATE KEY UPDATE
+                        last_heartbeat = :now,
+                        active_jobs = :active_jobs,
+                        last_poll_summary = :summary,
+                        version = :version
+                """), {
+                    "worker_id": WORKER_ID,
+                    "started_at": _started_at,
+                    "now": now,
+                    "active_jobs": active_jobs,
+                    "poll_interval": POLL_INTERVAL_SECONDS,
+                    "max_jobs": MAX_CONCURRENT_JOBS,
+                    "summary": summary_json,
+                    "version": version,
+                })
             await db.commit()
     except Exception as e:
         logger.warning(f"Failed to write heartbeat: {e}")
 
 
 # ==================== Job Execution Helpers ====================
+
+async def _sync_paused_flag():
+    """Read the persisted paused flag from the DB and sync to in-memory state."""
+    try:
+        async with AsyncSessionLocal() as db:
+            from services.worker_status_service import WorkerStatusService
+            service = WorkerStatusService(db)
+            worker_state.paused = await service.is_paused()
+    except Exception as e:
+        logger.warning(f"Failed to read paused flag from DB: {e}")
+
 
 async def _process_email_queue():
     """Process any due emails in the queue."""

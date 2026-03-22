@@ -3,6 +3,9 @@ Worker Status Service
 
 Owns the worker_status table. Provides worker health information
 to the main API without requiring direct access to the worker process.
+
+Pause/resume sets the status column to 'paused'/'running' in the DB.
+The worker reads this each poll cycle.
 """
 
 import logging
@@ -11,7 +14,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from fastapi import Depends
 
 from models import WorkerStatus
@@ -28,7 +31,7 @@ class WorkerHealthStatus:
     worker_id: Optional[str] = None
     started_at: Optional[datetime] = None
     last_heartbeat: Optional[datetime] = None
-    status: str = "unknown"  # running, stopping, down, unknown
+    status: str = "unknown"  # running, paused, stopping, down, unknown
     seconds_since_heartbeat: Optional[int] = None
     active_jobs: int = 0
     poll_interval_seconds: int = 0
@@ -38,7 +41,7 @@ class WorkerHealthStatus:
 
 
 class WorkerStatusService:
-    """Service for reading worker heartbeat status."""
+    """Service for reading/writing worker heartbeat status."""
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -75,6 +78,30 @@ class WorkerStatusService:
             last_poll_summary=row.last_poll_summary,
             version=row.version,
         )
+
+    async def set_paused(self, paused: bool) -> bool:
+        """
+        Set the worker status to 'paused' or 'running'.
+        The worker reads this each poll cycle.
+        Returns True if any rows were updated.
+        """
+        new_status = "paused" if paused else "running"
+        result = await self.db.execute(
+            update(WorkerStatus).values(status=new_status)
+        )
+        await self.db.commit()
+        logger.info(f"Set worker status={new_status}, rows affected={result.rowcount}")
+        return result.rowcount > 0
+
+    async def is_paused(self) -> bool:
+        """Read the persisted status. Used by the worker on each poll."""
+        result = await self.db.execute(
+            select(WorkerStatus.status)
+            .order_by(WorkerStatus.last_heartbeat.desc())
+            .limit(1)
+        )
+        status = result.scalar()
+        return status == "paused"
 
 
 async def get_worker_status_service(

@@ -278,45 +278,15 @@ async def trigger_run(
     """
     logger.info(f"trigger_run - user_id={current_user.user_id}, stream_id={request.stream_id}")
 
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{settings.WORKER_URL}/worker/runs",
-                json={
-                    "stream_id": request.stream_id,
-                    "run_type": request.run_type,
-                    "report_name": request.report_name,
-                    "start_date": request.start_date,
-                    "end_date": request.end_date,
-                },
-                timeout=10.0
-            )
-
-            if response.status_code != 200:
-                logger.error(f"trigger_run worker error - status={response.status_code}, body={response.text}")
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=response.json().get("detail", "Worker error")
-                )
-
-            result = response.json()
-            logger.info(f"trigger_run success - execution_id={result.get('execution_id')}")
-            return TriggerRunResponse(**result)
-
-    except httpx.RequestError as e:
-        logger.error(f"trigger_run connection error - {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Worker service unavailable"
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"trigger_run unexpected error - {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to trigger run: {str(e)}"
-        )
+    result = await _proxy_worker("POST", "/worker/runs", json={
+        "stream_id": request.stream_id,
+        "run_type": request.run_type,
+        "report_name": request.report_name,
+        "start_date": request.start_date,
+        "end_date": request.end_date,
+    })
+    logger.info(f"trigger_run success - execution_id={result.get('execution_id')}")
+    return TriggerRunResponse(**result)
 
 
 @router.post(
@@ -448,35 +418,8 @@ async def get_run_status(
     """Get the status of a pipeline execution."""
     logger.info(f"get_run_status - user_id={current_user.user_id}, execution_id={execution_id}")
 
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{settings.WORKER_URL}/worker/runs/{execution_id}",
-                timeout=10.0
-            )
-
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=response.json().get("detail", "Worker error")
-                )
-
-            return RunStatusResponse(**response.json())
-
-    except httpx.RequestError as e:
-        logger.error(f"get_run_status connection error - {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Worker service unavailable"
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"get_run_status unexpected error - {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get run status: {str(e)}"
-        )
+    result = await _proxy_worker("GET", f"/worker/runs/{execution_id}")
+    return RunStatusResponse(**result)
 
 
 @router.get(
@@ -551,37 +494,9 @@ async def cancel_run(
     """
     logger.info(f"cancel_run - user_id={current_user.user_id}, execution_id={execution_id}")
 
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.delete(
-                f"{settings.WORKER_URL}/worker/runs/{execution_id}",
-                timeout=10.0
-            )
-
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=response.json().get("detail", "Worker error")
-                )
-
-            result = response.json()
-            logger.info(f"cancel_run success - execution_id={execution_id}")
-            return result
-
-    except httpx.RequestError as e:
-        logger.error(f"cancel_run connection error - {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Worker service unavailable"
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"cancel_run unexpected error - {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to cancel run: {str(e)}"
-        )
+    result = await _proxy_worker("DELETE", f"/worker/runs/{execution_id}")
+    logger.info(f"cancel_run success - execution_id={execution_id}")
+    return result
 
 
 # ==================== Email Queue Management ====================
@@ -945,49 +860,27 @@ async def shutdown_worker(
         )
 
     logger.info(f"shutdown_worker - user_id={current_user.user_id}")
+    result = await _proxy_worker("POST", "/worker/shutdown")
+    logger.info(f"shutdown_worker success - active_jobs={result.get('active_jobs')}")
+    return WorkerShutdownResponse(**result)
 
+
+async def _proxy_worker(
+    method: str, path: str, json: Optional[dict] = None, timeout: float = 10.0
+) -> dict:
+    """
+    Proxy a request to the worker API. Raises HTTPException on failure.
+
+    Args:
+        method: HTTP method (GET, POST, DELETE)
+        path: Path under WORKER_URL (e.g. "/worker/runs")
+        json: Optional JSON body for POST
+        timeout: Request timeout in seconds
+    """
+    url = f"{settings.WORKER_URL}{path}"
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{settings.WORKER_URL}/worker/shutdown",
-                timeout=10.0,
-            )
-
-            if response.status_code != 200:
-                logger.error(f"shutdown_worker error - status={response.status_code}, body={response.text}")
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=response.json().get("detail", "Worker error"),
-                )
-
-            result = response.json()
-            logger.info(f"shutdown_worker success - active_jobs={result.get('active_jobs')}")
-            return WorkerShutdownResponse(**result)
-
-    except httpx.RequestError as e:
-        logger.error(f"shutdown_worker connection error - {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Worker service unavailable",
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"shutdown_worker failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to shutdown worker: {str(e)}",
-        )
-
-
-async def _proxy_worker_post(endpoint: str, user_id: int) -> dict:
-    """Helper to proxy a POST to the worker API. Raises HTTPException on failure."""
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{settings.WORKER_URL}/worker/{endpoint}",
-                timeout=10.0,
-            )
+            response = await client.request(method, url, json=json, timeout=timeout)
             if response.status_code != 200:
                 raise HTTPException(
                     status_code=response.status_code,
@@ -996,7 +889,7 @@ async def _proxy_worker_post(endpoint: str, user_id: int) -> dict:
             return response.json()
 
     except httpx.RequestError as e:
-        logger.error(f"worker {endpoint} connection error - {e}", exc_info=True)
+        logger.error(f"worker proxy {method} {path} connection error - {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Worker service unavailable",
@@ -1004,10 +897,10 @@ async def _proxy_worker_post(endpoint: str, user_id: int) -> dict:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"worker {endpoint} failed: {e}", exc_info=True)
+        logger.error(f"worker proxy {method} {path} failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Worker {endpoint} failed: {str(e)}",
+            detail=f"Worker {method} {path} failed: {str(e)}",
         )
 
 
@@ -1018,16 +911,17 @@ async def _proxy_worker_post(endpoint: str, user_id: int) -> dict:
 )
 async def pause_worker(
     current_user: User = Depends(auth_service.validate_token),
+    service: WorkerStatusService = Depends(get_worker_status_service),
 ):
-    """Pause the worker. It stays alive and heartbeats but won't dispatch new jobs. Platform admin only."""
+    """Pause the worker. Sets a DB flag — no proxy needed. Platform admin only."""
     from models import UserRole
     if current_user.role != UserRole.PLATFORM_ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Platform admin access required")
 
     logger.info(f"pause_worker - user_id={current_user.user_id}")
-    result = await _proxy_worker_post("pause", current_user.user_id)
+    await service.set_paused(True)
     logger.info(f"pause_worker success - user_id={current_user.user_id}")
-    return WorkerPauseResponse(**result)
+    return WorkerPauseResponse(paused=True, message="Worker paused. No new jobs will be dispatched.")
 
 
 @router.post(
@@ -1037,13 +931,14 @@ async def pause_worker(
 )
 async def resume_worker(
     current_user: User = Depends(auth_service.validate_token),
+    service: WorkerStatusService = Depends(get_worker_status_service),
 ):
-    """Resume the worker after a pause. Platform admin only."""
+    """Resume the worker. Clears the DB flag. Platform admin only."""
     from models import UserRole
     if current_user.role != UserRole.PLATFORM_ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Platform admin access required")
 
     logger.info(f"resume_worker - user_id={current_user.user_id}")
-    result = await _proxy_worker_post("resume", current_user.user_id)
+    await service.set_paused(False)
     logger.info(f"resume_worker success - user_id={current_user.user_id}")
-    return WorkerPauseResponse(**result)
+    return WorkerPauseResponse(paused=False, message="Worker resumed. Jobs will be dispatched on next poll.")

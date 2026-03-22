@@ -15,6 +15,17 @@ from sqlalchemy import create_engine, text
 from config.settings import settings
 
 
+def column_exists(conn, table_name: str, column_name: str) -> bool:
+    result = conn.execute(text("""
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+        AND table_name = :table_name
+        AND column_name = :column_name
+    """), {"table_name": table_name, "column_name": column_name})
+    return result.fetchone() is not None
+
+
 def table_exists(conn, table_name: str) -> bool:
     result = conn.execute(text("""
         SELECT table_name

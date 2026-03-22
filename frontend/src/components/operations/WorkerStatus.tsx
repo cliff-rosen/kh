@@ -16,7 +16,6 @@ import {
     ServerIcon,
     PauseIcon,
     PlayIcon,
-    StopIcon,
 } from '@heroicons/react/24/outline';
 import {
     getWorkerStatus,
@@ -117,8 +116,8 @@ export default function WorkerStatus() {
         }
     };
 
-    const handleShutdown = async () => {
-        if (!confirm('Shut down the worker process? Active jobs will be given 30 seconds to finish. In production, systemd will restart it automatically.')) return;
+    const handleRestart = async () => {
+        if (!confirm('Restart the worker? Active jobs will be given 30 seconds to finish.')) return;
 
         try {
             const result = await shutdownWorker();
@@ -176,11 +175,11 @@ export default function WorkerStatus() {
                                 )}
                             </button>
                             <button
-                                onClick={handleShutdown}
+                                onClick={handleRestart}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
                             >
-                                <StopIcon className="h-4 w-4" />
-                                Shutdown
+                                <ArrowPathIcon className="h-4 w-4" />
+                                Restart
                             </button>
                         </>
                     )}
