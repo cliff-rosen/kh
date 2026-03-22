@@ -9,7 +9,7 @@ import asyncio
 import logging
 import os
 import platform
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from database import AsyncSessionLocal
@@ -37,11 +37,23 @@ async def run():
     """
     Main scheduler loop.
 
-    Periodically checks for ready jobs and dispatches them.
+    On startup: checks for an existing active worker and refuses to start if
+    one is found. Cleans up stale rows from previous instances.
+
+    Then polls for ready jobs every POLL_INTERVAL_SECONDS.
     Never crashes - all exceptions are caught and logged.
     """
     global _started_at
     _started_at = datetime.utcnow()
+
+    # Check for existing active worker before starting
+    if await _another_worker_is_active():
+        logger.error(f"Another worker is already active. Refusing to start. Worker ID: {WORKER_ID}")
+        worker_state.running = False
+        return
+
+    # Clean up stale rows from previous instances/deploys/debug sessions
+    await _cleanup_stale_workers()
 
     logger.info("=" * 60)
     logger.info("Scheduler loop starting")
@@ -261,6 +273,44 @@ async def _write_heartbeat(poll_summary: dict):
 
 
 # ==================== Job Execution Helpers ====================
+
+async def _another_worker_is_active() -> bool:
+    """Check if another worker has a recent heartbeat. Returns True if we should not start."""
+    try:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import text
+            now = datetime.utcnow()
+            result = await db.execute(text("""
+                SELECT worker_id, last_heartbeat
+                FROM worker_status
+                WHERE last_heartbeat > :cutoff
+                AND worker_id != :my_id
+            """), {
+                "cutoff": now - timedelta(seconds=120),
+                "my_id": WORKER_ID,
+            })
+            row = result.fetchone()
+            if row:
+                logger.warning(f"Active worker found: {row[0]}, last heartbeat: {row[1]}")
+                return True
+            return False
+    except Exception as e:
+        logger.warning(f"Failed to check for active workers: {e}")
+        return False  # If we can't check, proceed with startup
+
+
+async def _cleanup_stale_workers():
+    """Delete all rows from worker_status. Called on startup to ensure a clean slate."""
+    try:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import text
+            result = await db.execute(text("DELETE FROM worker_status"))
+            await db.commit()
+            if result.rowcount > 0:
+                logger.info(f"Cleaned up {result.rowcount} stale worker_status row(s)")
+    except Exception as e:
+        logger.warning(f"Failed to clean up worker_status: {e}")
+
 
 async def _sync_paused_flag():
     """Read the persisted paused flag from the DB and sync to in-memory state."""
