@@ -370,15 +370,18 @@ class DirectRunRequest(BaseModel):
     summary="Get worker process status",
 )
 async def get_worker_status(
-    current_user: User = Depends(auth_service.validate_token),
     service: WorkerStatusService = Depends(get_worker_status_service),
 ):
-    """Read the worker's most recent heartbeat. Reports 'down' if stale (>2 min)."""
-    logger.info(f"get_worker_status - user_id={current_user.user_id}")
+    """
+    Read the worker's most recent heartbeat. Reports 'down' if stale (>2 min).
+
+    No authentication required — used by external monitoring systems.
+    """
+    logger.info("get_worker_status called")
 
     try:
         result = await service.get_current_status()
-        logger.info(f"get_worker_status complete - user_id={current_user.user_id}, status={result.status}")
+        logger.info(f"get_worker_status complete - status={result.status}")
         return WorkerStatusResponse(
             worker_id=result.worker_id,
             started_at=result.started_at,
