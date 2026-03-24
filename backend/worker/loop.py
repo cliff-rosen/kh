@@ -46,14 +46,16 @@ async def run():
     global _started_at
     _started_at = datetime.utcnow()
 
+    # Clean up all rows from previous instances/deploys/debug sessions.
+    # Must happen before the active check — during immutable deploys the old
+    # instance's worker may still be heartbeating when this instance starts.
+    await _cleanup_stale_workers()
+
     # Check for existing active worker before starting
     if await _another_worker_is_active():
         logger.error(f"Another worker is already active. Refusing to start. Worker ID: {WORKER_ID}")
         worker_state.running = False
         return
-
-    # Clean up stale rows from previous instances/deploys/debug sessions
-    await _cleanup_stale_workers()
 
     logger.info("=" * 60)
     logger.info("Scheduler loop starting")
