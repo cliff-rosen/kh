@@ -31,7 +31,7 @@ The user is viewing a specific article in detail.
 **Page-specific guidance:**
 - Focus on the specific article being viewed unless asked about others
 - Be precise about findings and avoid overstating significance
-- The article's abstract, AI summary, and stance analysis are in your context - use them
+- The article's abstract, AI summary, and litigation implications are in your context - use them
 """
 
 
@@ -107,7 +107,7 @@ def build_context(context: Dict[str, Any]) -> str:
         stance = current_article.get("stance_analysis")
         if stance and isinstance(stance, dict):
             parts.append("")
-            parts.append("=== Stance Analysis ===")
+            parts.append("=== Litigation Implications ===")
             parts.append(f"Stance: {stance.get('stance', 'Unknown')}")
             parts.append(f"Confidence: {stance.get('confidence', 'N/A')}")
             if stance.get("analysis"):

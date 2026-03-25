@@ -16,9 +16,14 @@ const faqs = [
       'Primary literature is sourced from PubMed, the gold-standard biomedical database maintained by the NIH. We\u2019re actively adding additional scientific sources to broaden coverage. Every citation is verified \u2014 nothing is fabricated or hallucinated.',
   },
   {
-    question: 'What does "stance analysis" mean?',
+    question: 'What are "litigation implications"?',
     answer:
       'Each study is evaluated for whether its findings are favorable or adverse to the defense. You\u2019ll see at a glance whether a new paper helps or hurts, without having to read the full text yourself.',
+  },
+  {
+    question: 'Is Knowledge Horizon for defense lawyers or plaintiff lawyers?',
+    answer:
+      'Knowledge Horizon is for any lawyer who wants to maintain a robust and comprehensive awareness and expertise of the emerging science related to talc and asbestos litigation.',
   },
   {
     question: 'Who writes the reports?',
@@ -76,7 +81,7 @@ const features = [
   },
   {
     number: '2',
-    title: 'Stance Analysis',
+    title: 'Litigation Implications',
     description:
       'Every study analyzed for litigation implications \u2014 favorable or adverse \u2014 so you know what it means for your case without reading every abstract.',
   },

@@ -150,7 +150,7 @@ sections:
       The Article Viewer provides:
       - Full article details (title, authors, abstract)
       - AI-generated summary
-      - Stance analysis (if configured)
+      - Litigation implications (if configured)
       - Notes and annotations
       - Links to PubMed and full text
 
