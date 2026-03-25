@@ -457,7 +457,7 @@ User Read: {'Yes' if assoc.is_read else 'No'}
                 enrichments = assoc.ai_enrichments
                 if isinstance(enrichments, dict):
                     if enrichments.get("stance_analysis"):
-                        text_result += f"\n=== Stance Analysis ===\n{enrichments['stance_analysis']}\n"
+                        text_result += f"\n=== Litigation Implications ===\n{enrichments['stance_analysis']}\n"
 
         if notes:
             text_result += "\n=== Notes ===\n"

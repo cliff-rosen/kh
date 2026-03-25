@@ -133,7 +133,7 @@ TASK_CONFIGS = {
         "stance_analysis": {
             "model": "gpt-4.1",
             "temperature": 0.2,
-            "description": "Article stance analysis (pro-defense vs pro-plaintiff)"
+            "description": "Article litigation implications (pro-defense vs pro-plaintiff)"
         }
     },
     

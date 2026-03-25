@@ -152,7 +152,7 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
             }
         } catch (err) {
             console.error('Failed to load stance analysis config:', err);
-            setError('Failed to load stance analysis configuration');
+            setError('Failed to load litigation implications configuration');
         } finally {
             setLoading(false);
         }
@@ -192,9 +192,9 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
             setSavedIsUsingDefaults(usingDefault);
             setHasChanges(false);
             setIsUsingDefaults(usingDefault);
-            showSuccessToast(usingDefault ? 'Reset to default prompt' : 'Stance analysis prompt saved');
+            showSuccessToast(usingDefault ? 'Reset to default prompt' : 'Litigation implications prompt saved');
         } catch (err) {
-            showErrorToast(err, 'Failed to save stance analysis prompt');
+            showErrorToast(err, 'Failed to save litigation implications prompt');
         } finally {
             setSaving(false);
         }
@@ -482,7 +482,7 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                                 return (
                                     <div className="flex-1 min-h-0 flex flex-col">
                                         <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wide flex-shrink-0">
-                                            Stance Analysis Result
+                                            Litigation Implications Result
                                         </h5>
                                         <div className="flex-1 min-h-0 bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 overflow-y-auto">
                                             <StanceAnalysisDisplay result={stanceResult} compact={!isFullMode} />
@@ -530,7 +530,7 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                                     <div className="text-sm text-gray-600 dark:text-gray-400">
                                         <p className="font-medium">Apply to Report</p>
                                         <p className="text-xs mt-0.5">
-                                            Regenerate stance analysis for all articles in Report #{entry.dataSource.reportId} using this prompt
+                                            Regenerate litigation implications for all articles in Report #{entry.dataSource.reportId} using this prompt
                                         </p>
                                     </div>
                                     <button
@@ -558,10 +558,10 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                 <div>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                         <DocumentMagnifyingGlassIcon className="h-5 w-5 text-indigo-500" />
-                        Stance Analysis Prompt
+                        Litigation Implications Prompt
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Configure the prompt used to analyze article stance
+                        Configure the prompt used to analyze litigation implications
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -701,7 +701,7 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                             value={prompt?.system_prompt || ''}
                             onChange={(e) => updatePrompt('system_prompt', e.target.value)}
                             className="w-full h-[400px] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                            placeholder="Define the LLM's role for stance analysis..."
+                            placeholder="Define the LLM's role for litigation implications analysis..."
                         />
                     </div>
 
@@ -715,7 +715,7 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                             value={prompt?.user_prompt_template || ''}
                             onChange={(e) => updatePrompt('user_prompt_template', e.target.value)}
                             className="flex-1 min-h-[200px] w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                            placeholder="Write the stance analysis prompt template with slugs..."
+                            placeholder="Write the litigation implications prompt template with slugs..."
                         />
                     </div>
 
@@ -1072,7 +1072,7 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                             Reset to Default?
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                            This will replace your custom stance analysis prompt with the default. You will need to save to apply this change.
+                            This will replace your custom litigation implications prompt with the default. You will need to save to apply this change.
                         </p>
                         <div className="flex justify-end gap-3">
                             <button

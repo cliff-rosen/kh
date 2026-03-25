@@ -31,7 +31,7 @@ const PIPELINE_STAGE_LABELS: Record<string, { name: string; description: string 
 
 // Non-pipeline stages (on-demand features)
 const OTHER_STAGE_LABELS: Record<string, { name: string; description: string }> = {
-    stance_analysis: { name: 'Stance Analysis', description: 'Analyzes article stance (pro-defense vs pro-plaintiff)' },
+    stance_analysis: { name: 'Litigation Implications', description: 'Analyzes article implications for litigation (pro-defense vs pro-plaintiff)' },
 };
 
 // Combined for type compatibility

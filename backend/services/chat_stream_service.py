@@ -1091,7 +1091,7 @@ SUGGESTED_ACTIONS:
 
             sections.append(
                 f"""
-        === STANCE ANALYSIS (from UI) ===
+        === LITIGATION IMPLICATIONS (from UI) ===
         Stance: {stance_type} (Confidence: {int(confidence * 100)}%)
         Analysis: {analysis}"""
             )

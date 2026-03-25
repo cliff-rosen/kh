@@ -1031,7 +1031,7 @@ export default function EditStreamPage() {
                             >
                                 <div className="flex flex-col items-start">
                                     <span>AI Settings</span>
-                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Stance analysis & Ira</span>
+                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Litigation implications & Ira</span>
                                 </div>
                             </button>
                             <button

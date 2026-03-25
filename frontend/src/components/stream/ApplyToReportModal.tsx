@@ -406,7 +406,7 @@ export default function ApplyToReportModal({
             case 'article_summary': return 'Apply Article Summaries';
             case 'category_summary': return 'Apply Category Summaries';
             case 'executive_summary': return 'Apply Executive Summary';
-            case 'stance_analysis': return 'Apply Stance Analysis';
+            case 'stance_analysis': return 'Apply Litigation Implications';
         }
     };
 
@@ -415,7 +415,7 @@ export default function ApplyToReportModal({
             case 'article_summary': return 'article';
             case 'category_summary': return 'category';
             case 'executive_summary': return 'executive';
-            case 'stance_analysis': return 'stance analysis';
+            case 'stance_analysis': return 'litigation implications';
         }
     };
 
@@ -691,7 +691,7 @@ export default function ApplyToReportModal({
                                     </span>
                                     <span className="text-sm text-gray-600 dark:text-gray-400">
                                         <DocumentMagnifyingGlassIcon className="h-4 w-4 inline mr-1" />
-                                        {stancesWithAnalysis} with stance analysis
+                                        {stancesWithAnalysis} with litigation implications
                                     </span>
                                 </div>
                                 <button
@@ -700,7 +700,7 @@ export default function ApplyToReportModal({
                                     className="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                                 >
                                     <SparklesIcon className="h-5 w-5" />
-                                    Generate Stance Analysis
+                                    Generate Litigation Implications
                                 </button>
                             </div>
 
@@ -753,7 +753,7 @@ export default function ApplyToReportModal({
                                                 />
                                             ) : (
                                                 <p className="text-sm text-gray-400 dark:text-gray-500 italic">
-                                                    No stance analysis available.
+                                                    No litigation implications available.
                                                 </p>
                                             )}
                                         </div>
@@ -1241,7 +1241,7 @@ export default function ApplyToReportModal({
                             Cancel
                         </button>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Click "Generate Stance Analysis" to analyze articles using your custom prompt
+                            Click "Generate Litigation Implications" to analyze articles using your custom prompt
                         </p>
                     </div>
                 )}

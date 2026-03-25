@@ -348,7 +348,7 @@ export default function ArticleViewerModal({
     };
 
     const tabs = [
-        { id: 'analysis' as WorkspaceTab, label: 'Analysis', icon: BeakerIcon },
+        { id: 'analysis' as WorkspaceTab, label: 'Litigation Implications', icon: BeakerIcon },
         { id: 'notes' as WorkspaceTab, label: 'Notes', icon: PencilSquareIcon },
         { id: 'links' as WorkspaceTab, label: 'Full Text', icon: LinkIcon },
         { id: 'resources' as WorkspaceTab, label: 'Resources', icon: BookOpenIcon }
@@ -686,7 +686,7 @@ export default function ArticleViewerModal({
                                                 <ScaleIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                                                 <p className="text-gray-600 dark:text-gray-400 mb-4">
                                                     {!streamId
-                                                        ? 'No research stream context available for stance analysis'
+                                                        ? 'No research stream context available for litigation implications analysis'
                                                         : article.abstract
                                                             ? 'Run AI analysis to evaluate this article\'s stance'
                                                             : 'No abstract available for analysis'}
