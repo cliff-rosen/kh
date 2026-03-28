@@ -18,6 +18,7 @@ import PresentationForm from '../components/stream/PresentationForm';
 import RetrievalConfigForm from '../components/stream/RetrievalConfigForm';
 import ChatTray from '../components/chat/ChatTray';
 import { showErrorToast } from '../lib/errorToast';
+import StreamTemplateCard from '../components/chat/StreamTemplateCard';
 import SemanticSpaceProposalCard, { SemanticSpaceProposalData } from '../components/chat/SemanticSpaceProposalCard';
 import RetrievalConfigProposalCard, { RetrievalConfigProposalData } from '../components/chat/RetrievalConfigProposalCard';
 import PresentationConfigProposalCard, { PresentationConfigProposalData } from '../components/chat/PresentationConfigProposalCard';
@@ -180,6 +181,46 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                     }
                 }}
                 payloadHandlers={{
+                    stream_template: {
+                        render: (payload: any, callbacks: { onAccept?: (data: any) => void; onReject?: () => void }) => (
+                            <StreamTemplateCard payload={payload} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
+                        ),
+                        onAccept: (data: any) => {
+                            setForm(prev => ({
+                                ...prev,
+                                stream_name: data.stream_name || prev.stream_name,
+                                semantic_space: {
+                                    ...prev.semantic_space,
+                                    domain: data.domain || prev.semantic_space.domain,
+                                    topics: (data.topics || []).map((t: any, i: number) => ({
+                                        topic_id: `topic_${i}`,
+                                        name: t.name,
+                                        description: t.description,
+                                        importance: t.importance || 'medium',
+                                        keywords: [],
+                                        related_topics: []
+                                    })),
+                                    entities: (data.entities || []).map((e: any, i: number) => ({
+                                        entity_id: `entity_${i}`,
+                                        name: e.name,
+                                        type: e.type || 'other',
+                                        description: e.description,
+                                        importance: e.importance || 'medium',
+                                        aliases: []
+                                    })),
+                                    context: {
+                                        ...prev.semantic_space.context,
+                                        business_context: data.business_context || prev.semantic_space.context.business_context
+                                    }
+                                }
+                            }));
+                        },
+                        renderOptions: {
+                            panelWidth: '650px',
+                            headerTitle: 'Stream Template',
+                            headerIcon: '🚀'
+                        }
+                    },
                     semantic_space_proposal: {
                         render: (payload: SemanticSpaceProposalData, callbacks: { onAccept?: (data: SemanticSpaceProposalData) => void; onReject?: () => void }) => (
                             <SemanticSpaceProposalCard data={payload} onAccept={callbacks.onAccept} onReject={callbacks.onReject} />
