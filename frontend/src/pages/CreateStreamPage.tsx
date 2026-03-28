@@ -206,7 +206,8 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                                         type: e.type || 'other',
                                         description: e.description,
                                         importance: e.importance || 'medium',
-                                        aliases: []
+                                        aliases: [],
+                                        canonical_forms: []
                                     })),
                                     context: {
                                         ...prev.semantic_space.context,
