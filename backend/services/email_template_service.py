@@ -384,7 +384,10 @@ class EmailTemplateService:
         """Generate HTML footer"""
         link_html = ''
         if report_url:
-            link_html = f'<p><a href="{report_url}">View this report online</a></p>'
+            link_html = f'''<div class="view-online">
+            <p>View the full interactive report with additional features</p>
+            <a href="{report_url}" class="button">View Full Report Online</a>
+        </div>'''
 
         return f'''
         <div class="footer">
