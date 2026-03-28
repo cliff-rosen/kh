@@ -49,6 +49,7 @@ const ScopeBadge = ({ scope }: { scope: string }) => {
         </span>
     );
 };
+import StreamBasicsForm, { StreamScope } from '../components/stream/StreamBasicsForm';
 import SemanticSpaceForm from '../components/stream/SemanticSpaceForm';
 import PresentationForm from '../components/stream/PresentationForm';
 import RetrievalConfigForm from '../components/stream/RetrievalConfigForm';
@@ -180,6 +181,7 @@ export default function EditStreamPage() {
     const [presentationSubTab, setPresentationSubTab] = useState<PresentationSubTab>('categories');
     const [form, setForm] = useState({
         stream_name: '',
+        scope: 'personal' as StreamScope,
         schedule_config: {
             enabled: false,
             frequency: ReportFrequency.WEEKLY,
@@ -277,6 +279,7 @@ export default function EditStreamPage() {
                     formInitializedRef.current = true;
                     setForm({
                         stream_name: foundStream.stream_name,
+                        scope: (foundStream.scope || 'personal') as StreamScope,
                         schedule_config: foundStream.schedule_config || {
                             enabled: false,
                             frequency: ReportFrequency.WEEKLY,
@@ -356,6 +359,7 @@ export default function EditStreamPage() {
 
         const updates = {
             stream_name: form.stream_name,
+            scope: form.scope,
             schedule_config: form.schedule_config,
             is_active: form.is_active,
             // Layer 1: Semantic space (ground truth)
@@ -1056,19 +1060,14 @@ export default function EditStreamPage() {
                         {/* Layer 1: Semantic Space Tab */}
                         {activeTab === 'semantic' && (
                             <div className="flex-1 min-h-0 overflow-y-auto space-y-6">
-                                {/* Stream Name - only shown on Semantic Space tab */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Stream Name *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={form.stream_name}
-                                        onChange={(e) => setForm({ ...form, stream_name: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                        required
-                                    />
-                                </div>
+                                <StreamBasicsForm
+                                    streamName={form.stream_name}
+                                    onStreamNameChange={(name) => setForm({ ...form, stream_name: name })}
+                                    scope={form.scope}
+                                    onScopeChange={(scope) => setForm({ ...form, scope })}
+                                    scheduleConfig={form.schedule_config}
+                                    onScheduleConfigChange={(config) => setForm({ ...form, schedule_config: config })}
+                                />
 
                                 <SemanticSpaceForm
                                     semanticSpace={form.semantic_space}

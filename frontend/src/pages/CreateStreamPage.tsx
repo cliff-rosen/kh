@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useResearchStream } from '../context/ResearchStreamContext';
-import { useAuth } from '../context/AuthContext';
 import {
     ReportFrequency,
     Category,
@@ -13,6 +12,7 @@ import {
 } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import StreamBasicsForm, { StreamScope } from '../components/stream/StreamBasicsForm';
 import SemanticSpaceForm from '../components/stream/SemanticSpaceForm';
 import PresentationForm from '../components/stream/PresentationForm';
 import RetrievalConfigForm from '../components/stream/RetrievalConfigForm';
@@ -22,9 +22,6 @@ import SemanticSpaceProposalCard, { SemanticSpaceProposalData } from '../compone
 import RetrievalConfigProposalCard, { RetrievalConfigProposalData } from '../components/chat/RetrievalConfigProposalCard';
 import PresentationConfigProposalCard, { PresentationConfigProposalData } from '../components/chat/PresentationConfigProposalCard';
 
-// Stream scope type
-type StreamScope = 'personal' | 'organization' | 'global';
-
 interface CreateStreamPageProps {
     onCancel?: () => void;
 }
@@ -33,22 +30,9 @@ type TabType = 'semantic' | 'retrieval' | 'presentation';
 
 export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
     const { createResearchStream, isLoading, error, clearError, loadAvailableSources } = useResearchStream();
-    const { user, isPlatformAdmin, isOrgAdmin } = useAuth();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<TabType>('semantic');
     const [isChatOpen, setIsChatOpen] = useState(false);
-
-    // Determine available scopes based on user role
-    const availableScopes: { value: StreamScope; label: string; description: string }[] = [
-        { value: 'personal', label: 'Personal', description: 'Only you can see this stream' },
-        ...(isOrgAdmin && !isPlatformAdmin && user?.org_id ? [
-            { value: 'organization' as StreamScope, label: 'Organization', description: 'All org members can subscribe' }
-        ] : []),
-        ...(isPlatformAdmin ? [
-            { value: 'organization' as StreamScope, label: 'Organization', description: 'All org members can subscribe' },
-            { value: 'global' as StreamScope, label: 'Global', description: 'Platform-wide, orgs can subscribe' }
-        ] : [])
-    ];
 
     const [form, setForm] = useState({
         stream_name: '',
@@ -352,73 +336,14 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                             {/* Layer 1: Semantic Space Tab */}
                             {activeTab === 'semantic' && (
                                 <div className="flex-1 min-h-0 overflow-y-auto space-y-6">
-                                    {/* Stream Name */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            Stream Name *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            placeholder="e.g., Asbestos (Non-Talc) Literature"
-                                            value={form.stream_name}
-                                            onChange={(e) => setForm({ ...form, stream_name: e.target.value })}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                            required
-                                        />
-                                    </div>
-
-                                    {/* Scope selector - only show if user has options */}
-                                    {availableScopes.length > 1 && (
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Stream Visibility *
-                                            </label>
-                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                                {availableScopes.map((scope) => (
-                                                    <button
-                                                        key={scope.value}
-                                                        type="button"
-                                                        onClick={() => setForm({ ...form, scope: scope.value })}
-                                                        className={`p-3 rounded-lg border-2 text-left transition-all ${
-                                                            form.scope === scope.value
-                                                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                                                : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
-                                                        }`}
-                                                    >
-                                                        <div className={`font-medium ${
-                                                            form.scope === scope.value
-                                                                ? 'text-blue-700 dark:text-blue-300'
-                                                                : 'text-gray-900 dark:text-white'
-                                                        }`}>
-                                                            {scope.label}
-                                                        </div>
-                                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                            {scope.description}
-                                                        </div>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            Report Frequency *
-                                        </label>
-                                        <select
-                                            value={form.schedule_config.frequency}
-                                            onChange={(e) => setForm({
-                                                ...form,
-                                                schedule_config: { ...form.schedule_config, frequency: e.target.value as ReportFrequency }
-                                            })}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                        >
-                                            <option value={ReportFrequency.DAILY}>Daily</option>
-                                            <option value={ReportFrequency.WEEKLY}>Weekly</option>
-                                            <option value={ReportFrequency.BIWEEKLY}>Bi-weekly</option>
-                                            <option value={ReportFrequency.MONTHLY}>Monthly</option>
-                                        </select>
-                                    </div>
+                                    <StreamBasicsForm
+                                        streamName={form.stream_name}
+                                        onStreamNameChange={(name) => setForm({ ...form, stream_name: name })}
+                                        scope={form.scope}
+                                        onScopeChange={(scope) => setForm({ ...form, scope })}
+                                        scheduleConfig={form.schedule_config}
+                                        onScheduleConfigChange={(config) => setForm({ ...form, schedule_config: config })}
+                                    />
 
                                     <SemanticSpaceForm
                                         semanticSpace={form.semantic_space}
@@ -429,7 +354,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
 
                             {/* Layer 2: Retrieval Config Tab */}
                             {activeTab === 'retrieval' && (
-                                <div className="flex-1 min-h-0 overflow-y-auto">
+                                <div className="flex-1 min-h-0 flex flex-col">
                                     <RetrievalConfigForm
                                         retrievalConfig={form.retrieval_config}
                                         onChange={(updated) => setForm({ ...form, retrieval_config: updated })}
@@ -439,7 +364,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
 
                             {/* Layer 3: Presentation Config Tab */}
                             {activeTab === 'presentation' && (
-                                <div className="flex-1 min-h-0 overflow-y-auto">
+                                <div className="flex-1 min-h-0 flex flex-col">
                                     <PresentationForm
                                         categories={form.presentation_config.categories}
                                         onChange={(updated) => setForm({
