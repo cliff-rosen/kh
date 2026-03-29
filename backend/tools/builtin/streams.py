@@ -453,6 +453,7 @@ register_tool(ToolConfig(
     streaming=True,
     category="streams",
     is_global=True,
+    payload_type="semantic_space_proposal",
 ))
 
 register_tool(ToolConfig(
@@ -475,6 +476,7 @@ register_tool(ToolConfig(
     streaming=True,
     category="streams",
     is_global=True,
+    payload_type="retrieval_config_proposal",
 ))
 
 register_tool(ToolConfig(
@@ -504,4 +506,5 @@ register_tool(ToolConfig(
     executor=execute_generate_categories,
     category="streams",
     is_global=True,
+    payload_type="presentation_config_proposal",
 ))

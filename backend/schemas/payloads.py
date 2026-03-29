@@ -481,160 +481,11 @@ def _summarize_validation_feedback(data: Dict[str, Any]) -> str:
     return f"Validation feedback: {issues} issues, {strengths} strengths noted"
 
 
-# schema_proposal — proposed changes to a stream schema
-register_payload_type(PayloadType(
-    name="schema_proposal",
-    description="Proposed changes to a research stream schema",
-    source="llm",
-    is_global=False,
-    parse_marker="SCHEMA_PROPOSAL:",
-    parser=make_json_parser("schema_proposal"),
-    summarize=_summarize_schema_proposal,
-    llm_instructions="""
-SCHEMA_PROPOSAL - Use when user asks for recommendations/proposals AND you have enough context:
+# schema_proposal — RETIRED (replaced by semantic_space_proposal tool)
 
-SCHEMA_PROPOSAL: {
-  "proposed_changes": {
-    "stream_name": "value",
-    "purpose": "value",
-    "semantic_space.domain.name": "value",
-    "semantic_space.domain.description": "value",
-    "semantic_space.context.business_context": "value",
-    "semantic_space.topics": [
-      {
-        "topic_id": "unique_id",
-        "name": "Display Name",
-        "description": "What this covers",
-        "importance": "critical",
-        "rationale": "Why this matters"
-      }
-    ]
-  },
-  "confidence": "high",
-  "reasoning": "Based on our conversation, you mentioned X, Y, and Z, so I'm suggesting..."
-}
+# validation_results — RETIRED (replaced by validation_feedback)
 
-Guidelines:
-- Only propose when user asks for recommendations/proposals
-- If you don't have enough information, ask clarifying questions instead
-- You can propose some or all fields - only propose what you're confident about
-- Use conversation history to inform your proposals
-""",
-    schema={
-        "type": "object",
-        "properties": {
-            "proposed_changes": {"type": "object"},
-            "confidence": {"type": "string"},
-            "reasoning": {"type": "string"}
-        }
-    }
-))
-
-# validation_results — validation feedback for stream config
-register_payload_type(PayloadType(
-    name="validation_results",
-    description="Validation feedback for a research stream configuration",
-    source="llm",
-    is_global=False,
-    parse_marker="VALIDATION_RESULTS:",
-    parser=make_json_parser("validation_results"),
-    summarize=_summarize_validation_results,
-    llm_instructions="""
-VALIDATION_RESULTS - Use when analyzing current schema values for issues:
-
-VALIDATION_RESULTS: {
-  "errors": [
-    {
-      "field": "semantic_space.topics",
-      "message": "No topics defined - at least 3 topics recommended",
-      "severity": "error"
-    }
-  ],
-  "warnings": [
-    {
-      "field": "purpose",
-      "message": "Purpose is quite generic - consider being more specific",
-      "severity": "warning"
-    }
-  ],
-  "suggestions": [
-    {
-      "field": "semantic_space.domain.description",
-      "message": "Consider adding information about the therapeutic area",
-      "severity": "info"
-    }
-  ]
-}
-
-Use this when:
-- User asks "is this good?" or "what's missing?"
-- User requests validation or review
-- You notice obvious gaps or issues
-""",
-    schema={
-        "type": "object",
-        "properties": {
-            "errors": {"type": "array"},
-            "warnings": {"type": "array"},
-            "suggestions": {"type": "array"}
-        }
-    }
-))
-
-# retrieval_proposal — proposed changes to retrieval queries/filters
-register_payload_type(PayloadType(
-    name="retrieval_proposal",
-    description="Proposed changes to retrieval queries and filters",
-    source="llm",
-    is_global=False,
-    parse_marker="RETRIEVAL_PROPOSAL:",
-    parser=make_json_parser("retrieval_proposal"),
-    summarize=_summarize_retrieval_proposal,
-    llm_instructions="""
-RETRIEVAL_PROPOSAL - Use when user asks for help with search queries or filters.
-
-You can propose changes to QUERIES ONLY, FILTERS ONLY, or BOTH depending on what the user asks for.
-
-RETRIEVAL_PROPOSAL: {
-  "update_type": "queries_only" | "filters_only" | "both",
-  "target_ids": ["q1", "c1"],
-
-  "queries": [
-    {
-      "query_id": "q1",
-      "name": "Query name",
-      "query_string": "PubMed search string",
-      "covered_topics": ["topic_1", "topic_2"],
-      "rationale": "Why this query works"
-    }
-  ],
-
-  "filters": [
-    {
-      "target_id": "q1",
-      "semantic_filter": {
-        "enabled": true,
-        "criteria": "Include articles that specifically discuss X in the context of Y.",
-        "threshold": 0.7
-      }
-    }
-  ],
-
-  "changes_summary": "Brief description of what changed",
-  "reasoning": "Why these changes will improve results"
-}
-""",
-    schema={
-        "type": "object",
-        "properties": {
-            "update_type": {"type": "string"},
-            "queries": {"type": "array"},
-            "filters": {"type": "array"},
-            "changes_summary": {"type": "string"},
-            "reasoning": {"type": "string"}
-        }
-    }
-))
+# retrieval_proposal — RETIRED (replaced by retrieval_config_proposal tool)
 
 # query_suggestion — suggested PubMed query
 register_payload_type(PayloadType(
@@ -933,110 +784,95 @@ register_payload_type(PayloadType(
     parser=make_json_parser("stream_template"),
     summarize=_summarize_stream_template,
     llm_instructions="""
-STREAM_TEMPLATE - Suggest a complete research stream configuration:
+STREAM_TEMPLATE - Suggest a complete research stream configuration. A research stream monitors
+a scientific domain and generates weekly curated reports of new publications. The template
+populates the stream's semantic space — the canonical definition of what information matters.
 
 STREAM_TEMPLATE: {
-  "stream_name": "string",
+  "stream_name": "Short, clear name for the stream (e.g., 'Asbestos and Talc Litigation Science')",
   "domain": {
-    "name": "string",
-    "description": "string"
+    "name": "The scientific domain being monitored (e.g., 'Asbestos Litigation Science')",
+    "description": "Detailed description of what this domain covers, what makes an article relevant, and what the monitoring goals are. Be specific — this guides all downstream retrieval and categorization."
   },
   "topics": [
     {
-      "name": "string",
-      "description": "string",
+      "name": "A specific research topic within the domain",
+      "description": "What this topic covers and what types of articles fall under it",
       "importance": "high" | "medium" | "low",
-      "rationale": "string (why this topic is important)"
+      "rationale": "Why monitoring this topic matters for the user's goals"
     }
   ],
   "entities": [
     {
-      "name": "string",
+      "name": "A specific entity to track (researcher, organization, substance, etc.)",
       "type": "disease" | "substance" | "chemical" | "organization" | "regulation" | "standard" | "methodology" | "biomarker" | "geographic" | "population" | "drug" | "gene" | "protein" | "pathway" | "therapy" | "device",
-      "description": "string",
+      "description": "Why this entity is relevant and what to watch for",
       "importance": "high" | "medium" | "low"
     }
   ],
-  "business_context": "string",
+  "business_context": "Why the user needs this stream — their role, use case, and what decisions this intelligence supports. This context shapes how articles are analyzed and summarized.",
   "confidence": "high" | "medium" | "low",
-  "reasoning": "string"
+  "reasoning": "Explain your choices — why these topics, why these entities, what coverage strategy you're recommending"
 }
 
 Use this when:
-- User asks "help me create a stream for X"
-- User describes what they want to monitor
-- User asks "what would a good stream look like for X"
-- User wants a complete setup suggestion
+- User asks "help me create a stream for X" or describes what they want to monitor
+- User wants a complete setup suggestion or asks "what would a good stream look like for X"
+- This is the FIRST thing to offer when a user describes their monitoring needs
+
+Guidelines:
+- Include 4-8 topics that comprehensively cover the domain
+- Include key entities (researchers, organizations, substances) relevant to the domain
+- Write detailed descriptions — these drive retrieval quality
+- The business_context should capture the user's perspective (are they a lawyer? researcher? executive?)
+- After the user accepts a template, suggest using generate_semantic_space for a more detailed version
 """,
     schema={
         "type": "object",
         "properties": {
-            "stream_name": {"type": "string"},
+            "stream_name": {"type": "string", "description": "Short, clear name for the research stream"},
             "domain": {
                 "type": "object",
+                "description": "The scientific domain being monitored",
                 "properties": {
-                    "name": {"type": "string"},
-                    "description": {"type": "string"}
+                    "name": {"type": "string", "description": "Domain name"},
+                    "description": {"type": "string", "description": "Detailed description of what this domain covers"}
                 }
             },
-            "topics": {"type": "array"},
-            "entities": {"type": "array"},
-            "business_context": {"type": "string"},
-            "confidence": {"type": "string"},
-            "reasoning": {"type": "string"}
-        }
-    }
-))
-
-# topic_suggestions — suggested topics for a stream
-register_payload_type(PayloadType(
-    name="topic_suggestions",
-    description="Suggested topics for a research stream",
-    source="llm",
-    is_global=False,
-    parse_marker="TOPIC_SUGGESTIONS:",
-    parser=make_json_parser("topic_suggestions"),
-    summarize=_summarize_topic_suggestions,
-    llm_instructions="""
-TOPIC_SUGGESTIONS - Suggest topics for the research stream:
-
-TOPIC_SUGGESTIONS: {
-  "suggestions": [
-    {
-      "name": "string",
-      "description": "string",
-      "importance": "high" | "medium" | "low",
-      "rationale": "string"
-    }
-  ],
-  "based_on": "string describing what the suggestions are based on"
-}
-
-Use this when:
-- User asks "what topics should I include"
-- User mentions a domain and needs topic ideas
-- User asks "what else should I cover"
-- User describes business context and needs relevant topics
-""",
-    schema={
-        "type": "object",
-        "properties": {
-            "suggestions": {
+            "topics": {
                 "type": "array",
+                "description": "Research topics to monitor within this domain",
                 "items": {
                     "type": "object",
                     "properties": {
                         "name": {"type": "string"},
                         "description": {"type": "string"},
-                        "importance": {"type": "string"},
+                        "importance": {"type": "string", "enum": ["high", "medium", "low"]},
                         "rationale": {"type": "string"}
                     }
                 }
             },
-            "based_on": {"type": "string"}
+            "entities": {
+                "type": "array",
+                "description": "Specific entities to track (researchers, orgs, substances, etc.)",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "type": {"type": "string"},
+                        "description": {"type": "string"},
+                        "importance": {"type": "string", "enum": ["high", "medium", "low"]}
+                    }
+                }
+            },
+            "business_context": {"type": "string", "description": "Why the user needs this stream and what decisions it supports"},
+            "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+            "reasoning": {"type": "string", "description": "Explanation of the recommended configuration"}
         }
     }
 ))
+
+# topic_suggestions — RETIRED (covered by stream_template and semantic_space_proposal tool)
 
 # validation_feedback — validation/improvement suggestions for stream config
 register_payload_type(PayloadType(
@@ -1119,7 +955,7 @@ register_payload_type(PayloadType(
     name="semantic_space_proposal",
     description="Proposed semantic space for a research stream",
     source="tool",
-    is_global=True,
+    is_global=False,
     summarize=_summarize_semantic_space_proposal,
     schema={
         "type": "object",
@@ -1140,7 +976,7 @@ register_payload_type(PayloadType(
     name="retrieval_config_proposal",
     description="Proposed retrieval queries for a research stream",
     source="tool",
-    is_global=True,
+    is_global=False,
     summarize=_summarize_retrieval_config_proposal,
     schema={
         "type": "object",
@@ -1166,7 +1002,7 @@ register_payload_type(PayloadType(
     name="presentation_config_proposal",
     description="Proposed presentation categories for a research stream",
     source="tool",
-    is_global=True,
+    is_global=False,
     summarize=_summarize_presentation_config_proposal,
     schema={
         "type": "object",

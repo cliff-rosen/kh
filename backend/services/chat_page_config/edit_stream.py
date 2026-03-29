@@ -111,6 +111,41 @@ def build_context(context: Dict[str, Any]) -> str:
 
 
 # =============================================================================
+# Persona
+# =============================================================================
+
+EDIT_STREAM_PERSONA = """## Edit Research Stream
+
+You are helping the user configure and refine an existing research stream. The stream already exists
+and may have reports — changes affect future pipeline runs.
+
+**Your role:**
+1. Help improve the semantic space (domain, topics, entities)
+2. Generate or refine retrieval queries and filters
+3. Generate or adjust presentation categories
+4. Validate configuration and suggest improvements
+5. Help test and refine search queries in the workbench
+
+**How you work by tab:**
+
+- **Semantic Space tab**: Help define what information matters. Use generate_semantic_space tool to
+  rebuild from a description, or use VALIDATION_FEEDBACK to assess the current config.
+
+- **Retrieval Config tab**: Help configure how articles are found. Use generate_retrieval_queries tool
+  to create queries from the semantic space. Use QUERY_SUGGESTION to propose individual PubMed query
+  expressions. Use FILTER_SUGGESTION to propose semantic filter criteria.
+
+- **Presentation tab**: Help organize how results are categorized. Use generate_categories tool to
+  create categories from topics.
+
+- **Control Panel / Workbench tab**: Help test and refine queries interactively. Use QUERY_SUGGESTION
+  and FILTER_SUGGESTION payloads here.
+
+**Be proactive:** If you see obvious gaps (no topics, missing queries, empty categories), point them
+out and offer to fix them immediately.
+"""
+
+# =============================================================================
 # Register Page
 # =============================================================================
 
@@ -119,25 +154,22 @@ register_page(
     context_builder=build_context,
     tabs={
         "semantic": TabConfig(
-            payloads=["schema_proposal", "validation_results", "semantic_space_proposal"],
+            payloads=["validation_feedback", "semantic_space_proposal"],
         ),
         "retrieval": TabConfig(
-            payloads=["retrieval_proposal", "retrieval_config_proposal"],
+            payloads=["retrieval_config_proposal"],
         ),
         "presentation": TabConfig(
             payloads=["presentation_config_proposal"],
         ),
         "execute": TabConfig(
-            # No tab-wide payloads - they're subtab-specific
             subtabs={
                 "workbench": SubTabConfig(
                     payloads=["query_suggestion", "filter_suggestion"],
                 ),
-                "pipeline": SubTabConfig(
-                    # No special payloads for pipeline subtab
-                ),
+                "pipeline": SubTabConfig(),
             }
         ),
-    }
-    # Note: Global actions (close_chat) are automatically included
+    },
+    persona=EDIT_STREAM_PERSONA,
 )

@@ -11,8 +11,6 @@ import {
     RetrievalConfig,
     ResearchStream,
     ScheduleConfig,
-    BroadQuery,
-    SemanticFilter
 } from '../types';
 
 import { useResearchStream } from '../context/ResearchStreamContext';
@@ -61,10 +59,6 @@ import StanceAnalysisPromptForm from '../components/stream/StanceAnalysisPromptF
 import ChatTray from '../components/chat/ChatTray';
 import { promptTestingApi, PromptTemplate, SlugInfo } from '../lib/api/promptTestingApi';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
-import SchemaProposalCard from '../components/chat/SchemaProposalCard';
-import PresentationCategoriesCard from '../components/chat/PresentationCategoriesCard';
-import PromptSuggestionsCard from '../components/chat/PromptSuggestionsCard';
-import RetrievalProposalCard from '../components/chat/RetrievalProposalCard';
 import QuerySuggestionCard from '../components/chat/QuerySuggestionCard';
 import FilterSuggestionCard from '../components/chat/FilterSuggestionCard';
 import SemanticSpaceProposalCard, { SemanticSpaceProposalData } from '../components/chat/SemanticSpaceProposalCard';
@@ -86,31 +80,6 @@ interface AppliedPromptSuggestions {
     suggestions: PromptSuggestion[];
 }
 
-interface RetrievalProposalQuery {
-    query_id: string;
-    query_string: string;
-    rationale?: string;
-    covered_topics?: string[];
-}
-
-interface RetrievalProposalFilter {
-    target_id: string;
-    semantic_filter: SemanticFilter;
-}
-
-interface RetrievalProposal {
-    update_type?: 'queries_only' | 'filters_only' | 'both';
-    queries?: RetrievalProposalQuery[];
-    filters?: RetrievalProposalFilter[];
-}
-
-interface SchemaProposal {
-    proposed_changes?: Record<string, unknown>;
-}
-
-interface PresentationCategoriesProposal {
-    categories?: Category[];
-}
 
 interface QuerySuggestionData {
     query_expression: string;
@@ -421,183 +390,9 @@ export default function EditStreamPage() {
         }
     };
 
-    // Payload handlers for chat
-    const handleSchemaProposalAccept = (proposalData: SchemaProposal) => {
-        const changes = proposalData.proposed_changes || {};
-
-        console.log('Applying schema proposal changes:', changes);
-
-        // Create a new form object with the proposed changes applied
-        const updatedForm = { ...form };
-
-        // Apply each proposed change
-        Object.entries(changes).forEach(([key, value]) => {
-            if (key === 'stream_name') {
-                updatedForm.stream_name = value as string;
-            } else if (key === 'purpose') {
-                // Purpose is on the stream level, not in semantic_space
-                console.log('Purpose change proposed:', value);
-            } else if (key.startsWith('semantic_space.')) {
-                // Handle nested semantic_space fields
-                const path = key.replace('semantic_space.', '').split('.');
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                let target: Record<string, any> = updatedForm.semantic_space as Record<string, any>;
-
-                // Navigate to the nested property
-                for (let i = 0; i < path.length - 1; i++) {
-                    if (!target[path[i]]) {
-                        target[path[i]] = {};
-                    }
-                    target = target[path[i]] as Record<string, unknown>;
-                }
-
-                // Set the value
-                target[path[path.length - 1]] = value;
-            }
-        });
-
-        // Update the form state
-        setForm(updatedForm);
-
-        // Show a success message
-        alert('Schema changes have been applied to the form. Click "Save Changes" to persist them.');
-    };
-
-    const handleSchemaProposalReject = () => {
-        console.log('Schema proposal rejected');
-    };
-
-    const handlePresentationCategoriesAccept = (proposalData: PresentationCategoriesProposal) => {
-        const categories = proposalData.categories || [];
-
-        console.log('Applying presentation categories:', categories);
-
-        // Update the form with the proposed categories
-        setForm({
-            ...form,
-            categories: categories
-        });
-
-        // Show a success message
-        alert('Presentation categories have been applied to the form. Click "Save Changes" to persist them.');
-    };
-
-    const handlePresentationCategoriesReject = () => {
-        console.log('Presentation categories proposal rejected');
-    };
-
-    const handlePromptSuggestionsAccept = (payload: AppliedPromptSuggestions) => {
-        console.log('Applying prompt suggestions:', payload);
-        setAppliedPromptSuggestions(payload);
-        // Switch to enrichment tab if not already there
-        if (activeTab !== 'enrichment') {
-            setActiveTab('enrichment');
-        }
-    };
-
-    const handlePromptSuggestionsReject = () => {
-        console.log('Prompt suggestions rejected');
-    };
-
     const handlePromptSuggestionsApplied = () => {
         // Clear the applied suggestions after they've been applied
         setAppliedPromptSuggestions(null);
-    };
-
-    const handleRetrievalProposalAccept = (proposalData: RetrievalProposal) => {
-        console.log('Applying retrieval proposal:', proposalData);
-
-        const updateType = proposalData.update_type || 'both';
-        const hasQueries = proposalData.queries && proposalData.queries.length > 0;
-        const hasFilters = proposalData.filters && proposalData.filters.length > 0;
-
-        setForm(prev => {
-            const newConfig = { ...prev.retrieval_config };
-
-            // Apply query updates
-            if ((updateType === 'queries_only' || updateType === 'both') && hasQueries && proposalData.queries) {
-                // Determine if we're working with broad_search or concepts
-                if (newConfig.broad_search) {
-                    // Update broad search queries
-                    const existingQueries = newConfig.broad_search.queries || [];
-                    const updatedQueries = [...existingQueries];
-
-                    for (const q of proposalData.queries) {
-                        const existingIndex = updatedQueries.findIndex((eq: BroadQuery) => eq.query_id === q.query_id);
-                        const existingQuery = existingIndex >= 0 ? updatedQueries[existingIndex] : null;
-
-                        const newQuery: BroadQuery = {
-                            query_id: q.query_id,
-                            source_id: existingQuery?.source_id ?? 0,
-                            search_terms: existingQuery?.search_terms || [],
-                            query_expression: q.query_string,
-                            rationale: q.rationale || '',
-                            covered_topics: q.covered_topics || [],
-                            estimated_weekly_volume: existingQuery?.estimated_weekly_volume || null,
-                            semantic_filter: existingQuery?.semantic_filter || { enabled: false, criteria: '', threshold: 0.7 }
-                        };
-
-                        if (existingIndex >= 0) {
-                            updatedQueries[existingIndex] = newQuery;
-                        } else {
-                            updatedQueries.push(newQuery);
-                        }
-                    }
-
-                    newConfig.broad_search = {
-                        ...newConfig.broad_search,
-                        queries: updatedQueries
-                    };
-                } else {
-                    // Create new broad_search config
-                    newConfig.broad_search = {
-                        queries: proposalData.queries.map((q: RetrievalProposalQuery): BroadQuery => ({
-                            query_id: q.query_id,
-                            source_id: 0,
-                            search_terms: [],
-                            query_expression: q.query_string,
-                            rationale: q.rationale || '',
-                            covered_topics: q.covered_topics || [],
-                            estimated_weekly_volume: null,
-                            semantic_filter: { enabled: false, criteria: '', threshold: 0.7 }
-                        })),
-                        strategy_rationale: 'Created from chat proposal',
-                        coverage_analysis: {}
-                    };
-                }
-            }
-
-            // Apply filter updates
-            if ((updateType === 'filters_only' || updateType === 'both') && hasFilters && proposalData.filters) {
-                if (newConfig.broad_search?.queries) {
-                    const updatedQueries = newConfig.broad_search.queries.map((q: BroadQuery) => {
-                        const filterUpdate = proposalData.filters!.find((f: RetrievalProposalFilter) => f.target_id === q.query_id);
-                        if (filterUpdate) {
-                            return {
-                                ...q,
-                                semantic_filter: filterUpdate.semantic_filter
-                            };
-                        }
-                        return q;
-                    });
-                    newConfig.broad_search = {
-                        ...newConfig.broad_search,
-                        queries: updatedQueries
-                    };
-                }
-            }
-
-            return {
-                ...prev,
-                retrieval_config: newConfig
-            };
-        });
-
-        alert('Retrieval configuration has been applied to the form. Click "Save Changes" to persist.');
-    };
-
-    const handleRetrievalProposalReject = () => {
-        console.log('Retrieval proposal rejected');
     };
 
     // Refresh stream data after auto-save (re-fetch and re-initialize form)
@@ -752,70 +547,6 @@ export default function EditStreamPage() {
                     }
                 }}
                 payloadHandlers={{
-                    schema_proposal: {
-                        render: (payload, callbacks) => (
-                            <SchemaProposalCard
-                                proposal={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handleSchemaProposalAccept,
-                        onReject: handleSchemaProposalReject,
-                        renderOptions: {
-                            panelWidth: '500px',
-                            headerTitle: 'Schema Proposal',
-                            headerIcon: '📋'
-                        }
-                    },
-                    presentation_categories: {
-                        render: (payload, callbacks) => (
-                            <PresentationCategoriesCard
-                                proposal={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handlePresentationCategoriesAccept,
-                        onReject: handlePresentationCategoriesReject,
-                        renderOptions: {
-                            panelWidth: '600px',
-                            headerTitle: 'Presentation Categories',
-                            headerIcon: '📊'
-                        }
-                    },
-                    prompt_suggestions: {
-                        render: (payload, callbacks) => (
-                            <PromptSuggestionsCard
-                                proposal={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handlePromptSuggestionsAccept,
-                        onReject: handlePromptSuggestionsReject,
-                        renderOptions: {
-                            panelWidth: '550px',
-                            headerTitle: 'Prompt Suggestions',
-                            headerIcon: '✨'
-                        }
-                    },
-                    retrieval_proposal: {
-                        render: (payload, callbacks) => (
-                            <RetrievalProposalCard
-                                proposal={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handleRetrievalProposalAccept,
-                        onReject: handleRetrievalProposalReject,
-                        renderOptions: {
-                            panelWidth: '600px',
-                            headerTitle: 'Retrieval Proposal',
-                            headerIcon: '🔍'
-                        }
-                    },
                     query_suggestion: {
                         render: (payload, callbacks) => (
                             <QuerySuggestionCard

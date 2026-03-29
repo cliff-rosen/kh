@@ -34,26 +34,22 @@ interface ChatTrayProps {
 
 function getDefaultHeaderTitle(payloadType: string): string {
     const titles: Record<string, string> = {
-        'schema_proposal': 'Schema Proposal',
-        'presentation_categories': 'Presentation Categories',
         'stream_suggestions': 'Stream Suggestions',
         'portfolio_insights': 'Portfolio Insights',
         'quick_setup': 'Quick Setup',
-        'validation_results': 'Validation Results',
-        'import_suggestions': 'Import Suggestions'
+        'stream_template': 'Stream Template',
+        'validation_feedback': 'Validation Feedback',
     };
     return titles[payloadType] || 'Details';
 }
 
 function getDefaultHeaderIcon(payloadType: string): string {
     const icons: Record<string, string> = {
-        'schema_proposal': '📋',
-        'presentation_categories': '📊',
         'stream_suggestions': '💡',
         'portfolio_insights': '📊',
         'quick_setup': '🚀',
-        'validation_results': '✅',
-        'import_suggestions': '📥'
+        'stream_template': '🚀',
+        'validation_feedback': '✅',
     };
     return icons[payloadType] || '✨';
 }
