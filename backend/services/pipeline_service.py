@@ -1136,9 +1136,14 @@ class PipelineService:
 
         # Create report
         report_date_obj = date.today()
-        final_report_name = (
-            ctx.report_name if ctx.report_name else report_date_obj.strftime("%Y.%m.%d")
-        )
+        if ctx.report_name:
+            final_report_name = ctx.report_name
+        elif ctx.start_date and ctx.end_date:
+            start_dt = datetime.strptime(ctx.start_date, "%Y-%m-%d")
+            end_dt = datetime.strptime(ctx.end_date, "%Y-%m-%d")
+            final_report_name = f"{start_dt.strftime('%b %d')} - {end_dt.strftime('%b %d')}"
+        else:
+            final_report_name = report_date_obj.strftime("%Y.%m.%d")
 
         report = await self.report_service.create_report(
             user_id=ctx.user_id,
