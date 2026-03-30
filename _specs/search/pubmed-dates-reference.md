@@ -6,116 +6,142 @@ For how we handle dates in our application, see [Article Dates](../../backend/do
 
 ---
 
-## 1. PubMed Date Concepts
+## 1. XML Date Fields (Source of Truth)
 
-PubMed tracks multiple dates for each article. Understanding these is essential for searching and display.
+Every date in PubMed originates from one of these XML fields. This is the ground truth that all search concepts and API parameters derive from.
 
-### User-Facing Date Types (Search Tags)
+### Article-Level Date Fields
 
-| Date Type | Search Tag | XML Source | Meaning | Use When |
-|-----------|------------|------------|---------|----------|
-| **Publication Date** | `[dp]` | Computed: ArticleDate if earlier, else PubDate | Combined electronic + print (see behavior below) | Default - most common |
-| **Electronic Publication** | `[epdat]` | ArticleDate | When article went online | Finding by online availability |
-| **Print Publication** | `[ppdat]` | PubDate | Official journal issue date | Finding by print date |
-| **Entry Date** | `[edat]` | PubMedPubDate[@PubStatus="entrez"] | When added to PubMed | Finding newly indexed articles |
-| **Create Date** | `[crdt]` | PubMedPubDate[@PubStatus="pubmed"] | When PubMed record was created | Usually same as entry |
-| **MeSH Date** | `[mhda]` | PubMedPubDate[@PubStatus="medline"] | When indexed with MeSH terms | Finding newly indexed MEDLINE |
-| **Completion Date** | `[dcom]` | DateCompleted | When MEDLINE indexing completed | Recently completed records |
-| **Modification Date** | `[lr]` | DateRevised | When record was last updated | Tracking updates, corrections |
+These describe when the article was published.
 
-### Publication Date `[dp]` Behavior
+| XML Element | Full Path | Required? | Precision | Meaning |
+|-------------|-----------|-----------|-----------|---------|
+| **PubDate** | `MedlineCitation/Article/Journal/JournalIssue/PubDate` | **Always present** | Variable (see below) | Official journal issue date — when the print/online issue was published. The only date field guaranteed to exist on every PubMed record. |
+| **ArticleDate** | `MedlineCitation/Article/ArticleDate[@DateType="Electronic"]` | Optional | Always Y/M/D when present | Electronic publication date — when the article first became available online. Present on most modern articles (common from ~2005+), absent on older records and some journals. |
 
-**`[dp]` is a VIRTUAL/COMPUTED field** - it doesn't exist in the XML. PubMed derives it from:
+**PubDate precision variants** (all valid, any may appear):
 
-- If electronic date comes **before** print → `[dp]` matches BOTH dates
-- If electronic date comes **after** print → `[dp]` matches only print date
+| Format | Example XML | Resolved by `[dp]` as |
+|--------|-------------|----------------------|
+| Year + Month + Day | `<Year>2026</Year><Month>03</Month><Day>18</Day>` | March 18, 2026 |
+| Year + Month | `<Year>2026</Year><Month>Mar</Month>` | **March 1, 2026** (day defaults to 1st) |
+| Year only | `<Year>2026</Year>` | **January 1, 2026** (month defaults to Jan) |
+| Year + Season | `<Year>2025</Year><Season>Oct-Dec</Season>` | **October 1, 2025** (first month of season) |
+| MedlineDate | `<MedlineDate>2024 Jan-Mar</MedlineDate>` | **January 1, 2024** (first month of range) |
 
-**Example**: Article online Jan 7, print issue Feb 1
-- Searching `[dp]` for January → FINDS the article (via electronic date)
-- Searching `[epdat]` for January → FINDS the article
-- Searching `[ppdat]` for January → Does NOT find the article
+**Key fact:** When PubDate lacks a day (or month), `[dp]`/`pdat` searches slot it to the **earliest possible date** — the 1st of the month, or January 1 for year-only. This is confirmed by PubMed Help: "Publication dates without a day are set to the 1st of the month."
+
+### Record-Level Date Fields
+
+These describe when PubMed processed the record, not when the article was published.
+
+| XML Element | Full Path | Required? | Precision | Meaning |
+|-------------|-----------|-----------|-----------|---------|
+| **DateCompleted** | `MedlineCitation/DateCompleted` | Optional | Always Y/M/D | When MEDLINE indexing was completed for this record |
+| **DateRevised** | `MedlineCitation/DateRevised` | Optional | Always Y/M/D | When the record was last modified/updated |
+
+### History Dates (PubMedPubDate)
+
+These are under `PubmedData/History/PubMedPubDate[@PubStatus="..."]`. Each has full Y/M/D precision (plus hour/minute) when present.
+
+| PubStatus value | Required? | Meaning |
+|-----------------|-----------|---------|
+| `entrez` | **Always present** (per [NLM Tech Bulletin](https://www.nlm.nih.gov/pubs/techbull/jf01/jf01_technote_small_number_of_pubmed_citations_beta.html): "All PubMed citations have an EDAT") | When the record was added to PubMed. ~4,000 older records had EDAT backfilled to Feb 7, 2001. For very old records, EDAT may be set to match PubDate. |
+| `pubmed` | Present on all tested records | When the PubMed record was created. Usually same date as `entrez`. |
+| `medline` | Present on MEDLINE-indexed records | When the MEDLINE record was created (MeSH terms added). |
+| `received` | Optional | When the journal received the manuscript from authors |
+| `revised` | Optional | When authors submitted a revision |
+| `accepted` | Optional | When the journal accepted the manuscript |
+
+**Presence guarantees:**
+- `PubDate`: **Always present** (guaranteed by PubMed DTD). Variable precision — may be year-only or month-only.
+- `ArticleDate`: Optional — absent on older records and some journals. When present, always has full Y/M/D.
+- `entrez` (EDAT): **Always present** — confirmed by [NLM Tech Bulletin](https://www.nlm.nih.gov/pubs/techbull/jf01/jf01_technote_small_number_of_pubmed_citations_beta.html): "All PubMed citations have an EDAT." NLM backfilled ~4,000 records that lacked it. Always full Y/M/D precision.
+- `pubmed`: Present on all tested records. Usually same date as `entrez`.
+- `received`/`accepted`: Only present when publisher provides manuscript history.
+
+**This means every PubMed record is guaranteed to have at least two searchable dates:**
+1. `PubDate` → searchable via `[dp]`/`pdat` (variable precision)
+2. `entrez` → searchable via `[edat]`/`edat` (always full Y/M/D)
+
+This is the basis for our defensive `[DP] OR [EDAT]` search strategy — both fields are guaranteed to exist on every record.
 
 ---
 
-## 2. XML Date Fields
+## 2. Search Concepts (Derived from XML)
 
-### What's in the XML
+PubMed derives searchable date concepts from the raw XML fields. These are what you actually query against.
 
-| XML Element | Full Path | Required? | Precision |
-|-------------|-----------|-----------|-----------|
-| **PubDate** | `PubmedArticle/MedlineCitation/Article/Journal/JournalIssue/PubDate` | **YES** | Variable (year only to full date) |
-| **ArticleDate** | `PubmedArticle/MedlineCitation/Article/ArticleDate[@DateType="Electronic"]` | No | Full date when present |
-| **DateCompleted** | `PubmedArticle/MedlineCitation/DateCompleted` | No | Full date |
-| **DateRevised** | `PubmedArticle/MedlineCitation/DateRevised` | No | Full date |
-| **PubMedPubDate** | `PubmedArticle/PubmedData/History/PubMedPubDate[@PubStatus="..."]` | No | Full date when present |
+### Complete Search Field Reference
 
-### History Dates (PubStatus values)
+| Search Concept | Inline Tag | API `datetype` | Derived From | Behavior |
+|---------------|-----------|---------------|--------------|----------|
+| **Publication Date** | `[dp]` | `pdat` | **Computed:** uses ArticleDate if earlier than PubDate; otherwise PubDate only | Virtual field — matches the earlier of electronic vs print date. See detailed rules below. |
+| **Electronic Publication** | `[epdat]` | _(none)_ | `ArticleDate` | Matches only the electronic date. Empty if no ArticleDate exists. |
+| **Print Publication** | `[ppdat]` | _(none)_ | `PubDate` | Matches only the print/journal issue date. |
+| **Entry Date** | `[edat]` | `edat` | `PubMedPubDate[@PubStatus="entrez"]` | When PubMed indexed the record. Always has full Y/M/D precision. |
+| **Create Date** | `[crdt]` | _(none)_ | `PubMedPubDate[@PubStatus="pubmed"]` | When PubMed record was created. Usually same as entry date. |
+| **MeSH Date** | `[mhda]` | _(none)_ | `PubMedPubDate[@PubStatus="medline"]` | When MeSH terms were added. Can lag months behind entry. |
+| **Modification Date** | `[lr]` | `mdat` | `DateRevised` | When the record was last updated. |
 
-| PubStatus | Meaning |
-|-----------|---------|
-| `entrez` | When added to PubMed |
-| `pubmed` | When PubMed record was created |
-| `medline` | When MEDLINE record was created |
-| `received` | When journal received manuscript |
-| `revised` | When authors revised manuscript |
-| `accepted` | When journal accepted manuscript |
+### API `datetype` Mapping (Only 3 Values)
 
-### Reliability
+The E-utilities API `datetype` parameter (used with `mindate`/`maxdate`) only supports 3 values for PubMed:
 
-**Only `PubDate` is guaranteed to exist**, but with variable precision:
-- Year only: `<Year>2024</Year>`
-- Year + Month: `<Year>2024</Year><Month>Jan</Month>`
-- Full date: `<Year>2024</Year><Month>01</Month><Day>15</Day>`
-- Date range: `<MedlineDate>2024 Jan-Mar</MedlineDate>`
+| `datetype` value | Equivalent inline tag | Derived from XML |
+|-----------------|----------------------|-----------------|
+| `pdat` | `[dp]` | Computed: ArticleDate vs PubDate |
+| `edat` | `[edat]` | `PubMedPubDate[@PubStatus="entrez"]` |
+| `mdat` | `[lr]` | `DateRevised` |
 
-**`ArticleDate` (electronic) is more precise** (always full Y+M+D when present), but optional.
+The other 4 inline tags (`[epdat]`, `[ppdat]`, `[crdt]`, `[mhda]`) can **only** be used via inline search syntax — there is no `datetype` equivalent.
 
-### Example XML (PMID 41501212)
+### Publication Date `[dp]`/`pdat` Derivation Rules
 
-```xml
-<!-- Electronic publication - when users can access it -->
-<ArticleDate DateType="Electronic">
-  <Year>2026</Year><Month>01</Month><Day>07</Day>
-</ArticleDate>
+`[dp]` is a **virtual/computed field** — it doesn't exist in the XML. PubMed computes it as follows:
 
-<!-- Print publication - official journal issue -->
-<JournalIssue CitedMedium="Internet">
-  <PubDate><Year>2026</Year><Month>Feb</Month></PubDate>
-</JournalIssue>
+1. If `ArticleDate` exists AND is **earlier** than `PubDate` → `[dp]` matches **both** dates
+2. If `ArticleDate` exists AND is **later** than `PubDate` → `[dp]` matches **only** `PubDate`
+3. If `ArticleDate` does not exist → `[dp]` matches only `PubDate`
 
-<!-- History dates -->
-<PubMedPubDate PubStatus="entrez">
-  <Year>2026</Year><Month>1</Month><Day>7</Day>
-</PubMedPubDate>
-<PubMedPubDate PubStatus="received">
-  <Year>2025</Year><Month>9</Month><Day>12</Day>
-</PubMedPubDate>
-<PubMedPubDate PubStatus="accepted">
-  <Year>2025</Year><Month>12</Month><Day>15</Day>
-</PubMedPubDate>
-```
+**Example:** Article online Jan 7 (`ArticleDate`), print issue Feb 1 (`PubDate`)
+- `[dp]` for January → FINDS (ArticleDate is earlier, so dp matches it)
+- `[dp]` for February → FINDS (dp also matches PubDate)
+- `[epdat]` for January → FINDS
+- `[ppdat]` for January → Does NOT find
+
+**Imprecise date resolution for `[dp]`/`pdat`:**
+- Month-only PubDate → day defaults to **1st of the month**
+- Year-only PubDate → defaults to **January 1**
+- Season (e.g., "Oct-Dec") → defaults to **1st of first month** (October 1)
 
 ---
 
 ## 3. API Usage
 
-### Date Format
+### Two Approaches to Date Filtering
 
-**Format**: `YYYY/MM/DD`
-
-### E-utilities Parameters
+**Approach 1: API Parameters**
 
 ```
-mindate=2023/01/01&maxdate=2023/12/31&datetype=pdat
+esearch.fcgi?db=pubmed&term=mesothelioma&mindate=2026/03/15&maxdate=2026/03/21&datetype=edat
 ```
 
-Date types: `pdat` (publication), `edat` (entrez), `mdat` (modification)
+- Only 3 `datetype` values available: `pdat`, `edat`, `mdat`
+- `mindate` and `maxdate` must be used together
+- Format: `YYYY/MM/DD` (month and day optional: `YYYY` and `YYYY/MM` also valid)
 
-### Inline Search Syntax
+**Approach 2: Inline Search Tags**
 
 ```
-("2023/01/01"[dp] : "2023/12/31"[dp])
+esearch.fcgi?db=pubmed&term=mesothelioma AND ("2026/03/15"[edat] : "2026/03/21"[edat])
 ```
+
+- All 7 inline tags available (see Section 2 table)
+- Can combine with OR for defensive searching: `("2026/03/15"[dp] : "2026/03/21"[dp]) OR ("2026/03/15"[edat] : "2026/03/21"[edat])`
+- Date format: `YYYY/MM/DD`
+
+**We use Approach 2** because it allows combining `[dp] OR [edat]` in a single query, which is not possible with API parameters.
 
 ### Sorting
 
@@ -128,88 +154,55 @@ Date types: `pdat` (publication), `edat` (entrez), `mdat` (modification)
 
 ---
 
-## 4. Common Use Cases
+## 4. Timing Pitfalls
 
-### Recent Publications (Last 3 Months)
+### Pitfall 1: Month-Only PubDate (Critical)
 
-```python
-search_articles(
-    query="CRISPR gene editing",
-    start_date="2024/08/15",
-    end_date="2024/11/15",
-    date_type="publication",
-    sort_by="date"
-)
-```
+Many articles have PubDate with only year+month. `[dp]`/`pdat` treats these as the 1st of the month. If the article is indexed mid-month, a weekly pipeline searching that week's dates via `[dp]` misses it.
 
-Query: `CRISPR gene editing AND ("2024/08/15"[DP] : "2024/11/15"[DP])`
+**Example (PMID 41849731):**
+- PubDate: `March 2026` (no day) → `[dp]` resolves to March 1
+- EDAT: March 18 (actual indexing)
+- Pipeline searching March 15-21 via `[dp]` → **misses the article**
 
-### Newly Indexed Articles
+### Pitfall 2: Entry Date Lag
 
-```python
-search_articles(
-    query="immunotherapy",
-    start_date="2024/11/08",
-    end_date="2024/11/15",
-    date_type="entry",
-    sort_by="date"
-)
-```
+Articles may be published days or weeks before PubMed indexes them. An article with PubDate `Feb 28` might not get an EDAT until `March 11`.
 
-Query: `immunotherapy AND ("2024/11/08"[EDAT] : "2024/11/15"[EDAT])`
+**Impact:** A February pipeline run can't find the article (not indexed yet). A March pipeline searching `[dp]` for March dates also can't find it (PubDate is in February).
 
-### Recently Updated Records
+### Pitfall 3: Future PubDates
 
-```python
-search_articles(
-    query="retinopathy",
-    start_date="2024/10/15",
-    end_date="2024/11/15",
-    date_type="revised",
-    sort_by="date"
-)
-```
+Some articles have a PubDate in a **future** month (e.g., PubDate=April, but EDAT=March). The article is indexed and findable in March, but `[dp]` slots it into April.
+
+### Pitfall 4: Electronic vs Print Ordering
+
+When ArticleDate is **later** than PubDate, `[dp]` uses only PubDate. The electronic date is invisible to `[dp]` searches.
 
 ---
 
-## 5. Important Timing Considerations
+## 5. Our Implementation
 
-### Electronic vs Print
+### Pipeline Search Strategy
 
-- Many articles are available online weeks/months before print issue
-- Example: Online Jan 7, Print issue Feb 1
-- `[dp]` will match January search (uses earlier date)
-- **This is why search results may show "February" articles in January results if we display print date instead of electronic date**
+```python
+# In pubmed_service.py — _get_date_clause()
+# For date_type="publication", we search BOTH dp and edat:
+AND (("start"[DP] : "end"[DP]) OR ("start"[EDAT] : "end"[EDAT]))
+```
 
-### Entry Date Timing
+This defensive approach catches articles regardless of which date falls in the window.
 
-- May be days/weeks after publication
-- Depends on journal indexing speed
-- Used by PubMed for "Most Recent" sort order
-
-### MeSH Date Timing
-
-- Set when MeSH terms are added (article becomes MEDLINE)
-- Until then, equals Entry Date
-- Can be months after entry for some articles
-
-### Completion Date Gaps
-
-- Older records may not have completion dates
-- Some record types don't get completion dates
-
----
-
-## 6. Our Implementation
+Additionally, an **EDAT catch-up** step runs at the end of retrieval, searching EDAT-only for the prior 28 days to catch any articles missed by the primary search.
 
 ### How We Derive `pub_year`/`pub_month`/`pub_day`
 
-Our publication date fields mirror PubMed's `[dp]` virtual field. In `pubmed_service.py`, we compute them as the **earlier** of the two source XML fields:
+Our stored publication date mirrors PubMed's `[dp]` computation. In `pubmed_service.py`, we use the **earlier** of:
 
-| XML Field | Path | Role |
-|-----------|------|------|
-| **PubDate** | `Article/Journal/JournalIssue/PubDate` | Print/journal issue date (always present, variable precision) |
-| **ArticleDate** | `Article/ArticleDate[@DateType="Electronic"]` | Electronic publication date (optional, full precision) |
+| XML Field | Role |
+|-----------|------|
+| **PubDate** | Print/journal issue date (always present, variable precision) |
+| **ArticleDate** | Electronic publication date (optional, full precision) |
 
 **Algorithm:**
 1. Parse year/month/day from PubDate (month may be text like "Jan", day may be absent)
@@ -217,29 +210,15 @@ Our publication date fields mirror PubMed's `[dp]` virtual field. In `pubmed_ser
 3. Compare using tuples — missing month/day default to 12/28 (biasing toward "later" so imprecise dates don't spuriously win)
 4. Use whichever is earlier
 
-This means our `pub_year`/`pub_month`/`pub_day` may come from either XML field depending on which date is earlier for a given article.
-
-For full details on our date storage model, see [Article Dates](../../backend/docs/article_dates.md).
-
 ### Search Date Field Mapping
 
 ```python
 # In pubmed_service.py
 date_field_map = {
-    "publication": "DP",   # Default - combined electronic + print
-    "entry": "EDAT",
-    "completion": "DCOM",
-    "revised": "LR"
-}
-# Note: We don't currently expose [epdat], [ppdat], [crdt], or [mhda]
-```
-
-### Sort Mapping
-
-```python
-sort_mapping = {
-    'relevance': None,
-    'date': 'pub_date'
+    "publication": "DP",   # pdat — combined electronic + print (+ EDAT fallback)
+    "entry": "EDAT",       # edat — when added to PubMed
+    "completion": "DCOM",  # no API datetype equivalent
+    "revised": "LR"        # mdat — last modified
 }
 ```
 
@@ -259,21 +238,25 @@ def search_articles(
 
 ---
 
-## 7. Quick Decision Tree
+## 6. Verified Behavior (PMID 41849731)
 
-**Which date type should I use?**
+Tested March 29, 2026. Article: PubDate=Mar 2026 (no day), ArticleDate=Mar 18, EDAT=Mar 18.
 
-```
-Do you want articles by when they became available?
-  └─ YES → date_type="publication" [dp]
-           Note: This matches electronic date if earlier than print
+| Method | Mar 1-7 | Mar 15-21 | Explanation |
+|--------|---------|-----------|-------------|
+| `pdat` / `[dp]` | **YES** | no | Month-only PubDate → treated as Mar 1 |
+| `edat` / `[edat]` | no | **YES** | Entrez date = Mar 18 |
+| `mdat` / `[lr]` | no | **YES** | Last revised = Mar 18 |
+| `[epdat]` | no | **YES** | Electronic pub = Mar 18 |
+| `[crdt]` | no | **YES** | Create date = Mar 18 |
+| `[mhda]` | no | **YES** | MeSH date = Mar 18 |
+| `[dp] OR [edat]` | **YES** | **YES** | Defensive: catches in both windows |
 
-Do you want newly indexed articles (regardless of pub date)?
-  └─ YES → date_type="entry" [edat]
+---
 
-Do you want recently updated/corrected articles?
-  └─ YES → date_type="revised" [lr]
-```
+## 7. Audit Results
+
+See [date-loophole-audit-2026-03-29.md](date-loophole-audit-2026-03-29.md) for a detailed audit of articles missed in March 2026 due to the `[dp]`-only search strategy. Summary: 39 articles (13.1%) were missed.
 
 ---
 
