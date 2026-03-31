@@ -379,21 +379,33 @@ class PubMedArticle:
                         abstract_parts.append(text_content)
                 abstract = "\n\n".join(abstract_parts)
 
-        # Extract book accession ID (like NBK585038) - could be useful
+        # Extract book accession ID (like NBK585038) and DOI if present
         pmc_id = ""
+        doi = ""
         article_id_list = book_document.find(".//ArticleIdList")
         if article_id_list is not None:
             for article_id in article_id_list.findall(".//ArticleId"):
                 id_type = article_id.get("IdType", "")
                 if id_type == "bookaccession" and article_id.text:
-                    pmc_id = article_id.text  # Store book accession in pmc_id field
+                    pmc_id = article_id.text
+                elif id_type == "doi" and article_id.text:
+                    doi = article_id.text
+
+        # Extract entry date from PubmedBookData/History
+        entry_date = ""
+        pubmed_book_data = book_article_node.find(".//PubmedBookData")
+        if pubmed_book_data is not None:
+            history_node = pubmed_book_data.find(".//History")
+            if history_node is not None:
+                entry_date_node = history_node.find('.//PubMedPubDate[@PubStatus="entrez"]')
+                entry_date = cls._get_date_from_node(entry_date_node)
 
         return PubMedArticle(
             PMID=PMID,
             comp_date="",
             date_revised="",
             article_date="",
-            entry_date="",
+            entry_date=entry_date,
             title=title,
             abstract=abstract,
             authors=authors,
@@ -403,7 +415,7 @@ class PubMedArticle:
             issue="",
             pages="",
             pmc_id=pmc_id,
-            doi="",
+            doi=doi,
             pub_year=pub_year,
             pub_month=pub_month,
             pub_day=pub_day,

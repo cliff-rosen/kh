@@ -426,7 +426,6 @@ class Article(Base):
     issue = Column(String(50))  # Journal issue
     medium = Column(String(100))  # Publication medium
     pages = Column(String(50))  # Page range
-    poi = Column(String(255))  # Publication Object Identifier
     doi = Column(String(255), index=True)  # Digital Object Identifier
     is_systematic = Column(Boolean, default=False)  # Is this a systematic review
 

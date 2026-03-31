@@ -68,17 +68,34 @@ def run_migration():
             else:
                 logger.info("  comp_date already gone from articles")
 
+            # Drop 'year' (varchar vestige, replaced by pub_year int)
+            for table in ['wip_articles', 'articles']:
+                if check_column_exists(db, table, 'year'):
+                    logger.info(f"Dropping year from {table}...")
+                    db.execute(text(f"ALTER TABLE {table} DROP COLUMN year"))
+                    logger.info(f"  Dropped year from {table}")
+                else:
+                    logger.info(f"  year already gone from {table}")
+
+            # Drop 'poi' (unused Publication Object Identifier)
+            if check_column_exists(db, 'articles', 'poi'):
+                logger.info("Dropping poi from articles...")
+                db.execute(text("ALTER TABLE articles DROP COLUMN poi"))
+                logger.info("  Dropped poi from articles")
+            else:
+                logger.info("  poi already gone from articles")
+
             db.commit()
             logger.info("\nMigration completed successfully!")
 
             # Verify
             logger.info("\nVerification:")
             for table in ['wip_articles', 'articles']:
-                for col in ['entry_date', 'publication_date', 'comp_date']:
+                for col, should_exist in [('entry_date', True), ('publication_date', False), ('comp_date', False), ('year', False), ('poi', False)]:
                     exists = check_column_exists(db, table, col)
                     status = "EXISTS" if exists else "gone"
-                    expected = "EXISTS" if col == 'entry_date' else "gone"
-                    ok = "OK" if status == expected else "UNEXPECTED"
+                    expected = "EXISTS" if should_exist else "gone"
+                    ok = "OK" if status == expected else ("UNEXPECTED" if should_exist else "n/a")
                     logger.info(f"  {table}.{col}: {status} [{ok}]")
 
             return True
