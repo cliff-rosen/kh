@@ -119,29 +119,50 @@ The other 4 inline tags (`[epdat]`, `[ppdat]`, `[crdt]`, `[mhda]`) can **only** 
 
 ## 3. API Usage
 
-### Two Approaches to Date Filtering
+### Two Independent Date Filtering Mechanisms
 
-**Approach 1: API Parameters**
+The E-utilities `esearch` endpoint provides **two completely independent ways** to filter by date. They use the same underlying date fields but have different capabilities. You can use either one or both (they're additive — using both applies both filters).
+
+#### Mechanism 1: API Parameters (`datetype` + `mindate` + `maxdate`)
+
+Separate query parameters passed alongside `term`:
 
 ```
-esearch.fcgi?db=pubmed&term=mesothelioma&mindate=2026/03/15&maxdate=2026/03/21&datetype=edat
+esearch.fcgi?db=pubmed&term=mesothelioma&datetype=edat&mindate=2026/03/15&maxdate=2026/03/21
 ```
 
-- Only 3 `datetype` values available: `pdat`, `edat`, `mdat`
-- `mindate` and `maxdate` must be used together
-- Format: `YYYY/MM/DD` (month and day optional: `YYYY` and `YYYY/MM` also valid)
+- `datetype`, `mindate`, `maxdate` are top-level query parameters — separate from and in addition to `term`
+- Only **3 `datetype` values** for PubMed: `pdat`, `edat`, `mdat`
+- Only **one date range** per request
+- Cannot combine date types (no OR logic)
+- The API applies this as a filter on top of whatever `term` matches
 
-**Approach 2: Inline Search Tags**
+#### Mechanism 2: Inline Date Tags (inside the `term` string)
+
+Date filters written directly into the search query string:
 
 ```
 esearch.fcgi?db=pubmed&term=mesothelioma AND ("2026/03/15"[edat] : "2026/03/21"[edat])
 ```
 
-- All 7 inline tags available (see Section 2 table)
-- Can combine with OR for defensive searching: `("2026/03/15"[dp] : "2026/03/21"[dp]) OR ("2026/03/15"[edat] : "2026/03/21"[edat])`
-- Date format: `YYYY/MM/DD`
+- All **7 inline tags** available: `[dp]`, `[edat]`, `[epdat]`, `[ppdat]`, `[crdt]`, `[mhda]`, `[lr]`
+- Can use **OR** to combine multiple date types in one query
+- Can have **multiple date clauses**
+- PubMed treats these as part of the search expression — no different from any other search term
 
-**We use Approach 2** because it allows combining `[dp] OR [edat]` in a single query, which is not possible with API parameters.
+#### Why We Use Mechanism 2
+
+Our defensive search strategy requires `[dp] OR [edat]` — catching articles by whichever date falls in the window. This is only possible with inline tags:
+
+```
+mesothelioma AND (("2026/03/15"[dp] : "2026/03/21"[dp]) OR ("2026/03/15"[edat] : "2026/03/21"[edat]))
+```
+
+The API parameter approach can only filter by one date type per request, so it would require two separate API calls and merging the results.
+
+#### Date Format
+
+`YYYY/MM/DD` — month and day are optional (`YYYY` and `YYYY/MM` also valid).
 
 ### Sorting
 
