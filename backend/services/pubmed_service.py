@@ -693,18 +693,22 @@ class PubMedService:
     def _get_date_clause(
         self, start_date: str, end_date: str, date_type: str = "publication"
     ) -> str:
-        """Build PubMed date filter clause based on date type."""
-        # Map date types to PubMed E-utilities search field tags
+        """Build PubMed inline date filter clause.
+
+        Uses inline query date terms (Mechanism 2 in our docs) rather than
+        API datetype parameters, giving access to all 7 date fields.
+        See _specs/search/pubmed-dates-reference.md for full details.
+        """
+        # Map our date_type names to PubMed inline query date terms
         date_field_map = {
-            "completion": "DCOM",  # Date Completed
-            "publication": "DP",  # Date of Publication
-            "entry": "EDAT",  # Entry Date (formerly Entrez Date)
-            "revised": "LR",  # Date Last Revised
+            "completion": "DCOM",  # DateCompleted
+            "publication": "DP",   # Publication Date (computed: ArticleDate vs PubDate)
+            "entry": "EDAT",       # Entry Date (when added to PubMed)
+            "revised": "LR",       # DateRevised
         }
 
         field = date_field_map.get(date_type, "DP")
-        clause = f'AND (("{start_date}"[{field}] : "{end_date}"[{field}]))'
-        return clause
+        return f'AND (("{start_date}"[{field}] : "{end_date}"[{field}]))'
 
     async def _get_article_ids(
         self,

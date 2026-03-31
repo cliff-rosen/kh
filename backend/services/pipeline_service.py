@@ -20,7 +20,7 @@ from typing import AsyncGenerator, Dict, List, Optional, Tuple, Any, Callable, C
 from dataclasses import dataclass, field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, select
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import asyncio
 import json
 import uuid
@@ -1237,7 +1237,7 @@ class PipelineService:
                 max_results=self.MAX_ARTICLES_PER_SOURCE,
                 start_date=start_date,
                 end_date=end_date,
-                date_type="publication",
+                date_type="entry",  # Search by EDAT — when article was added to PubMed (always precise Y/M/D)
                 sort_by="relevance",
                 include_full_text=True,  # Fetch full text from PMC for articles with PMC IDs
             )

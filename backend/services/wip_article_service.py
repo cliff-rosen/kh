@@ -6,13 +6,23 @@ All other services should use this service for WipArticle operations.
 """
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
 from fastapi import Depends
 
 from models import WipArticle
+
+
+def _parse_date(date_str: Optional[str]) -> Optional[date]:
+    """Parse a YYYY-MM-DD string to a date object, or return None."""
+    if not date_str:
+        return None
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
 from schemas.canonical_types import CanonicalResearchArticle
 from database import get_async_db
 
@@ -227,6 +237,7 @@ class WipArticleService:
                 pub_year=article.pub_year,
                 pub_month=article.pub_month,
                 pub_day=article.pub_day,
+                entry_date=_parse_date(article.date_entered),
                 source_specific_id=article.id,
                 is_duplicate=False,
                 passed_semantic_filter=True if pre_approved else None,
