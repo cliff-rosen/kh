@@ -358,6 +358,7 @@ class WipArticle(Base):
     pub_year = Column(Integer, nullable=True)  # Publication year (always present from source)
     pub_month = Column(Integer, nullable=True)  # Publication month (1-12, when available)
     pub_day = Column(Integer, nullable=True)  # Publication day (1-31, when available)
+    entry_date = Column(Date, nullable=True)  # PubMed Entry Date (EDAT) - when added to PubMed, always Y/M/D
 
     # PubMed-specific fields
     pmid = Column(String(20), index=True)
@@ -424,17 +425,16 @@ class Article(Base):
     pub_year = Column(Integer, nullable=True)  # Publication year (always present from source)
     pub_month = Column(Integer, nullable=True)  # Publication month (1-12, when available)
     pub_day = Column(Integer, nullable=True)  # Publication day (1-31, when available)
+    entry_date = Column(Date, nullable=True)  # PubMed Entry Date (EDAT) - when added to PubMed, always Y/M/D
 
     # PubMed-specific fields
     pmid = Column(String(20), index=True)  # PubMed ID
     abstract = Column(Text)  # Full abstract text
-    comp_date = Column(Date)  # Completion date
     journal = Column(String(255))  # Journal name
     volume = Column(String(50))  # Journal volume
     issue = Column(String(50))  # Journal issue
     medium = Column(String(100))  # Publication medium
     pages = Column(String(50))  # Page range
-    poi = Column(String(255))  # Publication Object Identifier
     doi = Column(String(255), index=True)  # Digital Object Identifier
     is_systematic = Column(Boolean, default=False)  # Is this a systematic review
 

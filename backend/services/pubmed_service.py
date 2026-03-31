@@ -379,21 +379,33 @@ class PubMedArticle:
                         abstract_parts.append(text_content)
                 abstract = "\n\n".join(abstract_parts)
 
-        # Extract book accession ID (like NBK585038) - could be useful
+        # Extract book accession ID (like NBK585038) and DOI if present
         pmc_id = ""
+        doi = ""
         article_id_list = book_document.find(".//ArticleIdList")
         if article_id_list is not None:
             for article_id in article_id_list.findall(".//ArticleId"):
                 id_type = article_id.get("IdType", "")
                 if id_type == "bookaccession" and article_id.text:
-                    pmc_id = article_id.text  # Store book accession in pmc_id field
+                    pmc_id = article_id.text
+                elif id_type == "doi" and article_id.text:
+                    doi = article_id.text
+
+        # Extract entry date from PubmedBookData/History
+        entry_date = ""
+        pubmed_book_data = book_article_node.find(".//PubmedBookData")
+        if pubmed_book_data is not None:
+            history_node = pubmed_book_data.find(".//History")
+            if history_node is not None:
+                entry_date_node = history_node.find('.//PubMedPubDate[@PubStatus="entrez"]')
+                entry_date = cls._get_date_from_node(entry_date_node)
 
         return PubMedArticle(
             PMID=PMID,
             comp_date="",
             date_revised="",
             article_date="",
-            entry_date="",
+            entry_date=entry_date,
             title=title,
             abstract=abstract,
             authors=authors,
@@ -403,7 +415,7 @@ class PubMedArticle:
             issue="",
             pages="",
             pmc_id=pmc_id,
-            doi="",
+            doi=doi,
             pub_year=pub_year,
             pub_month=pub_month,
             pub_day=pub_day,
@@ -693,18 +705,22 @@ class PubMedService:
     def _get_date_clause(
         self, start_date: str, end_date: str, date_type: str = "publication"
     ) -> str:
-        """Build PubMed date filter clause based on date type."""
-        # Map date types to PubMed E-utilities search field tags
+        """Build PubMed inline date filter clause.
+
+        Uses inline query date terms (Mechanism 2 in our docs) rather than
+        API datetype parameters, giving access to all 7 date fields.
+        See _specs/search/pubmed-dates-reference.md for full details.
+        """
+        # Map our date_type names to PubMed inline query date terms
         date_field_map = {
-            "completion": "DCOM",  # Date Completed
-            "publication": "DP",  # Date of Publication
-            "entry": "EDAT",  # Entry Date (formerly Entrez Date)
-            "revised": "LR",  # Date Last Revised
+            "completion": "DCOM",  # DateCompleted
+            "publication": "DP",   # Publication Date (computed: ArticleDate vs PubDate)
+            "entry": "EDAT",       # Entry Date (when added to PubMed)
+            "revised": "LR",       # DateRevised
         }
 
         field = date_field_map.get(date_type, "DP")
-        clause = f'AND (("{start_date}"[{field}] : "{end_date}"[{field}]))'
-        return clause
+        return f'AND (("{start_date}"[{field}] : "{end_date}"[{field}]))'
 
     async def _get_article_ids(
         self,

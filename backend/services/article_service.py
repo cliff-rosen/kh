@@ -220,6 +220,7 @@ class ArticleService:
                 pub_year=wip_article.pub_year,
                 pub_month=wip_article.pub_month,
                 pub_day=wip_article.pub_day,
+                entry_date=wip_article.entry_date,
                 fetch_count=1,
             )
             self.db.add(article)
