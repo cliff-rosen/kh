@@ -1,0 +1,269 @@
+| 41580035 | 2026/May/15 |  | 2026/01/24 | Journal of affective disorders | Causal relationship between recent feelings of depression and malignan |
+| 41580970 | 2026/Jan/02 |  | 2026/01/25 | International journal of epidemiology | Spatio-temporal trends in pleural mesothelioma mortality in Italy: a 4 |
+| 41582569 | 2026/Jan/16 |  | 2026/01/26 | Endocrine, metabolic &amp; immune disord | Thioredoxin-1 Regulates Microglia Polarization to Ameliorate Neuroinfl |
+| 41583614 | 2026 | NO DAY | 2026/01/26 | Respiratory medicine case reports | IgG4-related pulmonary pseudotumor and pleuritis mimicking lung cancer |
+| 41585239 | 2025 | NO DAY | 2026/01/26 | Frontiers in medicine | Prolonged survival in EGFR exon 20 insertion mutant lung adenocarcinom |
+| 41586129 | 2025 | NO DAY | 2026/01/26 | Revista brasileira de medicina do trabal | Mesothelioma and Social Security Benefits in Brazil: 2019 to 2021. |
+| 41588240 | 2026/Feb | NO DAY | 2026/01/26 | Nature cancer | Genomic risk model to implement precision prostate cancer screening in |
+| 41589229 | 2026/Jan | NO DAY | 2026/01/27 | International cancer conference journal | Carboplatin monotherapy in recurrent uterine leiomyosarcoma with homoz |
+| 41589254 | 2026/Jan | NO DAY | 2026/01/27 | International cancer conference journal | A case of neuroendocrine carcinoma of the urachal cancer with comprehe |
+| 41589395 | 2026/Jan | NO DAY | 2026/01/27 | Pathology international | An Autopsy Case of Pleural Mesothelioma Progressed Rapidly With Multip |
+| 41590330 | 2025/Dec/24 |  | 2026/01/27 | Current oncology (Toronto, Ont.) | Germline BRCA1/2 Variants in Polish Patients with Family History of Br |
+| 41590609 | 2025/Dec/19 |  | 2026/01/27 | Metabolites | Metabolomics Plasma Biomarkers Associated with the HRD Phenotype in Ov |
+| 41591250 | 2026/Jan | NO DAY | 2026/01/27 | Radiology | CT Screening Challenges Amid Rising Threat of Lung Cancer in Individua |
+| 41592588 | 2026/Jan | NO DAY | 2026/01/27 | Japan journal of nursing science : JJNS | Evaluation of an educational program for nurses on the care coordinati |
+| 41785379 | 2026/01/27 | BOOK | 2026/01/27 | Book | ? |
+| 41593613 | 2026/Jan/27 |  | 2026/01/28 | BMC pulmonary medicine | Bronchoalveolar lavage cell differential count is associated with surv |
+| 41593646 | 2026/Jan/28 |  | 2026/01/28 | Journal of ovarian research | Artificial intelligence (AI) and machine learning (ML) in ovarian canc |
+| 41594221 | 2026/Jan/12 |  | 2026/01/28 | Diagnostics (Basel, Switzerland) | Lung Cancer in Never-Smokers: Risk Factors, Driver Mutations, and Ther |
+| 41594645 | 2026/Jan/07 |  | 2026/01/28 | Biomolecules | Efficacy of Modified Talc Powder in Experimental Rat Model of Pleurode |
+| 41595132 | 2026/Jan/09 |  | 2026/01/28 | Cancers | Exploring the Impact of DNA Methylation on Gene Expression in CRC: A C |
+| 41595141 | 2026/Jan/09 |  | 2026/01/28 | Cancers | Molecular Pathology of Advanced NSCLC: Biomarkers and Therapeutic Deci |
+| 41595142 | 2026/Jan/09 |  | 2026/01/28 | Cancers | The Diagnostic Trap in Radiation-Induced Mesothelioma: Kinetic-Morphol |
+| 41595239 | 2026/Jan/20 |  | 2026/01/28 | Cancers | Oncological Outcomes and Genomic Features of Gastric-Type Endocervical |
+| 41596179 | 2026/Jan/17 |  | 2026/01/28 | Antioxidants (Basel, Switzerland) | Reactive Oxygen Species Drive Cell Migration and PD-L1 Expression via  |
+| 41596682 | 2026/Jan/20 |  | 2026/01/28 | International journal of molecular scien | The Genetic and Molecular Analyses of Rare Candidate Germline BRIP1/FA |
+| 41597257 | 2026/Jan/19 |  | 2026/01/28 | Cells | PD-L1 and BAP1 as Prognostic Biomarkers in Malignant Pleural Mesotheli |
+| 41597333 | 2025/Dec/26 |  | 2026/01/28 | Medicina (Kaunas, Lithuania) | Clinical and Prognostic Relevance of BRIP1 Expression in Colorectal Ca |
+| 41598557 | 2026/Jan/12 |  | 2026/01/28 | Journal of clinical medicine | Optimal Treatment Strategies for Pulmonary Large Cell Neuroendocrine C |
+| 41598940 | 2026/Jan/13 |  | 2026/01/28 | Insects | Sustainable Management of Potato Tuber Moths Using Eco-Friendly Dust F |
+| 41601019 | 2026/Jan/21 |  | 2026/01/28 | Vaccines | Hidden Targets in Cancer Immunotherapy: The Potential of "Dark Matter" |
+| 41602391 | 2025 | NO DAY | 2026/01/28 | Frontiers in oncology | Clinical application of confocal laser endomicroscopy in the diagnosis |
+| 41603368 | 2026/Jan | NO DAY | 2026/01/28 | Cephalalgia : an international journal o | Clinical and genetic characterization of non-optimal triptan response  |
+| 41603716 | 2026/Jan/05 |  | 2026/01/28 | Translational vision science &amp; techn | Uptake of Polygenic Risk Testing for Glaucoma in Unaffected Individual |
+| 41604006 | 2026/Jan/28 |  | 2026/01/28 | Discover oncology | A multi-algorithm machine learning framework identifies FGD5, LRRC36,  |
+| 41604907 | 2026/Mar | NO DAY | 2026/01/28 | Clinical lung cancer | Pembrolizumab Plus Platinum Doublet Chemotherapy With Lenvatinib in Un |
+| 41606535 | 2026/Jan/29 |  | 2026/01/28 | BMC cancer | How do women experience a change in their clinically-derived breast ca |
+| 41609411 | 2026/Mar/03 |  | 2026/01/29 | JNCI cancer spectrum | Dietary intake of one-carbon nutrients and colorectal cancer risk acco |
+| 41610314 | 2026/Mar | NO DAY | 2026/01/29 | Advanced science (Weinheim, Baden-Wurtte | Pro-ATO/Allicin Liposomes for Dual-Pathway Targeting of p53-Mutant Tum |
+| 41612487 | 2026/Jan/30 |  | 2026/01/30 | Israel journal of health policy research | Managing healthcare for female BRCA carriers in the population screeni |
+| 41613546 | 2025 | NO DAY | 2026/01/30 | Frontiers in oncology | Genetic investigation of a Tunisian family with Lynch syndrome: a case |
+| 41616432 | 2026/Apr | NO DAY | 2026/01/30 | Cancer genetics | Germline APC I1307K and MITF E318K variants in a patient with high-gra |
+| 41617518 | 2026/Jan | NO DAY | 2026/01/30 | The Medical journal of Malaysia | Genomic profiling of early-stage resectable non-small-cell lung cancer |
+| 41619087 | 2026/Jan/31 |  | 2026/01/31 | Familial cancer | Hereditary ovarian cancer in women with African ancestry: a scoping re |
+| 41619425 | 2026/Feb | NO DAY | 2026/01/31 | Gynecologic oncology | Understanding patient priorities: Sexual health and hereditary ovarian |
+| 41619719 | 2026/Mar | NO DAY | 2026/01/31 | Gynecologic oncology | BRCA1 and BRCA2 carriers: Perceptions of endometrial cancer risk. |
+| 41619904 | 2026/Jan/29 |  | 2026/01/31 | Journal of thoracic oncology : official  | Impact of KRAS Mutations and Co-Alterations on Outcomes in Stage III N |
+| 41620325 | 2026/Feb | NO DAY | 2026/01/31 | Bulletin du cancer | [French recommendations for clinical practice, Nice/Saint-Paul-de-Venc |
+| 41620477 | 2026/Jan/31 |  | 2026/01/31 | Scientific reports | Metabolomic-driven prediction of the mutational status of healthy indi |
+| 41620555 | 2026/Apr | NO DAY | 2026/01/31 | Annals of surgical oncology | Implications of Homologous Recombination Deficiency for Neoadjuvant Pl |
+| 41621980 | 2026/Jan/20 |  | 2026/02/01 | Zhonghua lao dong wei sheng zhi ye bing  | [Clinical effect analysis of sintilimab combined with chemotherapy in  |
+| 41624150 | 2026 | NO DAY | 2026/02/02 | Therapeutic advances in medical oncology | Clinically relevant somatic variants and genomic discordance between p |
+| 41624244 | 2026/Jan | NO DAY | 2026/02/02 | Research and practice in thrombosis and  | Venous thromboembolism and 20-year cancer risk: a Danish population-ba |
+| 41624772 | 2025 | NO DAY | 2026/02/02 | Frontiers in molecular biosciences | Regulatory QTLs affecting miRNA-mRNA interactions in cancer: mechanism |
+| 41624944 | 2026/Jan/26 |  | 2026/02/02 | RSC advances | Fire-resistant polymer composites based on mineral fillers. |
+| 41625792 | 2026/Jan/28 |  | 2026/02/02 | Hospital pharmacy | Mining of Respiratory System Toxicity Risk Signals for Fulvestrant Bas |
+| 41626351 | 2025 | NO DAY | 2026/02/02 | Frontiers in public health | Projecting future mortality risk of pleural mesothelioma in Italy (202 |
+| 41629673 | 2026/Mar | NO DAY | 2026/02/02 | Nature genetics | Improved polygenic risk prediction models for breast cancer subtypes i |
+| 41629984 | 2026/Feb/03 |  | 2026/02/03 | BMC medicine | Evaluating the impact of family history and polygenic risk scores on c |
+| 41634686 | 2026/Feb/03 |  | 2026/02/03 | Respiratory research | Exosomal microRNAs of tuberculous pleural effusion orchestrating TGF-& |
+| 41634757 | 2026/Feb/04 |  | 2026/02/03 | Journal of ovarian research | Role of immune cells in clear cell ovarian cancer: a two-sample bidire |
+| 41635837 | 2025 | NO DAY | 2026/02/04 | Frontiers in immunology | Case report: Immune checkpoint inhibitor-induced fulminant diabetic ke |
+| 41637212 | 2026 | NO DAY | 2026/02/04 | Technology in cancer research &amp; trea | Comparison of Different Maintenance Treatment Options for Newly Diagno |
+| 41640316 | 2025 | NO DAY | 2026/02/05 | Epidemiologia e prevenzione | [Pleural mesothelioma due to asbestos exposure in operating room]. |
+| 41640317 | 2025 | NO DAY | 2026/02/05 | Epidemiologia e prevenzione | Accuracy of mesothelioma occurrence forecasts, characteristics of case |
+| 41640914 | 2026/Jan | NO DAY | 2026/02/05 | Cureus | Amiodarone-Induced Pulmonary Toxicity Presenting as Unilateral Fibrosi |
+| 41640977 | 2026 | NO DAY | 2026/02/05 | Respiratory medicine case reports | Disseminated tuberculosis secondary to polymicrobial co-infection foll |
+| 41644378 | 2026/Mar | NO DAY | 2026/02/05 | Revue neurologique | Early onset radiation-induced leukoencephalopathy in patients treated  |
+| 41645200 | 2026/Feb/05 |  | 2026/02/06 | BMC medicine | Genetic risk factors modulate the association between physical activit |
+| 41645249 | 2026/Feb/05 |  | 2026/02/06 | BMC medicine | Shared genetic architecture of psychoactive substance use and pan-canc |
+| 41646361 | 2026/Jan/19 |  | 2026/02/06 | Research square | Tumor microenvironment changes after treatment with avelumab and immun |
+| 41646558 | 2026/Jan | NO DAY | 2026/02/06 | Cureus | Yellow Nail Syndrome Presenting With a Complete Clinical Triad: A Repo |
+| 41646593 | 2026/Jan | NO DAY | 2026/02/06 | Cureus | Recurrent Pneumothorax in a Post-pneumonectomy Patient: Surgical Manag |
+| 41646594 | 2026/Jan | NO DAY | 2026/02/06 | Cureus | Clinical Factors Influencing Spontaneous Pleurodesis Success in Malign |
+| 41646701 | 2026/Jan/19 |  | 2026/02/06 | medRxiv : the preprint server for health | Workplace Pollution and Risk of Incident Coronary Artery Disease. |
+| 41647838 | 2025 | NO DAY | 2026/02/06 | Frontiers in oncology | Challenging the extended phenotype: HRD-negative salivary gland carcin |
+| 41650564 | 2026/Mar | NO DAY | 2026/02/06 | Journal of reproductive immunology | FTO genotype, thiamine dietary intake, and risk of spontaneous abortio |
+| 41650790 | 2026/Mar | NO DAY | 2026/02/06 | Gynecologic oncology | Eco-responsible and rational interval debulking surgery for high-grade |
+| 41653705 | 2026/Apr | NO DAY | 2026/02/07 | Maturitas | Breast cancer genetics and risk assessment 101: What women's health ca |
+| 41653738 | 2026/Apr | NO DAY | 2026/02/07 | Social science &amp; medicine (1982) | Pathways to personalisation: The practice of BRCA stratification. |
+| 41654913 | 2026/Feb/07 |  | 2026/02/07 | Journal of ovarian research | Real-world data of PARP inhibitors in first-line maintenance for BRCA- |
+| 41656194 | 2026/Feb/09 |  | 2026/02/08 | Respiratory research | Dual-functIon Semi-rigid thoraCoscOpy Versus semi-rigid thoracoscopy f |
+| 41658263 | 2026/Feb | NO DAY | 2026/02/09 | Gynecologic oncology reports | Temporary intraperitoneal breast implant spacer to facilitate safe ste |
+| 41658396 | 2026/Jun | NO DAY | 2026/02/09 | Global epidemiology | Interpretation of the IARC quantitative bias analysis of talc and ovar |
+| 41658604 | 2026 | NO DAY | 2026/02/09 | Frontiers in medicine | Editorial: The novel insight into managements of undiagnosed pleural e |
+| 41658998 | 2026/Feb/04 |  | 2026/02/09 | ACS organic &amp; inorganic Au | The Combined Role of Silanols and Oxidative Stress in Determining Engi |
+| 41659257 | 2026/Jan/31 |  | 2026/02/09 | Translational lung cancer research | TP53 co-mutations are associated with elevated PD-L1 expression and hi |
+| 41659271 | 2026/Jan/31 |  | 2026/02/09 | Translational lung cancer research | Feasibility of multimodality treatment, including pleurectomy decortic |
+| 41660470 | 2026/Jan/31 |  | 2026/02/09 | Journal of thoracic disease | The efficacy and predictive factors of first-line immune checkpoint in |
+| 41660552 | 2026 | NO DAY | 2026/02/09 | Human mutation | Causal Relationships Between Plasma Metabolites, Inflammatory Factors, |
+| 41660920 | 2026/Feb/01 |  | 2026/02/09 | Asian Pacific journal of cancer preventi | MALAT1 Gene Variants rs619586, rs664589, and rs3200401 and Their Assoc |
+| 41660923 | 2026/Feb/01 |  | 2026/02/09 | Asian Pacific journal of cancer preventi | Whole Exome Sequencing Revealed Rare Variants in BRCA2, RAD51D, FANGC, |
+| 41660933 | 2026/Feb/01 |  | 2026/02/09 | Asian Pacific journal of cancer preventi | Four Gene Polymorphisms as Potential Predictive Biomarkers for Lung Ca |
+| 41663649 | 2026/Feb/10 |  | 2026/02/09 | Scientific reports | Association of 25-hydroxyvitamin D levels and vitamin D receptor gene  |
+| 41664054 | 2026/Feb/10 |  | 2026/02/10 | Respiratory research | Unique clinical features and transcriptomic profiling of carcinogenesi |
+| 41664080 | 2026/Feb/09 |  | 2026/02/10 | Genome biology | The gene expression landscape of disease genes. |
+| 41665206 | 2026/Apr | NO DAY | 2026/02/10 | Drug development research | Innovative Drug and Prodrug Candidates in Cancer Treatment Targeting T |
+| 41671423 | 2026/Feb | NO DAY | 2026/02/11 | Journal of the National Comprehensive Ca | NCCN Guidelines&#xae; Insights: Genetic/Familial High-Risk Assessment: |
+| 41671451 | 2025/Dec | NO DAY | 2026/02/11 | Journal of the National Comprehensive Ca | From Diagnosis, Therapy Decision-Making to Genetic Risk Assessment: Th |
+| 41671467 | 2025/Dec/12 |  | 2026/02/11 | Journal of the National Comprehensive Ca | Breast Cancer Risk Stratification in Black Women: Current Status and P |
+| 41671661 | 2025/Nov/28 |  | 2026/02/11 | Respiratory medicine and research | BAP-1 in the diagnosis of malignant pleural mesothelioma. |
+| 41671907 | 2026/Apr | NO DAY | 2026/02/11 | Lung cancer (Amsterdam, Netherlands) | HDAC1-modified lamin A/C drives nuclear deformation in RB1-deficient l |
+| 41675640 | 2025 | NO DAY | 2026/02/12 | Frontiers in endocrinology | Multi-gene co-mutations of BRAF with TERT, PIK3CA, or TP53 are powerfu |
+| 41677640 | 2026/Feb/01 |  | 2026/02/12 | Cells | The Effects of BRCA1 and BRCA2 Promoter Methylation on Clinicopatholog |
+| 41677646 | 2026/Feb/02 |  | 2026/02/12 | Cells | SATB2 Induces Malignant Transformation and Cancer Stem Cell Characteri |
+| 41679016 | 2026/Apr | NO DAY | 2026/02/12 | Lung cancer (Amsterdam, Netherlands) | Response to Letter to the Editor entitled "Methodological consideratio |
+| 41680019 | 2026/Jan/19 |  | 2026/02/12 | International journal of gynecological c | Correlation of BRCA and homologous recombination deficiency status wit |
+| 41681104 | 2026/Jan/30 |  | 2026/02/13 | Annali italiani di chirurgia | The MARS2 Trial - Is Surgical Treatment of Pleural Mesothelioma a Reli |
+| 41681701 | 2026/Jan/24 |  | 2026/02/13 | Diagnostics (Basel, Switzerland) | Morphological Analysis and Short-Term Evolution in Pulmonary Infarctio |
+| 41681824 | 2026/Jan/23 |  | 2026/02/13 | Cancers | The Contribution of Genetic Modifiers to Ovarian Cancer Risk in BRCA1  |
+| 41681853 | 2026/Jan/26 |  | 2026/02/13 | Cancers | Radiofrequency Ablation for Recurrent Pleural Mesothelioma. |
+| 41681876 | 2026/Jan/27 |  | 2026/02/13 | Cancers | The Role of Dosimetric Parameters in Radiation Pneumonitis: A Function |
+| 41681932 | 2026/Jan/30 |  | 2026/02/13 | Cancers | A TP53-Pathway-Based Prognostic Signature for Radiotherapy and Functio |
+| 41682050 | 2026/Jan/28 |  | 2026/02/13 | Polymers | Polyphenylene Sulfide-Based Compositions with Solid Fillers for Powder |
+| 41682095 | 2026/Jan/31 |  | 2026/02/13 | Polymers | Development of a Polyolefin Elastomer Modified Hybrid Inorganic Filler |
+| 41683583 | 2026/Jan/23 |  | 2026/02/13 | International journal of molecular scien | Modulation of Patient-Derived Tumor Organoids by SARS-CoV-2 Variants A |
+| 41683729 | 2026/Jan/28 |  | 2026/02/13 | International journal of molecular scien | Hereditary Endometrial Cancer: Lynch Syndrome, Mismatch Repair Deficie |
+| 41684035 | 2026/Feb/06 |  | 2026/02/13 | International journal of molecular scien | High-Grade Serous Ovarian Carcinoma in the Genomics Era: Current Appli |
+| 41687194 | 2026/Feb/03 |  | 2026/02/13 | Cancer treatment and research communicat | Biomarker analyses to predict benefit of immune checkpoint inhibitors  |
+| 41687980 | 2026/Apr/20 |  | 2026/02/13 | Gene | Decoding testicular germ cell tumors: integrating risk, biology, and b |
+| 41688288 | 2026/Jan/29 |  | 2026/02/13 | Archivos de bronconeumologia | Prognostic Value of Systemic Inflammation and Clinical Variables in Ma |
+| 41691584 | 2026 | NO DAY | 2026/02/15 | Current topics in microbiology and immun | Cofactors in Human Papillomavirus Carcinogenesis. |
+| 41694833 | 2026/Jan | NO DAY | 2026/02/16 | Cureus | Beyond Asbestos: Malignant Pleural Mesothelioma Revealing Lynch Syndro |
+| 41694920 | 2026/Jan | NO DAY | 2026/02/16 | Cureus | Multispecialty Management of Pancreaticopleural Fistula With Recurrent |
+| 41696084 | 2026 | NO DAY | 2026/02/16 | Digital health | Development and validation of a diagnostic clinical prediction model f |
+| 41696561 | 2026 | NO DAY | 2026/02/16 | Therapeutic advances in medical oncology | Immunotherapy advances in pleural mesothelioma. |
+| 41698884 | 2026/Feb/16 |  | 2026/02/16 | Translational psychiatry | Genetic risk of chronic pain conditions associated with risk of suicid |
+| 41705052 | 2026 | NO DAY | 2026/02/18 | Frontiers in public health | Correction: Global trend analysis and risk evolution of asbestos-relat |
+| 41706723 | 2026/Feb/01 |  | 2026/02/18 | International journal of surgery (London | Global trends, risk factors, and future projections of ovarian cancer  |
+| 41707338 | 2026/Apr | NO DAY | 2026/02/18 | Lung cancer (Amsterdam, Netherlands) | RET Fusion-Positive Lung Adenocarcinoma: Partner-Specific Clinicopatho |
+| 41708630 | 2026/Feb/18 |  | 2026/02/18 | Nature communications | Mitochondrial heteroplasmy is a risk factor for the development of chr |
+| 41710652 | 2026 | NO DAY | 2026/02/19 | Frontiers in oncology | Analysis on the efficacy and safety of chemotherapy combined with or w |
+| 41710678 | 2025 | NO DAY | 2026/02/19 | Indian journal of occupational and envir | Malignant Pleural Mesothelioma in an Asbestos Industry Worker: A Posth |
+| 41710851 | 2026/Jan | NO DAY | 2026/02/19 | Cureus | TRIM59 (Tripartite Motif-Containing 59) Expression in Pan-Cancer and I |
+| 41711168 | 2026/Feb | NO DAY | 2026/02/19 | Genes, chromosomes &amp; cancer | Novel EWSR1::TEAD3 Fusion in an Adolescent With a Highly Aggressive Pe |
+| 41716210 | 2026 | NO DAY | 2026/02/20 | Surgical case reports | Jejunal Metastasis from Malignant Pleural Mesothelioma during Long-Ter |
+| 41716296 | 2026 | NO DAY | 2026/02/20 | Academic pathology | Educational Case: Mesothelioma. |
+| 41717160 | 2026/Jan | NO DAY | 2026/02/20 | Cureus | Progesterone Enhances the Sensitivity of Ovarian Cancer Cells to Poly  |
+| 41717173 | 2026/Jan | NO DAY | 2026/02/20 | Cureus | Postoperative Management After Risk-Reducing Salpingo-Oophorectomy for |
+| 41717185 | 2026/Jan | NO DAY | 2026/02/20 | Cureus | Comprehensive Genomic Profiling Across Diverse Solid Tumors: A Real-Wo |
+| 41719433 | 2026/Feb | NO DAY | 2026/02/20 | The Journal of international medical res | Evaluating the causal effects of circulating plasma proteins on the ri |
+| 41723092 | 2026/Jan/29 |  | 2026/02/21 | Journal of the American Society of Cytop | Cytopathology of Sister Mary Joseph nodules: the Johns Hopkins experie |
+| 41724111 | 2026/Mar | NO DAY | 2026/02/22 | EBioMedicine | Quantifying rate-limiting genetic variation in breast and ovarian tumo |
+| 41724460 | 2026/Feb/20 |  | 2026/02/22 | Fertility and sterility | Preimplantation genetic testing for BReast CAncer gene 1 and risk-redu |
+| 41724531 | 2026/Feb | NO DAY | 2026/02/22 | Best practice &amp; research. Clinical g | Risk-based screening for early detection of colorectal cancer: an over |
+| 41727427 | 2026 | NO DAY | 2026/02/23 | Frontiers in immunology | The impact of p53 mutation on tumor immune evasion: mechanistic insigh |
+| 41727642 | 2026 | NO DAY | 2026/02/23 | Frontiers in oncology | Primary pulmonary histiocytic sarcoma with CNS metastasis: a case repo |
+| 41728043 | 2026 | NO DAY | 2026/02/23 | Annals of global health | Surveillance of Non-Malignant Asbestos-Related Diseases in an Exposed  |
+| 41728249 | 2026/Feb | NO DAY | 2026/02/23 | ACG case reports journal | Aggressive Right-Sided Colon Cancer in a Young Adult: Triple-Whammy Mu |
+| 41728532 | 2026/Jan | NO DAY | 2026/02/23 | Cureus | Video-Assisted Thoracoscopic Surgery for the Stage II Pleural Empyema: |
+| 41728618 | 2026 | NO DAY | 2026/02/23 | Frontiers in medicine | IgG4-related sclerosing cholangitis: navigating diagnostic dilemmas an |
+| 41729423 | 2026/Feb/23 |  | 2026/02/23 | Discover oncology | Oncogenic role of C11orf86 in ovarian cancer involving hypoxia respons |
+| 41731770 | 2026/Feb/20 |  | 2026/02/24 | Medicine | Genetic evidence linking anti-polyomavirus 2 IgG seropositivity to ova |
+| 41732365 | 2026/Apr | NO DAY | 2026/02/24 | Data in brief | Radiomics dataset from chest CT of clinically healthy adults. |
+| 41732611 | 2026/Jan | NO DAY | 2026/02/24 | Cureus | Late-Onset Li-Fraumeni Syndrome-Like Phenotype Presenting With Synchro |
+| 41733882 | 2026/Feb/14 |  | 2026/02/24 | MedScience | Differential genetic analysis of ectrodactyly in a Fanconi anemia pedi |
+| 41737139 | 2026 | NO DAY | 2026/02/25 | Cancer management and research | Clinicopathological and Genomic Analysis of SMARCA4-Deficient Non-Smal |
+| 41738275 | 2026/Feb/12 |  | 2026/02/25 | American journal of respiratory cell and | ATP6V0C-HIF-1&#x3b1; reciprocal activation drives acute lung injury. |
+| 41744857 | 2026/Feb/03 |  | 2026/02/26 | Current oncology (Toronto, Ont.) | Immune Checkpoint Inhibitors in Malignant Pleural Mesothelioma: Effica |
+| 41745365 | 2026/Jan/31 |  | 2026/02/26 | Journal of personalized medicine | Gastric-Type Cervical Adenocarcinoma: Clinicopathologic Features, Mole |
+| 41747966 | 2026/Apr | NO DAY | 2026/02/26 | Neurobiology of disease | Unveiling the hidden genetic conundrum linking pulmonary diseases and  |
+| 41748563 | 2026/Feb/26 |  | 2026/02/26 | Cell death &amp; disease | Targeting the p53 cancer mutants Y220C, Y220N, and Y220S with the smal |
+| 41749932 | 2026/Feb/19 |  | 2026/02/27 | Cancers | Clinical Importance of Molecular Biomarkers in Pleural Mesothelioma. |
+| 41751429 | 2026/Feb/02 |  | 2026/02/27 | Current issues in molecular biology | From Genetic Determinism to Epigenetic Regulation: Paradigm Shifts in  |
+| 41751534 | 2026/Jan/28 |  | 2026/02/27 | Genes | Genetically Shared Signatures Between COVID-19 and Cancer Identified T |
+| 41751593 | 2026/Feb/09 |  | 2026/02/27 | Genes | Genomic Profile of Non-Small Cell Lung Cancer in a Spanish Cohort: A 2 |
+| 41751910 | 2026/Feb/12 |  | 2026/02/27 | International journal of molecular scien | Differential Preclinical Efficacy of Combined CDK4/6 and MEK Inhibitio |
+| 41752517 | 2026/Feb/21 |  | 2026/02/27 | Molecules (Basel, Switzerland) | GenReP: An Ensemble Model for Predicting TP53 in Response to Pharmaceu |
+| 41753239 | 2026/Feb/15 |  | 2026/02/27 | Journal of clinical medicine | TP53 Functional-Domain-Specific Mutations Define Distinct Clinical Out |
+| 41756324 | 2026 | NO DAY | 2026/02/27 | Frontiers in oncology | Lung adenocarcinoma with KRAS-Q61H: clinicopathologic features, diagno |
+| 41756828 | 2026/Feb/17 |  | 2026/02/27 | bioRxiv : the preprint server for biolog | Lung cancer-enriched p53 mutants occupy canonical p53 target genes wit |
+| 41757189 | 2026/Feb/19 |  | 2026/02/27 | medRxiv : the preprint server for health | Contribution of dominant and recessive model effects to the genetic ar |
+| 41757858 | 2026 | NO DAY | 2026/02/27 | Technology in cancer research &amp; trea | Genomic Justice as Reproductive Justice: Universal Coverage for Preimp |
+| 41760054 | 2026/Feb/27 |  | 2026/02/27 | Medicine | Exploring significant gender disparities in esophageal cancer risk: In |
+| 41760058 | 2026/Feb/27 |  | 2026/02/27 | Medicine | The causal relationship between multiple cardiovascular diseases and g |
+| 41761813 | 2026/Apr | NO DAY | 2026/02/28 | Pakistan journal of pharmaceutical scien | Design and synthesis of BAP-1 inhibitors. |
+| 41764809 | 2026/May | NO DAY | 2026/03/01 | Pathology, research and practice | Adult ovarian granulosa cell tumor with high-grade hepatoid transforma |
+| 41764946 | 2026/Apr | NO DAY | 2026/03/01 | Lung cancer (Amsterdam, Netherlands) | Family history enrichment in Non-Small cell Lung Cancer: A cross-secti |
+| 41767375 | 2026 | NO DAY | 2026/03/02 | Frontiers in endocrinology | MALAT1 rs619586 as a potential genetic marker of pituitary adenoma sus |
+| 41769559 | 2026/Jan | NO DAY | 2026/03/02 | Cureus | Linitis Plastica in a Patient With a BRCA2 Mutation: A Case Report. |
+| 41769616 | 2026/Jan | NO DAY | 2026/03/02 | Cureus | Diagnostic Yield and Safety of Medical Thoracoscopic Biopsy in Undiagn |
+| 41771225 | 2026/Apr | NO DAY | 2026/03/02 | Cancer genetics | Familial colorectal cancer: risk factors, screening strategies and per |
+| 41775174 | 2026/Apr | NO DAY | 2026/03/03 | Leukemia research | IL1B rs1143627 and IL17A rs8193036 in the risk of Acute Graft Versus H |
+| 41775254 | 2026/Feb/09 |  | 2026/03/03 | Journal of gynecologic oncology | Homologous recombination deficiency in high-grade serous ovarian carci |
+| 41777655 | 2026 | NO DAY | 2026/03/04 | Frontiers in oncology | Uterine tumors resembling ovarian sex cord tumors: rare case report an |
+| 41780446 | 2026/Feb/26 |  | 2026/03/04 | Computational biology and chemistry | A multi-omics analysis integrating mendelian randomization, brain func |
+| 41785549 | 2026/Apr | NO DAY | 2026/03/05 | European journal of surgical oncology :  | Ten-year of French multicentric experience in the management of perito |
+| 41794198 | 2026/May/15 |  | 2026/03/07 | Gene | Association of C5AR1 polymorphisms with increased gastric cancer risk: |
+| 41795597 | 2026/Mar/04 |  | 2026/03/08 | Genetics in medicine : official journal  | Germline genetic testing and privacy concerns in patients with mesothe |
+| 41797589 | 2025/Oct/01 |  | 2026/03/09 | Indian journal of cancer | Adult-type epithelial neoplasms in children and adolescents-A retrospe |
+| 41798278 | 2026 | NO DAY | 2026/03/09 | Frontiers in pediatrics | Screening of early predictive serum biomarkers and construction of a c |
+| 41799407 | 2026 | NO DAY | 2026/03/09 | Respiratory medicine case reports | Cavitation and durable remission in a PD-L1-positive, TP53-mutant SMAR |
+| 41800703 | 2026/Mar | NO DAY | 2026/03/09 | Cancer medicine | Risk of Breast and Ovarian Cancer After Prophylactic Mastectomy and Sa |
+| 41802188 | 2026/Mar | NO DAY | 2026/03/09 | JCO precision oncology | Prevalence of BRCA1 Promoter Methylation in Cohorts of Individuals Wit |
+| 41804162 | 2026/Mar | NO DAY | 2026/03/10 | Journal of biochemical and molecular tox | Modulatory Effects of Cirsimarin on Lung Cancer A549 Cells Migration i |
+| 41804759 | 2026 | NO DAY | 2026/03/10 | Cancer control : journal of the Moffitt  | Integrative Molecular Insights Into Epidemiological, Genetic, and Meta |
+| 41805369 | 2026/Jan/10 |  | 2026/03/10 | High altitude medicine &amp; biology | Genetic Adaptation to Tibetan High Altitude and Hepatocellular Cancer  |
+| 41808711 | 2026/Feb/28 |  | 2026/03/11 | Translational lung cancer research | Convex-probe endobronchial ultrasound-guided cryobiopsy for pleural tu |
+| 41808713 | 2026/Feb/28 |  | 2026/03/11 | Translational lung cancer research | Multi-omics profiling reveals CDKN2A mutant early-onset lung squamous  |
+| 41808720 | 2026/Feb/28 |  | 2026/03/11 | Translational lung cancer research | Pathological complete response following neoadjuvant chemoimmunotherap |
+| 41808749 | 2026 | NO DAY | 2026/03/11 | Frontiers in cardiovascular medicine | Case Report: Rethinking pulmonary arterial hypertension: immune and me |
+| 41809872 | 2026/Feb/28 |  | 2026/03/11 | World journal of gastroenterology | Primary melanoma of the gastrointestinal tract. |
+| 41810283 | 2026 | NO DAY | 2026/03/11 | Frontiers in public health | Correction: Updates on exposure estimation for the Qu&#xe9;bec cohort  |
+| 41812093 | 2026/Mar | NO DAY | 2026/03/11 | JCO global oncology | Association of Family History and Polygenic Risk Scores With Prostate  |
+| 41813530 | 2025/Nov/03 |  | 2026/03/11 | International journal of gynecological c | DNA-junction-based personalized liquid biopsy assays could inform mana |
+| 41814526 | 2026/Mar | NO DAY | 2026/03/12 | Immunity, inflammation and disease | Investigating the Impact of Host Genetics on the Risk of Disease Progr |
+| 41815121 | 2026/Feb/28 |  | 2026/03/12 | Translational cancer research | Greater susceptibility of patients with idiopathic pulmonary fibrosis  |
+| 41815386 | 2026/Apr | NO DAY | 2026/03/12 | Lancet regional health. Americas | Clinical and molecular characterization of a large Brazilian lung canc |
+| 41816225 | 2026 | NO DAY | 2026/03/12 | Annals of case reports | Metastatic Pancreatic Adenocarcinoma with Germline BLM and Somatic ATM |
+| 41816400 | 2026/Feb/28 |  | 2026/03/12 | Journal of thoracic disease | Integrating interventional pulmonology and thoracic surgery: a multidi |
+| 41816417 | 2026/Feb/28 |  | 2026/03/12 | Journal of thoracic disease | Analysis of clinicopathological characteristics in postoperative molec |
+| 41816443 | 2026/Feb/28 |  | 2026/03/12 | Journal of thoracic disease | Hidden in plain sight: a narrative review on environmental exposures a |
+| 41817956 | 2026/Mar | NO DAY | 2026/03/12 | Journal of biochemical and molecular tox | Entinostat Induces Dual Apoptotic and Autophagic Cell Death in Small-C |
+| 41818162 | 2026 | NO DAY | 2026/03/12 | CA: a cancer journal for clinicians | Aumolertinib with carboplatin-pemetrexed versus aumolertinib for nonsm |
+| 41820267 | 2026/Mar | NO DAY | 2026/03/13 | Cancer medicine | Chemotherapy-Induced Myelosuppression in Patients With gBRCA-m Epithel |
+| 41827789 | 2026/Mar/06 |  | 2026/03/14 | Cancers | Evaluating Tissue-Agnostic Approvals in Thoracic and Head and Neck Mal |
+| 41828383 | 2026/Feb/25 |  | 2026/03/14 | International journal of molecular scien | TGF-&#x3b2; Inhibition Through Combinatory Strategies Suppresses Proli |
+| 41828541 | 2026/Mar/01 |  | 2026/03/14 | International journal of molecular scien | Evidence for Genotype-Specific Optimal Blood Lead Levels for Cancer Ri |
+| 41828619 | 2026/Mar/05 |  | 2026/03/14 | International journal of molecular scien | All-Cause Mortality and Cancer Risk Dependent on Blood Se Level and HR |
+| 41833817 | 2026/Mar/13 |  | 2026/03/16 | Journal of thoracic oncology : official  | The International Association for the Study of Lung Cancer Pleural Mes |
+| 41833902 | 2026/Mar/13 |  | 2026/03/16 | Annals of oncology : official journal of | MTAP Loss Is Frequent in Oncogene-Driven NSCLC and May Confer Sensitiv |
+| 41837056 | 2026/Mar | NO DAY | 2026/03/16 | International journal of surgery case re | Recurrent spontaneous pneumothorax and surgical management in Birt-Hog |
+| 41840829 | 2026/Mar | NO DAY | 2026/03/17 | The Journal of international medical res | A multiomics Mendelian randomization study on PANoptosis-related genes |
+| 41841201 | 2026/Mar | NO DAY | 2026/03/17 | International journal of rheumatic disea | Risk of Cancer in Patients With Primary Sj&#xf6;gren's Disease and The |
+| 41842647 | 2026/Apr/01 |  | 2026/03/17 | Scientific American | 50, 100 &amp; 150 Years: A quorum of quarks; asbestos surprises. |
+| 41847125 | 2026 | NO DAY | 2026/03/18 | Frontiers in genetics | Construction and validation of a prognostic model for lung adenocarcin |
+| 41847202 | 2026 | NO DAY | 2026/03/18 | Qatar medical journal | Malignant mesothelioma in the State of Qatar: A clinico-epidemiologica |
+| 41849731 | 2026/Mar | NO DAY | 2026/03/18 | JCO precision oncology | Diffuse Pleural Mesothelioma in Young (Age &#x2264;50 Years) and Very  |
+| 41849902 | 2026/Mar/14 |  | 2026/03/18 | Spectrochimica acta. Part A, Molecular a | A fluorescein modified fluorescence sensor for simultaneous discrimina |
+| 41852899 | 2026/May | NO DAY | 2026/03/19 | Oncology letters | Malignant mesothelioma of the tunica vaginalis testis: A case report. |
+| 41854001 | 2026 | NO DAY | 2026/03/19 | Epidemiologia e prevenzione | [The epidemiological surveillance in the regional public health progra |
+| 41855630 | 2026/Feb/28 |  | 2026/03/19 | Cancer treatment and research communicat | Systematic literature review of secondary primary malignancies related |
+| 41855992 | 2026/Mar/13 |  | 2026/03/19 | Annals of diagnostic pathology | SMARCA4-deficient thoracic malignancies with small cell lung cancer-li |
+| 41858121 | 2026/Mar | NO DAY | 2026/03/20 | Thoracic cancer | TP53 CpG Site Mutations Predict the Survival of First-Line Chemoimmuno |
+| 41861461 | 2026/Feb/24 |  | 2026/03/20 | Clinical lung cancer | Coopting Germline BRCA2 Mutation With an Available PARP Inhibitor to M |
+| 41862332 | 2026/Mar/10 |  | 2026/03/20 | Archivos de bronconeumologia | Spain's Pleural Cancer Mortality 1984-2023: Insights From a Delayed As |
+| 41863665 | 2026/Mar/21 |  | 2026/03/21 | Japanese journal of radiology | Pretreatment volume-based 18F-FDG PET/CT parameters as prognostic indi |
+| 41863841 | 2026/Mar/15 |  | 2026/03/21 | Reproduction (Cambridge, England) | Genomic profiling of meiotic errors and early malignant transformation |
+| 41864504 | 2026/Mar/19 |  | 2026/03/21 | Acta otorrinolaringologica espanola | Occupational laryngeal cancer caused by asbestos in Spain. |
+| 41865003 | 2026/Mar/21 |  | 2026/03/22 | Hereditary cancer in clinical practice | A retrospective analysis of risk-reducing salpingo-oophorectomy perfor |
+| 41866693 | 2026/Apr | NO DAY | 2026/03/23 | Clinical nutrition ESPEN | A two-sample Mendelian Randomization study on the causal relationship  |
+| 41867945 | 2026 | NO DAY | 2026/03/23 | Frontiers in toxicology | Evaluating the QEAS-7 questionnaire as a predictor of asbestos burden  |
+| 41868812 | 2026/Mar | NO DAY | 2026/03/23 | Pleura and peritoneum | The utility of a pleural carcinomatosis score for assessing resectabil |
+| 41878521 | 2026 | NO DAY | 2026/03/25 | Frontiers in oncology | Management of pleural relapse after breast cancer resection in a middl |
+| 41878538 | 2026 | NO DAY | 2026/03/25 | Frontiers in oncology | Case Report: Immune checkpoint inhibitor-triggered anti-Ma2 paraneopla |
+| 41883871 | 2026 | NO DAY | 2026/03/26 | Therapeutic advances in medical oncology | An intriguing journey into the hereditary syndromes predisposing to en |
+| 41886900 | 2026/Mar/20 |  | 2026/03/26 | Seminars in diagnostic pathology | Updates in keratin-positive mesenchymal neoplasia. |
+| 41887053 | 2026/Mar/17 |  | 2026/03/26 | Pathology, research and practice | Molecular characterization of borderline and malignant Brenner tumors: |
+| 41887129 | 2026/Mar/21 |  | 2026/03/26 | Lung cancer (Amsterdam, Netherlands) | Single-center retrospective cohort study of lung cancer associated wit |
+| 41887131 | 2026/Mar/21 |  | 2026/03/26 | Lung cancer (Amsterdam, Netherlands) | Molecular subtyping of small-cell lung cancer in clinical practice: Pr |
+| 41889415 | 2026 | NO DAY | 2026/03/27 | Frontiers in oncology | Therapeutic misalignment averted by clonal evolutionary evidence: mole |
+| 41891376 | 2026/Apr | NO DAY | 2026/03/27 | Cancer cytopathology | Unraveling the nexus: Tumor mutational burden, PD-L1 expression, and o |
+| 41892220 | 2026/Mar/12 |  | 2026/03/27 | Biology | Pan-Cancer Analysis of PAPPA Gene Reveals Tumor-Specific Prognostic Ef |
+| 41894033 | 2026/Mar/27 |  | 2026/03/27 | Familial cancer | Re-evaluating hereditary breast and ovarian cancer risk: clinical impa |
+| 41894652 | 2026/Mar | NO DAY | 2026/03/27 | JCO clinical cancer informatics | Web-Based User Interface for Fam3PRO: A Multigene, Multicancer Risk Pr |
+| 41895111 | 2026/Mar/19 |  | 2026/03/27 | Food chemistry | Insight into simultaneous destabilization of oleosomes during aqueous  |
+| 41895741 | 2026/Apr | NO DAY | 2026/03/27 | Anticancer research | Insights From Matrix Metalloproteinase-2 Genotypes to Decipher the Gen |
+| 41895749 | 2026/Apr | NO DAY | 2026/03/27 | Anticancer research | Chemosensitizing Effects of Resveratrol Derivatives on p53-dependent A |
+| 41897285 | 2026/Feb/26 |  | 2026/03/28 | Biomolecules | New 1,2,3-Triazole and Dipyridothiazine Hybrids-Synthesis, Analysis, C |
+| 41897310 | 2026/Mar/02 |  | 2026/03/28 | Biomolecules | Involvement of c-Myc/WWP1/TRIM65 Axis in Renal Fibrosis. |
+| 41898563 | 2026/Mar/16 |  | 2026/03/28 | International journal of molecular scien | MicroRNA Mimics Based on the miR-15/107 Consensus Sequence Sensitise N |
+| 41898690 | 2026/Mar/20 |  | 2026/03/28 | International journal of molecular scien | Bridging Inflammation and Oncology: The Role and Therapeutic Potential |
+| 41899531 | 2026/Mar/12 |  | 2026/03/28 | Cancers | Association Between Single-Nucleotide Polymorphism and Trastuzumab Der |
+| 41899580 | 2026/Mar/18 |  | 2026/03/28 | Cancers | Genetic Predisposition to Pancreatic Cancer: A Systematic Review of He |
+| 41899692 | 2026/Mar/04 |  | 2026/03/28 | International journal of environmental r | Health, Work, Invisibilities and Collective Resistance in an Asbestos- |
+| 41900841 | 2026/Mar/12 |  | 2026/03/28 | Pharmaceutics | Interplay Between Poly(ADP-ribosyl)ation and Specific Inner Cellular E |
+| 41900904 | 2026/Feb/28 |  | 2026/03/28 | Life (Basel, Switzerland) | Inactivation of BAP1 and the Hippo Pathway Characterizes the Genomic A |
+| 41901055 | 2026/Mar/10 |  | 2026/03/28 | Nutrients | Mapping the Analytical Landscape of Gene-Diet Interactions in Epidemio |
+| 41901346 | 2026/Mar/18 |  | 2026/03/28 | Pharmaceuticals (Basel, Switzerland) | Radioimmunotherapy for Malignant Mesothelioma Targeting C-ERC/Mesothel |
+| 41901659 | 2026/Mar/19 |  | 2026/03/28 | Medicina (Kaunas, Lithuania) | Pulmonary Complications of Cancer Therapy: Clinical Presentations, Ima |
