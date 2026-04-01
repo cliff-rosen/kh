@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { api } from '../lib/api';
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -16,9 +17,7 @@ export function useVersionCheck(): VersionCheckResult {
 
   const checkVersion = useCallback(async () => {
     try {
-      const res = await fetch('/api/health');
-      if (!res.ok) return;
-      const data = await res.json();
+      const { data } = await api.get('/api/health');
       const serverVersion = data.version;
       if (serverVersion && serverVersion !== 'dev') {
         setLatestVersion(serverVersion);
