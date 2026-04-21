@@ -16,7 +16,8 @@ def _resolve_version() -> str:
     # 1. BUILD_VERSION file (written by deploy script)
     build_file = _backend_dir / "BUILD_VERSION"
     if build_file.exists():
-        version = build_file.read_text().strip()
+        # Strip BOM — PowerShell's Out-File -Encoding utf8 writes one
+        version = build_file.read_text(encoding="utf-8-sig").strip()
         if version:
             return version
     # 2. Latest git tag
