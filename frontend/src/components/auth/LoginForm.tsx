@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import settings from '@/config/settings';
 import { useAuth } from '@/context/AuthContext';
 import { authApi, type InvitationValidation } from '@/lib/api/authApi';
+import RequestAccessModal from './RequestAccessModal';
 
 export default function LoginForm() {
     const [searchParams] = useSearchParams();
@@ -20,6 +21,7 @@ export default function LoginForm() {
 
     // Local state - now managed within LoginForm
     const [isRegistering, setIsRegistering] = useState(false);
+    const [showRequestAccess, setShowRequestAccess] = useState(false);
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -110,9 +112,8 @@ export default function LoginForm() {
         return (
             <div className="max-w-md w-full space-y-8 p-8 bg-white dark:bg-gray-800 rounded-lg shadow-md">
                 <div className="text-center">
-                    <h2 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">
-                        {settings.appName}
-                    </h2>
+                    <img src="/logos/KH logo black.png" alt={settings.appName} className="h-16 w-auto mx-auto mb-4 dark:hidden" />
+                    <img src="/logos/KH logo white.png" alt={settings.appName} className="h-16 w-auto mx-auto mb-4 hidden dark:block" />
                     <div className="flex items-center justify-center py-8">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
@@ -129,9 +130,8 @@ export default function LoginForm() {
         return (
             <div className="max-w-md w-full space-y-8 p-8 bg-white dark:bg-gray-800 rounded-lg shadow-md">
                 <div className="text-center">
-                    <h2 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">
-                        {settings.appName}
-                    </h2>
+                    <img src="/logos/KH logo black.png" alt={settings.appName} className="h-16 w-auto mx-auto mb-4 dark:hidden" />
+                    <img src="/logos/KH logo white.png" alt={settings.appName} className="h-16 w-auto mx-auto mb-4 hidden dark:block" />
                     <h1 className="text-3xl font-bold dark:text-white mb-2">
                         Invalid Invitation
                     </h1>
@@ -158,9 +158,8 @@ export default function LoginForm() {
     return (
         <div className="max-w-md w-full space-y-8 p-8 bg-white dark:bg-gray-800 rounded-lg shadow-md">
             <div className="text-center">
-                <h2 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">
-                    {settings.appName}
-                </h2>
+                <img src="/logos/KH logo black.png" alt={settings.appName} className="h-16 w-auto mx-auto mb-4 dark:hidden" />
+                <img src="/logos/KH logo white.png" alt={settings.appName} className="h-16 w-auto mx-auto mb-4 hidden dark:block" />
                 <h1 className="text-3xl font-bold dark:text-white mb-2">
                     {invitationData?.valid ? 'You\'re Invited!' : 'Welcome'}
                 </h1>
@@ -169,9 +168,7 @@ export default function LoginForm() {
                         ? invitationData?.valid
                             ? 'Complete your registration to join'
                             : 'Create your account'
-                        : isPasswordlessMode
-                            ? 'Get a login link via email'
-                            : 'Sign in to your account'
+                        : 'Sign in to your account'
                     }
                 </p>
             </div>
@@ -286,40 +283,38 @@ export default function LoginForm() {
             {/* Hide mode switching when using invitation */}
             {!invitationData?.valid && (
                 <div className="text-center space-y-2">
-                    {!isRegistering && (
+                    {/* Passwordless login toggle - hidden for now, plumbing preserved */}
+
+                    {isRegistering ? (
                         <button
                             onClick={() => {
-                                setIsPasswordlessMode(!isPasswordlessMode);
+                                setIsRegistering(false);
+                                setIsPasswordlessMode(false);
                                 setTokenSent(false);
+                                setFormData(prev => ({
+                                    ...prev,
+                                    password: '',
+                                    confirmPassword: ''
+                                }));
                                 setPasswordError(null);
                             }}
-                            className="block w-full text-sm text-gray-600 dark:text-gray-400 hover:text-gray-500"
+                            className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500"
                         >
-                            {isPasswordlessMode
-                                ? 'Use password instead'
-                                : 'Get login link via email'}
+                            Already have an account? Sign in
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => setShowRequestAccess(true)}
+                            className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500"
+                        >
+                            Need an account? Request access
                         </button>
                     )}
-
-                    <button
-                        onClick={() => {
-                            setIsRegistering(!isRegistering);
-                            setIsPasswordlessMode(false);
-                            setTokenSent(false);
-                            setFormData(prev => ({
-                                ...prev,
-                                password: '',
-                                confirmPassword: ''
-                            }));
-                            setPasswordError(null);
-                        }}
-                        className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500"
-                    >
-                        {isRegistering
-                            ? 'Already have an account? Sign in'
-                            : 'Need an account? Register'}
-                    </button>
                 </div>
+            )}
+
+            {showRequestAccess && (
+                <RequestAccessModal onClose={() => setShowRequestAccess(false)} />
             )}
         </div>
     );

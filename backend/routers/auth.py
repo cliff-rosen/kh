@@ -7,6 +7,7 @@ import logging
 
 from database import get_async_db
 from schemas.user import Token
+from models import AccessRequest
 
 from services import auth_service
 from services.user_service import UserService, get_user_service
@@ -45,7 +46,29 @@ class InvitationValidation(BaseModel):
     error: str | None = None
 
 
+class AccessRequestCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    email: EmailStr
+    company: str | None = Field(default=None, max_length=255)
+
+
 router = APIRouter()
+
+
+@router.post("/access-requests", status_code=201, summary="Submit an access request")
+async def submit_access_request(
+    data: AccessRequestCreate,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Public endpoint - no auth required."""
+    req = AccessRequest(
+        name=data.name.strip(),
+        email=data.email.strip(),
+        company=data.company.strip() if data.company else None,
+    )
+    db.add(req)
+    await db.commit()
+    return {"ok": True}
 
 
 @router.post(

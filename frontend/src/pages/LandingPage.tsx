@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { MoonIcon, SunIcon } from '@heroicons/react/24/outline';
 import settings from '../config/settings';
+import RequestAccessModal from '../components/auth/RequestAccessModal';
 
 const faqs = [
   {
@@ -102,6 +103,7 @@ const features = [
 export default function LandingPage() {
   const { isDarkMode, toggleTheme } = useTheme();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [showRequestModal, setShowRequestModal] = useState(false);
 
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
@@ -146,7 +148,7 @@ export default function LandingPage() {
             AI-Powered Litigation Intelligence
           </p>
           <h1 className="text-4xl sm:text-5xl font-bold leading-tight">
-            Comprehensive Scientific Awareness for Asbestos &amp; Talc Defense
+            Comprehensive Scientific Awareness for Asbestos &amp; Talc Litigators
           </h1>
 
           <div className="mt-14 grid grid-cols-1 md:grid-cols-2 gap-12 text-left max-w-3xl mx-auto">
@@ -171,12 +173,13 @@ export default function LandingPage() {
             >
               Sign In
             </Link>
-            <a
-              href="mailto:cliff@ironcliff.ai?subject=Knowledge%20Horizon%20%E2%80%93%20Access%20Request"
+            <button
+              type="button"
+              onClick={() => setShowRequestModal(true)}
               className="px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-600 font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
               Request Access
-            </a>
+            </button>
           </div>
         </div>
       </section>
@@ -253,6 +256,10 @@ export default function LandingPage() {
           </Link>
         </div>
       </footer>
+
+      {showRequestModal && (
+        <RequestAccessModal onClose={() => setShowRequestModal(false)} />
+      )}
     </div>
   );
 }

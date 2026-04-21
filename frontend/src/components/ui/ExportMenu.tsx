@@ -23,12 +23,12 @@ export default function ExportMenu({ options, variant = 'icon', align = 'right' 
                 onClick={() => setIsOpen(!isOpen)}
                 className={
                     variant === 'icon'
-                        ? 'p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        ? 'p-1.5 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                         : 'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }
                 title="Export"
             >
-                <ArrowDownTrayIcon className="h-5 w-5" />
+                <ArrowDownTrayIcon className="h-4 w-4" />
                 {variant === 'button' && <span>Export</span>}
             </button>
 

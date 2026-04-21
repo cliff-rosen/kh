@@ -6,3 +6,4 @@ export { ActivityList } from './ActivityList';
 export { ConversationList } from './ConversationList';
 export { ChatConfigPanel } from './ChatConfigPanel';
 export { ArtifactList } from './ArtifactList';
+export { default as AccessRequestList } from './AccessRequestList';

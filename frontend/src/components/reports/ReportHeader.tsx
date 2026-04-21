@@ -62,13 +62,13 @@ export default function ReportHeader({
         }] : []),
     ];
     return (
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700">
             {/* First line: Title (left) + Config/Analytics icons (right) */}
             <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                     {report.report_name}
                 </h2>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                     {exportOptions.length > 0 && (
                         <ExportMenu options={exportOptions} />
                     )}
@@ -76,18 +76,18 @@ export default function ReportHeader({
                         <>
                             <button
                                 onClick={onShowExecutionConfig}
-                                className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                className="p-1.5 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                                 title="View execution configuration snapshot"
                             >
-                                <Cog6ToothIcon className="h-5 w-5" />
+                                <Cog6ToothIcon className="h-4 w-4" />
                             </button>
                             {hasPipelineData && (
                                 <button
                                     onClick={onShowAnalytics}
-                                    className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                    className="p-1.5 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                                     title="View pipeline analytics and detailed metrics"
                                 >
-                                    <ChartBarIcon className="h-5 w-5" />
+                                    <ChartBarIcon className="h-4 w-4" />
                                 </button>
                             )}
                         </>
@@ -95,10 +95,10 @@ export default function ReportHeader({
                     {showDelete && (
                         <button
                             onClick={onDeleteReport}
-                            className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400"
+                            className="p-1.5 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400"
                             title="Delete report"
                         >
-                            <TrashIcon className="h-5 w-5" />
+                            <TrashIcon className="h-4 w-4" />
                         </button>
                     )}
                 </div>
@@ -116,7 +116,7 @@ export default function ReportHeader({
             )}
 
             {/* Second line: Dates (left) + View buttons (right) */}
-            <div className="flex items-center justify-between mt-3">
+            <div className="flex items-center justify-between mt-2">
                 <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                     {report.retrieval_params?.end_date ? (
                         <span>

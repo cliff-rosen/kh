@@ -868,6 +868,9 @@ class PubMedService:
         dropped_pmids: List[str] = []
         failed_batches: List[tuple[int, int, str]] = []
 
+        MAX_RETRIES = 3
+        RETRY_DELAYS = [2, 5, 10]  # seconds
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             while low < len(ids):
                 logger.info(f"Processing articles {low} to {high}")
@@ -876,9 +879,27 @@ class PubMedService:
                 params = {"db": "pubmed", "id": ",".join(id_batch)}
                 xml = ""
                 try:
-                    response = await client.get(url, params=params)
-                    response.raise_for_status()
-                    xml = response.text
+                    last_err = None
+                    for attempt in range(MAX_RETRIES):
+                        try:
+                            response = await client.get(url, params=params)
+                            response.raise_for_status()
+                            xml = response.text
+                            last_err = None
+                            break
+                        except (httpx.RemoteProtocolError, httpx.ConnectError,
+                                httpx.ReadTimeout, httpx.ConnectTimeout) as retry_err:
+                            last_err = retry_err
+                            if attempt < MAX_RETRIES - 1:
+                                delay = RETRY_DELAYS[attempt]
+                                logger.warning(
+                                    f"Transient error fetching batch {low}-{high} "
+                                    f"(attempt {attempt + 1}/{MAX_RETRIES}): {retry_err}. "
+                                    f"Retrying in {delay}s..."
+                                )
+                                await asyncio.sleep(delay)
+                    if last_err is not None:
+                        raise last_err
                 except Exception as e:
                     logger.error(
                         f"Error fetching articles batch {low}-{high}: {e}",
@@ -957,6 +978,16 @@ class PubMedService:
         logger.info(
             f"Fetch complete: requested {len(ids)}, returned {len(articles)}, dropped {len(dropped_pmids)}"
         )
+
+        # If any batches failed due to network/server errors, raise so the caller
+        # can distinguish "PubMed returned 0 results" from "fetch crashed".
+        if failed_batches:
+            raise RuntimeError(
+                f"PubMed fetch failed: {len(failed_batches)} batch(es) failed, "
+                f"{len(dropped_pmids)} articles dropped. "
+                f"Successfully fetched {len(articles)} of {len(ids)} requested. "
+                f"Failures: {failed_batches}"
+            )
 
         # Fetch full text for articles with PMC IDs if requested
         if include_full_text:

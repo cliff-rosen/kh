@@ -1,6 +1,12 @@
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { StarIcon } from '@heroicons/react/24/solid';
 import { Report } from '../../types';
+
+const SIDEBAR_WIDTH_KEY = 'reportSidebarWidth';
+const DEFAULT_WIDTH = 280;
+const MIN_WIDTH = 200;
+const MAX_WIDTH = 480;
 
 export interface ReportSidebarProps {
     reports: Report[];
@@ -25,8 +31,56 @@ export default function ReportSidebar({
     showStarredSelected = false,
     onSelectStarred
 }: ReportSidebarProps) {
+    const [width, setWidth] = useState(() => {
+        const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+        return saved ? Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, parseInt(saved, 10))) : DEFAULT_WIDTH;
+    });
+    const isDragging = useRef(false);
+    const startX = useRef(0);
+    const startWidth = useRef(0);
+
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        isDragging.current = true;
+        startX.current = e.clientX;
+        startWidth.current = width;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+    }, [width]);
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDragging.current) return;
+            const newWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, startWidth.current + (e.clientX - startX.current)));
+            setWidth(newWidth);
+        };
+        const handleMouseUp = () => {
+            if (!isDragging.current) return;
+            isDragging.current = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+        };
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [width]);
+
     return (
-        <div className={`transition-all duration-300 ${collapsed ? 'w-12' : 'w-80'} flex-shrink-0`}>
+        <div
+            className={`relative flex-shrink-0 ${collapsed ? 'w-12' : ''}`}
+            style={collapsed ? undefined : { width }}
+        >
+            {/* Drag handle */}
+            {!collapsed && (
+                <div
+                    onMouseDown={handleMouseDown}
+                    className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-blue-400/40 active:bg-blue-500/50 z-10 transition-colors"
+                />
+            )}
             <div className="sticky top-6">
                 {/* Collapse/Expand Button */}
                 <button
@@ -56,7 +110,7 @@ export default function ReportSidebar({
                             >
                                 <div className="flex items-center gap-2">
                                     <StarIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                                    <h3 className="font-semibold text-gray-900 dark:text-white">
+                                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">
                                         Favorites
                                     </h3>
                                 </div>
@@ -82,7 +136,7 @@ export default function ReportSidebar({
                                 >
                                     <div className="flex items-start justify-between">
                                         <div className="flex-1 min-w-0">
-                                            <h3 className="font-semibold text-gray-900 dark:text-white">
+                                            <h3 className="text-sm font-medium text-gray-900 dark:text-white">
                                                 {report.report_name}
                                             </h3>
                                             {report.approval_status !== 'approved' && (

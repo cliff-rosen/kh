@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import settings
 from database import get_async_db
-from models import User, UserRole, ChatConfig
+from models import User, UserRole, ChatConfig, AccessRequest
 from services import auth_service
 from services.organization_service import OrganizationService, get_organization_service
 from services.artifact_service import ArtifactService, get_artifact_service
@@ -1947,3 +1947,68 @@ async def bulk_delete_artifacts(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to bulk delete artifacts: {str(e)}",
         )
+
+
+# =============================================================================
+# Access Requests
+# =============================================================================
+
+class AccessRequestResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    company: Optional[str] = None
+    status: str
+    notes: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AccessRequestUpdate(BaseModel):
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@router.get(
+    "/access-requests",
+    response_model=List[AccessRequestResponse],
+    summary="List access requests",
+)
+async def list_access_requests(
+    db: AsyncSession = Depends(get_async_db),
+    _current_user: User = Depends(require_platform_admin),
+):
+    result = await db.execute(
+        select(AccessRequest).order_by(AccessRequest.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.put(
+    "/access-requests/{request_id}",
+    response_model=AccessRequestResponse,
+    summary="Update an access request",
+)
+async def update_access_request(
+    request_id: int,
+    data: AccessRequestUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    _current_user: User = Depends(require_platform_admin),
+):
+    result = await db.execute(
+        select(AccessRequest).where(AccessRequest.id == request_id)
+    )
+    req = result.scalar_one_or_none()
+    if not req:
+        raise HTTPException(status_code=404, detail="Access request not found")
+
+    if data.status is not None:
+        req.status = data.status
+    if data.notes is not None:
+        req.notes = data.notes
+
+    await db.commit()
+    await db.refresh(req)
+    return req

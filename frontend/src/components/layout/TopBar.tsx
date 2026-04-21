@@ -37,10 +37,12 @@ export default function TopBar() {
                         <HomeIcon className="h-5 w-5 mr-2" />
                         Dashboard
                     </NavLink>
-                    <NavLink to="/streams" className={getLinkClass('/streams')} onClick={() => trackEvent('nav_click', { destination: 'streams' })}>
-                        <BeakerIcon className="h-5 w-5 mr-2" />
-                        Streams
-                    </NavLink>
+                    {(isPlatformAdmin || isOrgAdmin) && (
+                        <NavLink to="/streams" className={getLinkClass('/streams')} onClick={() => trackEvent('nav_click', { destination: 'streams' })}>
+                            <BeakerIcon className="h-5 w-5 mr-2" />
+                            Streams
+                        </NavLink>
+                    )}
                     <NavLink to="/reports" className={getLinkClass('/reports')} onClick={() => trackEvent('nav_click', { destination: 'reports' })}>
                         <DocumentTextIcon className="h-5 w-5 mr-2" />
                         Reports

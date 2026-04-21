@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon, BugAntIcon } from '@heroicons/react/24/solid';
 
 import { useChatContext } from '../../context/ChatContext';
+import { useAuth } from '../../context/AuthContext';
 import { trackEvent } from '../../lib/api/trackingApi';
 import { getPayloadHandler } from '../../lib/chat'; // Import from index to trigger payload registration
 
@@ -230,6 +231,7 @@ export default function ChatTray({
     }, [width, minWidth, maxWidth]);
 
     const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, setContext, reset, loadMostRecent, loadChat, chatId, context } = useChatContext();
+    const { isPlatformAdmin } = useAuth();
     const [input, setInput] = useState('');
     const [showDebug, setShowDebug] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -473,15 +475,17 @@ export default function ChatTray({
                             </h3>
                         </div>
                         <div className="flex items-center gap-1">
-                            <button
-                                type="button"
-                                onClick={() => setShowDebug(!showDebug)}
-                                className={`p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors ${showDebug ? 'bg-gray-200 dark:bg-gray-700' : ''}`}
-                                aria-label="Toggle debug info"
-                                title="Toggle debug info"
-                            >
-                                <BugAntIcon className={`h-5 w-5 ${showDebug ? 'text-orange-500' : 'text-gray-500 dark:text-gray-400'}`} />
-                            </button>
+                            {isPlatformAdmin && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowDebug(!showDebug)}
+                                    className={`p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors ${showDebug ? 'bg-gray-200 dark:bg-gray-700' : ''}`}
+                                    aria-label="Toggle debug info"
+                                    title="Toggle debug info"
+                                >
+                                    <BugAntIcon className={`h-5 w-5 ${showDebug ? 'text-orange-500' : 'text-gray-500 dark:text-gray-400'}`} />
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={handleReset}
@@ -559,7 +563,7 @@ export default function ChatTray({
                                                         View {message.tool_history.length} tool{message.tool_history.length > 1 ? 's' : ''}
                                                     </button>
                                                 )}
-                                                {message.diagnostics && (
+                                                {isPlatformAdmin && message.diagnostics && (
                                                     <button
                                                         type="button"
                                                         onClick={() => setDiagnosticsToShow(message.diagnostics!)}

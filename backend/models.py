@@ -968,6 +968,19 @@ class WorkerStatus(Base):
     version = Column(String(50), nullable=True)  # Build version if available
 
 
+class AccessRequest(Base):
+    """Requests for access submitted via the landing page or login screen."""
+    __tablename__ = "access_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False)
+    company = Column(String(255), nullable=True)
+    status = Column(String(50), default="pending", nullable=False)  # pending, contacted, approved, rejected
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # Add relationships to User model
 User.research_streams = relationship("ResearchStream", back_populates="user", foreign_keys="ResearchStream.user_id")
 User.created_streams = relationship("ResearchStream", foreign_keys="ResearchStream.created_by")

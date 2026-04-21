@@ -148,6 +148,10 @@ async def login_user(db: AsyncSession, email: str, password: str) -> Token:
             detail="Incorrect email or password"
         )
 
+    # Invalidate any outstanding password reset token
+    if user.password_reset_token:
+        await user_service.clear_password_reset_token(user.user_id)
+
     logger.info(f"Successful login for: {email}")
     return _create_token_for_user(user)
 

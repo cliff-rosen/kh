@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { DocumentTextIcon, ChevronDownIcon, ChevronRightIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
@@ -28,7 +28,6 @@ import PubMedArticleCard, { PubMedArticleData } from '../components/chat/PubMedA
 
 import {
     ReportArticleTable,
-    ReportStreamSelector,
     ReportSidebar,
     ReportHeader,
     ReportArticleCard,
@@ -39,7 +38,6 @@ import { getStanceInfo } from '../components/ui/StanceAnalysisDisplay';
 
 export default function ReportsPage() {
     const [searchParams] = useSearchParams();
-    const navigate = useNavigate();
     const { researchStreams, loadResearchStreams } = useResearchStream();
     const { isPlatformAdmin, isOrgAdmin } = useAuth();
     const { track, trackViewChange, trackChatOpen, trackChatClose } = useTracking({ defaultContext: { page: 'reports' } });
@@ -240,13 +238,15 @@ export default function ReportsPage() {
         loadResearchStreams();
     }, [loadResearchStreams]);
 
-    // Set selected stream from URL parameter
+    // Set selected stream from URL parameter, or default to first available stream
     useEffect(() => {
         const streamParam = searchParams.get('stream');
         if (streamParam) {
             setSelectedStream(streamParam);
+        } else if (!selectedStream && researchStreams.length > 0) {
+            setSelectedStream(researchStreams[0].stream_id.toString());
         }
-    }, [searchParams]);
+    }, [searchParams, researchStreams, selectedStream]);
 
     // Load stream details and reports when stream is selected
     useEffect(() => {
@@ -365,14 +365,6 @@ export default function ReportsPage() {
             }
         } catch (err) {
             showErrorToast(err, 'Failed to delete report');
-        }
-    };
-
-    const handleStreamChange = (streamId: string) => {
-        setSelectedStream(streamId);
-        if (streamId) {
-            const stream = researchStreams.find(s => s.stream_id.toString() === streamId);
-            track('stream_select', { stream_id: parseInt(streamId, 10), stream_name: stream?.stream_name });
         }
     };
 
@@ -697,28 +689,14 @@ export default function ReportsPage() {
                 {/* Page Header */}
                 <div className="flex justify-between items-center mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                            Reports
+                        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                            Reports{streamDetails ? `: ${streamDetails.stream_name}` : ''}
                         </h1>
                         <p className="text-gray-600 dark:text-gray-400 mt-2">
                             Generated reports from your research streams
                         </p>
                     </div>
                 </div>
-
-                {/* Stream Selector */}
-                {hasStreams && (
-                    <ReportStreamSelector
-                        researchStreams={researchStreams}
-                        selectedStream={selectedStream}
-                        onStreamChange={handleStreamChange}
-                        onRunPipeline={() => {
-                            track('pipeline_run_click', { stream_id: parseInt(selectedStream, 10) });
-                            navigate(`/streams/${selectedStream}/edit?tab=execute&subtab=pipeline`);
-                        }}
-                        showRunPipeline={!!selectedStream && (isPlatformAdmin || isOrgAdmin)}
-                    />
-                )}
 
                 {/* Empty States or Report Content */}
                 {renderEmptyState() || (

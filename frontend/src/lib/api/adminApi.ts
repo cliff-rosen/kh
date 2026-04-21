@@ -482,6 +482,16 @@ export const adminApi = {
     const response = await api.delete(`/api/admin/artifact-categories/${id}`);
     return response.data;
   },
+
+  async getAccessRequests(): Promise<AccessRequest[]> {
+    const response = await api.get('/api/admin/access-requests');
+    return response.data;
+  },
+
+  async updateAccessRequest(id: number, data: { status?: string; notes?: string }): Promise<AccessRequest> {
+    const response = await api.put(`/api/admin/access-requests/${id}`, data);
+    return response.data;
+  },
 };
 
 // Chat config types
@@ -652,6 +662,16 @@ export interface ChatConfigUpdate {
 }
 
 // System config types
+export interface AccessRequest {
+  id: number;
+  name: string;
+  email: string;
+  company: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+}
+
 export interface SystemConfig {
   max_tool_iterations: number;
   global_preamble: string | null;

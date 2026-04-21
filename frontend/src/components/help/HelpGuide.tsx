@@ -5,10 +5,9 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-    DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { HelpCircle, X } from 'lucide-react';
+import { HelpCircle } from 'lucide-react';
 
 interface Subsection {
     id: string;
@@ -383,21 +382,6 @@ export const HelpGuide: React.FC = () => {
                 </Button>
             </DialogTrigger>
             <DialogContent className="max-w-6xl h-[80vh] flex flex-col">
-                <DialogClose asChild>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-4 top-4
-                                 inline-flex items-center justify-center rounded-md w-8 h-8
-                                 text-gray-400 hover:text-gray-500 hover:bg-gray-100
-                                 dark:text-gray-400 dark:hover:text-gray-300 dark:hover:bg-gray-800
-                                 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
-                                 transition-colors"
-                        aria-label="Close"
-                    >
-                        <X className="h-4 w-4" />
-                    </Button>
-                </DialogClose>
                 <DialogHeader className="border-b border-gray-200 dark:border-gray-700 pb-4">
                     <DialogTitle className="text-2xl font-bold text-gray-900 dark:text-white">Knowledge Horizon Help</DialogTitle>
                 </DialogHeader>

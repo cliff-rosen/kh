@@ -113,5 +113,9 @@ export const authApi = {
             new_password: newPassword
         });
         return response.data;
-    }
+    },
+
+    async submitAccessRequest(data: { name: string; email: string; company?: string }): Promise<void> {
+        await api.post('/api/auth/access-requests', data);
+    },
 };

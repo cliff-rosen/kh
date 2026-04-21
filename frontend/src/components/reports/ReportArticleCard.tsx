@@ -55,7 +55,7 @@ export default function ReportArticleCard({
                     )}
                     {cardFormat === 'ai_summary' && !article.ai_summary && article.abstract && (
                         <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 italic">No AI summary available - showing abstract</p>
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Abstract</p>
                             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                                 {article.abstract}
                             </p>
@@ -63,6 +63,7 @@ export default function ReportArticleCard({
                     )}
                     {cardFormat === 'abstract' && article.abstract && (
                         <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Abstract</p>
                             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                                 {article.abstract}
                             </p>

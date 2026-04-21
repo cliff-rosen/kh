@@ -20,6 +20,7 @@ export default function DashboardPage() {
     const [reportsError, setReportsError] = useState(false);
     const [starredArticles, setStarredArticles] = useState<ReportArticle[]>([]);
     const [starredLoading, setStarredLoading] = useState(true);
+    const [favoritesExpanded, setFavoritesExpanded] = useState(false);
     const navigate = useNavigate();
 
     const canCreateStream = isPlatformAdmin || isOrgAdmin;
@@ -37,7 +38,7 @@ export default function DashboardPage() {
 
         // Load recently starred articles
         setStarredLoading(true);
-        starringApi.getAllStarred(5)
+        starringApi.getAllStarred(15)
             .then(response => setStarredArticles(response.articles))
             .catch(err => console.error('Failed to load starred articles:', err))
             .finally(() => setStarredLoading(false));
@@ -146,31 +147,45 @@ export default function DashboardPage() {
                                 </p>
                             </div>
                         ) : (
-                            <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                                {starredArticles.map((article) => (
-                                    <div
-                                        key={`${article.report_id}-${article.article_id}`}
-                                        onClick={() => handleStarredArticleClick(article)}
-                                        className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <StarIcon className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-1" />
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                                    {article.title}
-                                                </h3>
-                                                <div className="flex flex-wrap gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                    {article.journal && <span>{article.journal}</span>}
-                                                    {article.pub_year && (
-                                                        <span>• {formatArticleDate(article.pub_year, article.pub_month, article.pub_day)}</span>
-                                                    )}
-                                                    <span>• {article.stream_name}</span>
+                            <>
+                                <div className={`divide-y divide-gray-200 dark:divide-gray-700 ${favoritesExpanded ? 'max-h-[600px] overflow-y-auto' : ''}`}>
+                                    {(favoritesExpanded ? starredArticles : starredArticles.slice(0, 5)).map((article) => (
+                                        <div
+                                            key={`${article.report_id}-${article.article_id}`}
+                                            onClick={() => handleStarredArticleClick(article)}
+                                            className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <StarIcon className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-1" />
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                                        {article.title}
+                                                    </h3>
+                                                    <div className="flex flex-wrap gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                        {article.journal && <span>{article.journal}</span>}
+                                                        {article.pub_year && (
+                                                            <span>• {formatArticleDate(article.pub_year, article.pub_month, article.pub_day)}</span>
+                                                        )}
+                                                        <span>• {article.stream_name}</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
+                                    ))}
+                                </div>
+                                {starredArticles.length > 5 && (
+                                    <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700">
+                                        <button
+                                            onClick={() => setFavoritesExpanded(!favoritesExpanded)}
+                                            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                        >
+                                            {favoritesExpanded
+                                                ? 'Show less'
+                                                : `Show more (${starredArticles.length - 5} more)`}
+                                        </button>
                                     </div>
-                                ))}
-                            </div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}

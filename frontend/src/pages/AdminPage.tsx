@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon, ClockIcon, ChatBubbleLeftRightIcon, Cog6ToothIcon, BugAntIcon } from '@heroicons/react/24/outline';
+import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon, ClockIcon, ChatBubbleLeftRightIcon, Cog6ToothIcon, BugAntIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
-import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList, ConversationList, ChatConfigPanel, ArtifactList } from '../components/admin';
+import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList, ConversationList, ChatConfigPanel, ArtifactList, AccessRequestList } from '../components/admin';
 
-type AdminTab = 'organizations' | 'users' | 'invitations' | 'streams' | 'activity' | 'conversations' | 'chat-config' | 'artifacts';
+type AdminTab = 'organizations' | 'users' | 'invitations' | 'access-requests' | 'streams' | 'activity' | 'conversations' | 'chat-config' | 'artifacts';
 
 interface TabGroup {
     label: string;
@@ -22,6 +22,7 @@ const tabGroups: TabGroup[] = [
             { id: 'organizations', label: 'Organizations', icon: BuildingOfficeIcon },
             { id: 'users', label: 'Users', icon: UsersIcon },
             { id: 'invitations', label: 'Invitations', icon: EnvelopeIcon },
+            { id: 'access-requests', label: 'Access Requests', icon: UserPlusIcon },
         ],
     },
     {
@@ -117,6 +118,7 @@ export default function AdminPage() {
                 {activeTab === 'streams' && <GlobalStreamList />}
                 {activeTab === 'users' && <UserList />}
                 {activeTab === 'invitations' && <InvitationList />}
+                {activeTab === 'access-requests' && <AccessRequestList />}
                 {activeTab === 'activity' && <ActivityList />}
                 {activeTab === 'conversations' && <ConversationList />}
                 {activeTab === 'chat-config' && <ChatConfigPanel />}
